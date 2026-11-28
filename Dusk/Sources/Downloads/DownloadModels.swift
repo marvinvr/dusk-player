@@ -127,7 +127,7 @@ struct DownloadScope: Hashable, Sendable {
         self.type = type
     }
 
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
     var serverID: String? { id.serverID }
 }
 
@@ -170,7 +170,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// matching server is known (see `DownloadManager`).
     var serverID: String
     var serverName: String?
-    let ratingKey: String
+    let itemID: String
     let type: MediaKind
     /// Whether the item is a video clip (Plex reports clips as `type == "movie"`
     /// with `subtype == "clip"`). Drives 16:9 artwork and the `.downloadedVideo`
@@ -179,14 +179,14 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var isClip: Bool = false
     var title: String
     var subtitle: String?
-    var parentRatingKey: String?
+    var parentID: String?
     var parentTitle: String?
-    var grandparentRatingKey: String?
+    var grandparentID: String?
     var grandparentTitle: String?
     var thumbPath: String?
     var artPath: String?
-    var mediaID: Int?
-    var partID: Int?
+    var mediaID: String?
+    var partID: String?
     var downloadQuality: DownloadQuality = .original
     /// Queued by the show's Keep Next N Unwatched rule (`SmartDownloadRule`),
     /// so the rule may remove it once watched. Manual downloads stay false.
@@ -229,7 +229,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// next to the download so it mounts offline. Nil until the item's sidecars
     /// were fetched once (an empty map: it has none), so downloads made before
     /// subtitles were saved fetch theirs the next time their server is online.
-    var externalSubtitlePaths: [Int: String]? = nil
+    var externalSubtitlePaths: [String: String]? = nil
     /// A sidecar could not be fetched; the next backfill retries the missing ones.
     var hasMissingExternalSubtitles: Bool = false
     var resumeDataPath: String?
@@ -246,10 +246,10 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case accountProfileID, serverID, serverName, ratingKey, type, isClip
+        case accountProfileID, serverID, serverName, itemID = "ratingKey", type, isClip
         case title, subtitle
-        case parentRatingKey, parentTitle
-        case grandparentRatingKey, grandparentTitle
+        case parentID = "parentRatingKey", parentTitle
+        case grandparentID = "grandparentRatingKey", grandparentTitle
         case thumbPath, artPath
         case mediaID, partID
         case downloadQuality, isSmartDownload, queueClientIdentifier, plexDownloadQueueID, plexDownloadItemID
@@ -263,13 +263,13 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
         Self.globalKey(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            ratingKey: ratingKey
+            itemID: itemID
         )
     }
 
     /// Server-scoped identity of the downloaded item, for playback and lookups.
-    var itemID: MediaItemID {
-        MediaItemID(serverID: serverID, ratingKey: ratingKey)
+    var mediaItemID: MediaItemID {
+        MediaItemID(serverID: serverID, itemID: itemID)
     }
 
     var displayTitle: String {
@@ -279,19 +279,19 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
         return title
     }
 
-    static func globalKey(serverID: String, ratingKey: String) -> String {
-        globalKey(accountProfileID: nil, serverID: serverID, ratingKey: ratingKey)
+    static func globalKey(serverID: String, itemID: String) -> String {
+        globalKey(accountProfileID: nil, serverID: serverID, itemID: itemID)
     }
 
-    static func globalKey(accountProfileID: String?, serverID: String, ratingKey: String) -> String {
+    static func globalKey(accountProfileID: String?, serverID: String, itemID: String) -> String {
         if let accountProfileID = accountProfileID?.nilIfEmpty {
-            return "\(accountProfileID):\(serverID):\(ratingKey)"
+            return "\(accountProfileID):\(serverID):\(itemID)"
         }
-        return "\(serverID):\(ratingKey)"
+        return "\(serverID):\(itemID)"
     }
 
     var legacyGlobalKey: String {
-        Self.globalKey(serverID: serverID, ratingKey: ratingKey)
+        Self.globalKey(serverID: serverID, itemID: itemID)
     }
 
     /// The source part's external subtitles that can be saved for offline
@@ -307,26 +307,27 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
 
 extension DownloadedMediaRecord {
     /// Custom decoding (kept in an extension so the memberwise initializer
-    /// survives) solely so `isClip` can default to false for snapshots written
-    /// before the flag existed. Encoding stays synthesized.
+    /// survives) so `isClip` can default to false for snapshots written before
+    /// the flag existed, and so `mediaID`/`partID` decode from a number or a
+    /// string.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         accountProfileID = try container.decodeIfPresent(String.self, forKey: .accountProfileID)
         serverID = try container.decode(String.self, forKey: .serverID)
         serverName = try container.decodeIfPresent(String.self, forKey: .serverName)
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         type = try container.decode(MediaKind.self, forKey: .type)
         isClip = try container.decodeIfPresent(Bool.self, forKey: .isClip) ?? false
         title = try container.decode(String.self, forKey: .title)
         subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
-        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
-        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
         thumbPath = try container.decodeIfPresent(String.self, forKey: .thumbPath)
         artPath = try container.decodeIfPresent(String.self, forKey: .artPath)
-        mediaID = try container.decodeIfPresent(Int.self, forKey: .mediaID)
-        partID = try container.decodeIfPresent(Int.self, forKey: .partID)
+        mediaID = try container.decodeIDIfPresent(forKey: .mediaID)
+        partID = try container.decodeIDIfPresent(forKey: .partID)
         downloadQuality = try container.decodeIfPresent(DownloadQuality.self, forKey: .downloadQuality) ?? .original
         isSmartDownload = try container.decodeIfPresent(Bool.self, forKey: .isSmartDownload) ?? false
         queueClientIdentifier = try container.decodeIfPresent(String.self, forKey: .queueClientIdentifier)
@@ -336,7 +337,7 @@ extension DownloadedMediaRecord {
         preparationRetryCount = try container.decodeIfPresent(Int.self, forKey: .preparationRetryCount) ?? 0
         convertedMediaData = try container.decodeIfPresent(Data.self, forKey: .convertedMediaData)
         relativeVideoPath = try container.decodeIfPresent(String.self, forKey: .relativeVideoPath)
-        externalSubtitlePaths = try container.decodeIfPresent([Int: String].self, forKey: .externalSubtitlePaths)
+        externalSubtitlePaths = try container.decodeIfPresent([String: String].self, forKey: .externalSubtitlePaths)
         hasMissingExternalSubtitles = try container.decodeIfPresent(
             Bool.self,
             forKey: .hasMissingExternalSubtitles
@@ -359,7 +360,7 @@ extension DownloadedMediaRecord {
 
 struct DownloadedShowSummary: Identifiable, Hashable {
     let serverID: String
-    let ratingKey: String
+    let itemID: String
     let title: String
     let thumbPath: String?
     let artPath: String?
@@ -371,11 +372,11 @@ struct DownloadedShowSummary: Identifiable, Hashable {
     var pendingEpisodeCount: Int = 0
 
     var id: String {
-        DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
+        DownloadedMediaRecord.globalKey(serverID: serverID, itemID: itemID)
     }
 
-    var itemID: MediaItemID {
-        MediaItemID(serverID: serverID, ratingKey: ratingKey)
+    var mediaItemID: MediaItemID {
+        MediaItemID(serverID: serverID, itemID: itemID)
     }
 
     var subtitle: String {
@@ -409,7 +410,57 @@ struct DownloadQueueRemoval: Codable, Sendable, Hashable {
     let profileID: String
     let serverID: String
     let clientIdentifier: String
-    let ratingKey: String
+    let itemID: String
     let queueID: String?
-    let itemID: String?
+    let queueItemID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case profileID, serverID, clientIdentifier, itemID = "ratingKey", queueID
+        case queueItemID = "itemID"
+    }
+}
+
+extension DownloadedMediaRecord {
+    /// Matches the synthesized encoding; `mediaID`/`partID` are written back as
+    /// numbers when they are numbers, as they always were (`encodeID`).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(accountProfileID, forKey: .accountProfileID)
+        try container.encode(serverID, forKey: .serverID)
+        try container.encodeIfPresent(serverName, forKey: .serverName)
+        try container.encode(itemID, forKey: .itemID)
+        try container.encode(type, forKey: .type)
+        try container.encode(isClip, forKey: .isClip)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(subtitle, forKey: .subtitle)
+        try container.encodeIfPresent(parentID, forKey: .parentID)
+        try container.encodeIfPresent(parentTitle, forKey: .parentTitle)
+        try container.encodeIfPresent(grandparentID, forKey: .grandparentID)
+        try container.encodeIfPresent(grandparentTitle, forKey: .grandparentTitle)
+        try container.encodeIfPresent(thumbPath, forKey: .thumbPath)
+        try container.encodeIfPresent(artPath, forKey: .artPath)
+        try container.encodeIDIfPresent(mediaID, forKey: .mediaID)
+        try container.encodeIDIfPresent(partID, forKey: .partID)
+        try container.encode(downloadQuality, forKey: .downloadQuality)
+        try container.encode(isSmartDownload, forKey: .isSmartDownload)
+        try container.encodeIfPresent(queueClientIdentifier, forKey: .queueClientIdentifier)
+        try container.encodeIfPresent(plexDownloadQueueID, forKey: .plexDownloadQueueID)
+        try container.encodeIfPresent(plexDownloadItemID, forKey: .plexDownloadItemID)
+        try container.encodeIfPresent(preparationProgress, forKey: .preparationProgress)
+        try container.encode(preparationRetryCount, forKey: .preparationRetryCount)
+        try container.encodeIfPresent(convertedMediaData, forKey: .convertedMediaData)
+        try container.encodeIfPresent(relativeVideoPath, forKey: .relativeVideoPath)
+        try container.encodeIfPresent(externalSubtitlePaths, forKey: .externalSubtitlePaths)
+        try container.encode(hasMissingExternalSubtitles, forKey: .hasMissingExternalSubtitles)
+        try container.encodeIfPresent(resumeDataPath, forKey: .resumeDataPath)
+        try container.encodeIfPresent(downloadTaskIdentifier, forKey: .downloadTaskIdentifier)
+        try container.encode(wasPausedForProfileSwitch, forKey: .wasPausedForProfileSwitch)
+        try container.encode(status, forKey: .status)
+        try container.encode(progress, forKey: .progress)
+        try container.encode(downloadedBytes, forKey: .downloadedBytes)
+        try container.encodeIfPresent(totalBytes, forKey: .totalBytes)
+        try container.encodeIfPresent(errorMessage, forKey: .errorMessage)
+        try container.encode(addedAt, forKey: .addedAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+    }
 }

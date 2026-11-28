@@ -150,14 +150,14 @@ final class PhotoBrowserViewModel {
     }
 
     func route(for albumItem: PhotoItem) -> AppNavigationRoute {
-        .photoAlbum(PhotoAlbumRoute(library: library, ratingKey: albumItem.ratingKey, title: albumItem.title))
+        .photoAlbum(PhotoAlbumRoute(library: library, itemID: albumItem.itemID, title: albumItem.title))
     }
 
     // MARK: - Paging
 
     private func makeStages() -> [PlexPhotoQuery] {
         if let album {
-            return [.albums(parent: album.ratingKey), .media(parent: album.ratingKey)]
+            return [.albums(parent: album.itemID), .media(parent: album.itemID)]
         }
         switch mode {
         case .albums: return [.albums(parent: nil), .media(parent: nil)]

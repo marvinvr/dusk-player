@@ -25,7 +25,7 @@ final class DetailExtrasModel {
         // Offline or unreachable: no row, same as a title without extras, and
         // the next appearance asks again.
         guard let loaded = try? await plexService.getExtras(
-            ratingKey: itemID.ratingKey,
+            itemID: itemID.itemID,
             serverID: itemID.serverID
         ), !Task.isCancelled else { return }
         loadedID = itemID
@@ -41,7 +41,7 @@ final class DetailExtrasModel {
     func trailer(primaryExtraKey: String?) -> Extra? {
         let trailers = extras.filter { $0.kind == .trailer }
         if let primaryExtraKey,
-           let primary = trailers.first(where: { primaryExtraKey.hasSuffix("/\($0.item.ratingKey)") }) {
+           let primary = trailers.first(where: { primaryExtraKey.hasSuffix("/\($0.item.itemID)") }) {
             return primary
         }
         return trailers.first

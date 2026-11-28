@@ -21,46 +21,46 @@ struct PersistedGoldenStringTests {
     // MARK: - Item identity
 
     @Test func itemStorageKeyForms() {
-        #expect(MediaItemID(serverID: "srv-a", ratingKey: "1001").storageKey == "srv-a|1001")
-        #expect(MediaItemID(serverID: nil, ratingKey: "1001").storageKey == "1001")
-        #expect(MediaItemID(serverID: "", ratingKey: "1001").storageKey == "1001")
-        #expect(MediaItemID(serverID: "srv-a", ratingKey: "1001").description == "srv-a|1001")
+        #expect(MediaItemID(serverID: "srv-a", itemID: "1001").storageKey == "srv-a|1001")
+        #expect(MediaItemID(serverID: nil, itemID: "1001").storageKey == "1001")
+        #expect(MediaItemID(serverID: "", itemID: "1001").storageKey == "1001")
+        #expect(MediaItemID(serverID: "srv-a", itemID: "1001").description == "srv-a|1001")
     }
 
     @Test func itemStorageKeyParsing() {
-        #expect(MediaItemID(storageKey: "srv-a|1001") == MediaItemID(serverID: "srv-a", ratingKey: "1001"))
+        #expect(MediaItemID(storageKey: "srv-a|1001") == MediaItemID(serverID: "srv-a", itemID: "1001"))
         // Legacy form without a server: the whole string is the rating key.
         let legacy = MediaItemID(storageKey: "1001")
         #expect(legacy?.serverID == nil)
-        #expect(legacy?.ratingKey == "1001")
+        #expect(legacy?.itemID == "1001")
         #expect(MediaItemID(storageKey: "") == nil)
         #expect(MediaItemID(storageKey: "srv-a|") == nil)
         let emptyServer = MediaItemID(storageKey: "|123")
         #expect(emptyServer?.serverID == nil)
-        #expect(emptyServer?.ratingKey == "123")
+        #expect(emptyServer?.itemID == "123")
         // Only the first "|" separates.
         let nested = MediaItemID(storageKey: "a|b|c")
         #expect(nested?.serverID == "a")
-        #expect(nested?.ratingKey == "b|c")
+        #expect(nested?.itemID == "b|c")
     }
 
     @Test func itemIDJSONForm() throws {
-        let full = try JSONEncoder().encode(MediaItemID(serverID: "srv-a", ratingKey: "1001"))
+        let full = try JSONEncoder().encode(MediaItemID(serverID: "srv-a", itemID: "1001"))
         try LegacyFixture.expectSameJSON(full, Data(#"{"serverID":"srv-a","ratingKey":"1001"}"#.utf8))
-        let unscoped = try JSONEncoder().encode(MediaItemID(serverID: nil, ratingKey: "1001"))
+        let unscoped = try JSONEncoder().encode(MediaItemID(serverID: nil, itemID: "1001"))
         try LegacyFixture.expectSameJSON(unscoped, Data(#"{"ratingKey":"1001"}"#.utf8))
     }
 
     // MARK: - Download keys
 
     @Test func downloadGlobalKeyForms() {
-        #expect(DownloadedMediaRecord.globalKey(accountProfileID: "4f2a9c1d7e3b5a60", serverID: "srv-a", ratingKey: "1001")
+        #expect(DownloadedMediaRecord.globalKey(accountProfileID: "4f2a9c1d7e3b5a60", serverID: "srv-a", itemID: "1001")
             == "4f2a9c1d7e3b5a60:srv-a:1001")
-        #expect(DownloadedMediaRecord.globalKey(accountProfileID: nil, serverID: "srv-a", ratingKey: "1001") == "srv-a:1001")
-        #expect(DownloadedMediaRecord.globalKey(accountProfileID: "", serverID: "srv-a", ratingKey: "1001") == "srv-a:1001")
-        #expect(DownloadedMediaRecord.globalKey(serverID: "srv-a", ratingKey: "1001") == "srv-a:1001")
+        #expect(DownloadedMediaRecord.globalKey(accountProfileID: nil, serverID: "srv-a", itemID: "1001") == "srv-a:1001")
+        #expect(DownloadedMediaRecord.globalKey(accountProfileID: "", serverID: "srv-a", itemID: "1001") == "srv-a:1001")
+        #expect(DownloadedMediaRecord.globalKey(serverID: "srv-a", itemID: "1001") == "srv-a:1001")
         let summary = DownloadedShowSummary(
-            serverID: "srv-a", ratingKey: "2000", title: "Show", thumbPath: nil, artPath: nil,
+            serverID: "srv-a", itemID: "2000", title: "Show", thumbPath: nil, artPath: nil,
             downloadedEpisodeCount: 1, totalEpisodeCount: nil
         )
         #expect(summary.id == "srv-a:2000")
@@ -117,7 +117,7 @@ struct PersistedGoldenStringTests {
                 under: root
             )
             let cache = PlexMetadataCache(fileStore: DownloadFileStore(rootDirectory: root))
-            let details = try #require(cache.mediaDetails(accountProfileID: owner, serverID: serverA, ratingKey: "1004"))
+            let details = try #require(cache.mediaDetails(accountProfileID: owner, serverID: serverA, itemID: "1004"))
             #expect(details.title == "Winter Stone")
             #expect(details.serverID == serverA)
         }
@@ -137,7 +137,7 @@ struct PersistedGoldenStringTests {
                 "Metadata/Profiles/4f2a9c1d7e3b5a60/a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9/a3d2fd1255dd164fe3a146fd6cabed9c4f5c911cf83d7a41d5f4b157240d2011.json"
             ).path))
             let cache = PlexMetadataCache(fileStore: store)
-            #expect(cache.mediaDetails(accountProfileID: owner, serverID: serverA, ratingKey: "1004")?.title == "Winter Stone")
+            #expect(cache.mediaDetails(accountProfileID: owner, serverID: serverA, itemID: "1004")?.title == "Winter Stone")
         }
     }
 
@@ -151,7 +151,7 @@ struct PersistedGoldenStringTests {
             #expect(store.artworkURL(for: "") == nil)
 
             let globalKey = "4f2a9c1d7e3b5a60:a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9:1001"
-            let subtitle = try store.saveSubtitle(Data("1\n".utf8), globalKey: globalKey, streamID: 7001, fileExtension: "srt")
+            let subtitle = try store.saveSubtitle(Data("1\n".utf8), globalKey: globalKey, streamID: "7001", fileExtension: "srt")
             #expect(subtitle == "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt")
             let resume = try store.saveResumeData(Data("resume".utf8), globalKey: globalKey)
             #expect(resume == "ResumeData/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e.resume")
@@ -208,7 +208,7 @@ struct PersistedGoldenStringTests {
         #expect(PinnedPlaylistStore.storageKey("") == nil)
         try LegacyFixture.withScratchDefaults { defaults in
             PinnedPlaylistStore(defaults: defaults)
-                .pin(MediaItemID(serverID: serverA, ratingKey: "5001"), title: "Pins", profileID: "plex-home-24601")
+                .pin(MediaItemID(serverID: serverA, itemID: "5001"), title: "Pins", profileID: "plex-home-24601")
             #expect(defaults.dictionaryRepresentation().keys.contains("PinnedHomePlaylists.v1.plex-home-24601"))
         }
     }
@@ -425,21 +425,21 @@ struct PersistedGoldenStringTests {
 
     @Test func siriEntityIDForm() {
         let entry = SiriCatalogEntry(
-            id: MediaItemID(serverID: "srv-a", ratingKey: "1001"), kind: .movie, title: "Arrival", year: 2016, lastViewedAt: nil
+            id: MediaItemID(serverID: "srv-a", itemID: "1001"), kind: .movie, title: "Arrival", year: 2016, lastViewedAt: nil
         )
         let entity = PlexTitleEntity(entry)
         #expect(entity.id == "srv-a|1001")
-        #expect(entity.candidate?.id == MediaItemID(serverID: "srv-a", ratingKey: "1001"))
+        #expect(entity.candidate?.id == MediaItemID(serverID: "srv-a", itemID: "1001"))
         #expect(SiriTitleKind.movie.rawValue == "movie")
         #expect(SiriTitleKind.show.rawValue == "show")
         // An id saved by a build without servers still resolves to an item.
         #expect(PlexTitleEntity(id: "1001", kind: .movie, title: "Arrival", year: nil).candidate?.id
-            == MediaItemID(serverID: nil, ratingKey: "1001"))
+            == MediaItemID(serverID: nil, itemID: "1001"))
     }
 
     @Test func sharePlayIdentifiers() throws {
         #expect(DuskWatchTogetherActivity.activityIdentifier == "com.dusk-player.app.watch-together")
-        let activity = DuskWatchTogetherActivity(serverIdentifier: "srv-a", ratingKey: "1001", title: "Arrival", subtitle: "2016")
+        let activity = DuskWatchTogetherActivity(serverIdentifier: "srv-a", itemID: "1001", title: "Arrival", subtitle: "2016")
         #expect(activity.playbackItemIdentifier == "plex://srv-a/metadata/1001")
         try LegacyFixture.expectSameJSON(
             try JSONEncoder().encode(activity),
@@ -475,7 +475,7 @@ struct PersistedGoldenStringTests {
         // Links already handed to tvOS by an older build.
         let parsed = try #require(TopShelfLink(url: URL(string: "dusk://play?server=srv-a&item=2011&type=episode")!))
         #expect(parsed.action == .play)
-        #expect(parsed.id == MediaItemID(serverID: "srv-a", ratingKey: "2011"))
+        #expect(parsed.id == MediaItemID(serverID: "srv-a", itemID: "2011"))
         #expect(parsed.type == .episode)
         #expect(parsed.isClip == false)
         #expect(TopShelfLink(url: URL(string: "dusk://open?item=2011&type=episode")!) == nil)

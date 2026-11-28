@@ -21,7 +21,7 @@ struct PrerollPlayback {
         let startPositionOverride: TimeInterval?
         let resumeOffsetMilliseconds: Int?
         let resumeOffsetDurationMilliseconds: Int?
-        let selectedMediaID: Int?
+        let selectedMediaID: String?
         let restrictToItemServer: Bool
     }
 
@@ -62,11 +62,11 @@ extension PlaybackCoordinator {
         let profileSession = plexService.serverSessionToken
         let queue: [MediaDetails]
         do {
-            queue = try await plexService.cinemaPrerolls(forMovieRatingKey: details.ratingKey, serverID: serverID)
+            queue = try await plexService.cinemaPrerolls(forMovieRatingKey: details.itemID, serverID: serverID)
         } catch {
             // Pre-rolls are never worth failing (or delaying) the movie over.
             prerollLogger.notice(
-                "Pre-roll lookup failed for ratingKey \(details.ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Pre-roll lookup failed for ratingKey \(details.itemID, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             return false
         }
@@ -78,7 +78,7 @@ extension PlaybackCoordinator {
         guard !items.isEmpty else { return false }
 
         prerollLogger.notice(
-            "Playing \(items.count, privacy: .public) pre-roll(s) before ratingKey \(details.ratingKey, privacy: .public)"
+            "Playing \(items.count, privacy: .public) pre-roll(s) before ratingKey \(details.itemID, privacy: .public)"
         )
         prerollPlayback = PrerollPlayback(items: items, serverID: serverID, feature: feature)
         startCurrentPreroll()
@@ -109,7 +109,7 @@ extension PlaybackCoordinator {
               ) ?? details.media.first,
               let part = media.firstAvailablePart,
               let url = plexService.directPlayURL(for: part, serverID: serverID) else {
-            prerollLogger.error("Skipping pre-roll ratingKey \(details.ratingKey, privacy: .public): no playable part")
+            prerollLogger.error("Skipping pre-roll ratingKey \(details.itemID, privacy: .public): no playable part")
             return nil
         }
         let engineType = StreamResolver.evaluate(
@@ -133,9 +133,9 @@ extension PlaybackCoordinator {
             }
         }
 
-        // No `ratingKey`: that is what keeps the timeline, scrobble and
+        // No `itemID`: that is what keeps the timeline, scrobble and
         // scene-phase reporting away from the pre-roll.
-        ratingKey = nil
+        itemID = nil
         activeItemDetails = nil
         debugInfo = nil
         didFinalizeCurrentSession = false
@@ -147,7 +147,7 @@ extension PlaybackCoordinator {
             context: PlaybackAttemptContext(
                 attemptID: currentPlaybackAttemptID ?? UUID(),
                 title: item.details.title,
-                ratingKey: item.details.ratingKey,
+                itemID: item.details.itemID,
                 engine: item.engineType,
                 resolverReason: "Plex pre-roll",
                 mediaID: item.media.id,

@@ -41,7 +41,7 @@ enum StreamResolver {
         media: MediaVersion,
         part: MediaPart,
         enhancementMode: VideoEnhancementMode,
-        selectedSubtitleStreamID: Int?,
+        selectedSubtitleStreamID: String?,
         forceAVPlayer: Bool = false,
         forceVLCKit: Bool = false
     ) -> Decision {

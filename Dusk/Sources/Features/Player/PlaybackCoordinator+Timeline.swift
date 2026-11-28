@@ -36,7 +36,7 @@ extension PlaybackCoordinator {
     }
 
     func reportCurrentTimeline(stateOverride: PlaybackState? = nil) {
-        guard let engine, let ratingKey else { return }
+        guard let engine, let itemID else { return }
 
         nowPlayingController.updatePlaybackState(
             state: engine.state,
@@ -77,7 +77,7 @@ extension PlaybackCoordinator {
         lastReportedDurationMs = durationMs
 
         reportTimelineOrQueueOfflineSync(
-            ratingKey: ratingKey,
+            itemID: itemID,
             state: plexState,
             timeMs: timeMs,
             durationMs: durationMs
@@ -90,7 +90,7 @@ extension PlaybackCoordinator {
             if activePlaybackUsesLocalDownload {
                 offlinePlaybackSyncManager?.recordProgress(
                     serverID: activePlaybackServerID,
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     viewOffsetMs: timeMs,
                     durationMs: durationMs,
                     state: plexState
@@ -101,7 +101,7 @@ extension PlaybackCoordinator {
             } else {
                 let serverID = activePlaybackServerID
                 Task {
-                    try? await plexService.scrobble(ratingKey: ratingKey, serverID: serverID)
+                    try? await plexService.scrobble(itemID: itemID, serverID: serverID)
                 }
             }
         }
@@ -110,12 +110,12 @@ extension PlaybackCoordinator {
     /// Hands a scrobbled movie/episode to Trakt (when linked). Fire and forget:
     /// `TraktService` only queues, so playback never waits on or sees Trakt.
     func reportFinishedToTrakt() {
-        guard let traktService, let details = activeItemDetails, details.ratingKey == ratingKey else { return }
+        guard let traktService, let details = activeItemDetails, details.itemID == itemID else { return }
         traktService.recordFinished(type: details.type, guid: details.guid, guids: details.guids)
     }
 
     func reportTimelineOrQueueOfflineSync(
-        ratingKey: String,
+        itemID: String,
         state: PlaybackState,
         timeMs: Int,
         durationMs: Int
@@ -126,7 +126,7 @@ extension PlaybackCoordinator {
         if activePlaybackUsesLocalDownload {
             offlinePlaybackSyncManager?.recordProgress(
                 serverID: activePlaybackServerID,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 viewOffsetMs: timeMs,
                 durationMs: durationMs,
                 state: state
@@ -143,7 +143,7 @@ extension PlaybackCoordinator {
             let serverID = activePlaybackServerID
             Task {
                 await plexService.reportTimeline(
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     key: timelineKey,
                     state: state,
                     timeMs: timeMs,
@@ -156,7 +156,7 @@ extension PlaybackCoordinator {
     }
 
     func flushTimelineForScenePhase(_ phase: ScenePhase) {
-        guard engine != nil, ratingKey != nil else { return }
+        guard engine != nil, itemID != nil else { return }
 
         switch phase {
         case .inactive:

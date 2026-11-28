@@ -154,8 +154,8 @@ struct DuskApp: App {
         let analyticsClient = AnalyticsClient(preferences: prefs)
         let downloads = DownloadManager(plexService: service, preferences: prefs)
         let playbackSync = OfflinePlaybackSyncManager(plexService: service)
-        downloads.effectiveWatchedState = { [weak playbackSync] serverID, ratingKey, fallback in
-            playbackSync?.effectiveWatched(serverID: serverID, ratingKey: ratingKey, fallback: fallback) ?? fallback
+        downloads.effectiveWatchedState = { [weak playbackSync] serverID, itemID, fallback in
+            playbackSync?.effectiveWatched(serverID: serverID, itemID: itemID, fallback: fallback) ?? fallback
         }
         #if os(iOS)
         SmartDownloadBackgroundRefill.register(downloadManager: downloads)

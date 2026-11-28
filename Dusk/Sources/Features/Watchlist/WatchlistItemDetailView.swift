@@ -59,9 +59,9 @@ final class WatchlistItemDetailViewModel {
     /// summary) and the services only add to it, and failing them is quiet.
     func load() async {
         guard !hasLoaded else { return }
-        let ratingKey = entry.ratingKey
-        async let metadata = try? plexService.getWatchlistMetadata(ratingKey: ratingKey)
-        async let availabilities = try? plexService.getWatchlistAvailabilities(ratingKey: ratingKey)
+        let itemID = entry.itemID
+        async let metadata = try? plexService.getWatchlistMetadata(itemID: itemID)
+        async let availabilities = try? plexService.getWatchlistAvailabilities(itemID: itemID)
         if let details = await metadata {
             entry = details
         }

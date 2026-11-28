@@ -77,7 +77,7 @@ struct PlaybackSourceResolver {
         }
         return normalized.map { instance in
             instance.serverID == nil
-                ? MediaItemID(serverID: primaryID, ratingKey: instance.ratingKey)
+                ? MediaItemID(serverID: primaryID, itemID: instance.itemID)
                 : instance
         }
     }
@@ -88,7 +88,7 @@ struct PlaybackSourceResolver {
         guard id.serverID == nil, let primaryID = plexService.pool.primary?.serverID else {
             return id
         }
-        return MediaItemID(serverID: primaryID, ratingKey: id.ratingKey)
+        return MediaItemID(serverID: primaryID, itemID: id.itemID)
     }
 
     private func orderedByPriority(_ instances: [MediaItemID]) -> [MediaItemID] {

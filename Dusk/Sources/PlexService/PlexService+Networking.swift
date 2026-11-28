@@ -467,7 +467,7 @@ struct DirectoryResponse<T: Decodable>: Decodable {
 }
 
 /// Envelope for endpoints that answer with a bare `Stream` array, such as
-/// `/library/metadata/{ratingKey}/subtitles`. Some servers answer `size: 0`
+/// `/library/metadata/{itemID}/subtitles`. Some servers answer `size: 0`
 /// with no `Stream` key, so the array stays optional.
 struct StreamResponse<T: Decodable>: Decodable {
     let MediaContainer: Container

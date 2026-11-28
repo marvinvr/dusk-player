@@ -26,10 +26,12 @@ extension PlayerViewModel {
         }
 
         if usesServerTrackSelection {
-            serverSelectedSubtitleStreamID = track?.id
+            // Server-selected tracks are built from the part's streams, so
+            // their engine id is the Plex stream number.
+            serverSelectedSubtitleStreamID = track.map { String($0.id) }
             selectedSubtitleTrackID = track?.id
             showSubtitlePicker = false
-            plexTrackSelectionHandler?(selectedAudioTrackID, track?.id)
+            plexTrackSelectionHandler?(selectedAudioTrackID.map(String.init), track.map { String($0.id) })
             return
         }
         engine.selectSubtitleTrack(track)
@@ -60,9 +62,9 @@ extension PlayerViewModel {
         showAudioPicker = false
 
         if usesServerTrackSelection {
-            serverSelectedAudioStreamID = track.id
+            serverSelectedAudioStreamID = String(track.id)
             selectedAudioTrackID = track.id
-            plexTrackSelectionHandler?(track.plexStreamID ?? track.id, selectedSubtitleTrackID)
+            plexTrackSelectionHandler?(track.plexStreamID ?? String(track.id), selectedSubtitleTrackID.map(String.init))
             return
         }
 
@@ -88,12 +90,12 @@ extension PlayerViewModel {
             subtitleTracks = sourcePart?.streams
                 .filter { $0.streamType == .subtitle }
                 .map(SubtitleTrack.init(stream:)) ?? []
-            selectedAudioTrackID = serverSelectedAudioStreamID
+            selectedAudioTrackID = serverSelectedAudioStreamID.flatMap { Int($0) }
                 ?? audioTracks.first(where: { track in
-                    sourcePart?.streams.first(where: { $0.id == track.id })?.isSelected ?? false
+                    sourcePart?.streams.first(where: { $0.id == track.plexStreamID })?.isSelected ?? false
                 })?.id
                 ?? audioTracks.first?.id
-            selectedSubtitleTrackID = serverSelectedSubtitleStreamID
+            selectedSubtitleTrackID = serverSelectedSubtitleStreamID.flatMap { Int($0) }
             return
         }
 
@@ -229,7 +231,7 @@ extension PlayerViewModel {
 
     /// Re-reads the active part after Plex installed a sidecar mid-session,
     /// mounts whatever is new, and selects `streamID` once it is up.
-    func reloadExternalSubtitleStreams(part: MediaPart?, selecting streamID: Int?) {
+    func reloadExternalSubtitleStreams(part: MediaPart?, selecting streamID: String?) {
         sourcePart = part
         if let streamID {
             pendingExternalSubtitleStreamID = streamID
@@ -871,7 +873,7 @@ extension PlayerViewModel {
     static func preferredAudioStreamID(
         inPart part: MediaPart?,
         preferredLanguage: String?
-    ) -> Int? {
+    ) -> String? {
         guard let part else { return nil }
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         if let position = preferredAudioStreamPosition(
@@ -925,7 +927,7 @@ extension PlayerViewModel {
         inPart part: MediaPart?,
         policy: SubtitleSelectionPolicy,
         audioStream: MediaStream?
-    ) -> Int? {
+    ) -> String? {
         guard let part else { return nil }
         let tracks = part.streams
             .filter { $0.streamType == .subtitle }
@@ -936,13 +938,13 @@ extension PlayerViewModel {
             in: tracks,
             audioLanguage: startupAudio?.languageCode ?? startupAudio?.languageTag,
             serverSelectedStreamID: serverSelectedStreamID(of: .subtitle, inPart: part)
-        )?.id
+        )?.plexStreamID
     }
 
     /// The stream of `type` the server marks `selected` for this part: a
     /// choice saved by any Plex client (or a bulk tool such as PASTA), else
     /// Plex's own pick from the account language settings.
-    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: MediaPart?) -> Int? {
+    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: MediaPart?) -> String? {
         part?.streams.first { $0.streamType == type && ($0.isSelected ?? false) }?.id
     }
 

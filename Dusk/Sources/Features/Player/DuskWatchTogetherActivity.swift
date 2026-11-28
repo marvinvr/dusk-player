@@ -11,14 +11,18 @@ struct DuskWatchTogetherActivity: GroupActivity, Equatable, Sendable {
     static let activityIdentifier = "com.dusk-player.app.watch-together"
 
     let serverIdentifier: String
-    let ratingKey: String
+    let itemID: String
     let title: String
     let subtitle: String?
+
+    enum CodingKeys: String, CodingKey {
+        case serverIdentifier, itemID = "ratingKey", title, subtitle
+    }
 
     /// Shared by AVPlayer and VLCKit playback coordinators. A rating key is
     /// unique only within one Plex server, so both pieces are required.
     var playbackItemIdentifier: String {
-        "plex://\(serverIdentifier)/metadata/\(ratingKey)"
+        "plex://\(serverIdentifier)/metadata/\(itemID)"
     }
 
     var metadata: GroupActivityMetadata {

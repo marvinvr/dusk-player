@@ -30,18 +30,18 @@ struct LegacyContainerRecorder {
                     accountProfileID: V.ownerProfile,
                     serverID: V.serverA,
                     serverName: "Living Room",
-                    ratingKey: "1001",
+                    itemID: "1001",
                     type: .movie,
                     title: "Arrival",
                     subtitle: "2016",
                     thumbPath: "/library/metadata/1001/thumb/1700000000",
                     artPath: "/library/metadata/1001/art/1700000000",
-                    mediaID: 501,
-                    partID: 601,
+                    mediaID: "501",
+                    partID: "601",
                     relativeVideoPath: "Profiles/4f2a9c1d7e3b5a60/Movies/Arrival (2016)/Arrival (2016).mkv",
                     externalSubtitlePaths: [
-                        7001: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
-                        7002: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
+                        "7001": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
+                        "7002": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
                     ],
                     status: .completed,
                     progress: 1,
@@ -55,18 +55,18 @@ struct LegacyContainerRecorder {
                     accountProfileID: V.kidProfile,
                     serverID: V.serverB,
                     serverName: "Friend's Server",
-                    ratingKey: "2011",
+                    itemID: "2011",
                     type: .episode,
                     title: "Pilot",
                     subtitle: "S1 · E1",
-                    parentRatingKey: "2010",
+                    parentID: "2010",
                     parentTitle: "Season 1",
-                    grandparentRatingKey: "2000",
+                    grandparentID: "2000",
                     grandparentTitle: "Severance",
                     thumbPath: "/library/metadata/2011/thumb/1700000001",
                     artPath: nil,
-                    mediaID: 81,
-                    partID: 82,
+                    mediaID: "81",
+                    partID: "82",
                     downloadQuality: .p720,
                     isSmartDownload: true,
                     queueClientIdentifier: "C0FFEE00-1111-4222-8333-944445555666",
@@ -94,7 +94,7 @@ struct LegacyContainerRecorder {
                     accountProfileID: nil,
                     serverID: V.legacyBaseURLServer,
                     serverName: nil,
-                    ratingKey: "3001",
+                    itemID: "3001",
                     type: .movie,
                     isClip: true,
                     title: "Behind the Scenes",
@@ -112,9 +112,9 @@ struct LegacyContainerRecorder {
                     profileID: V.kidProfile,
                     serverID: V.serverB,
                     clientIdentifier: "C0FFEE00-1111-4222-8333-944445555666",
-                    ratingKey: "2012",
+                    itemID: "2012",
                     queueID: "17",
-                    itemID: nil
+                    queueItemID: nil
                 ),
             ],
             smartDownloadRules: [
@@ -146,7 +146,7 @@ struct LegacyContainerRecorder {
             OfflinePlaybackSyncAction(
                 accountProfileID: V.ownerProfile,
                 serverID: V.serverA,
-                ratingKey: "1001",
+                itemID: "1001",
                 kind: .progress,
                 viewOffsetMs: 1_234_000,
                 durationMs: 6_960_000,
@@ -161,7 +161,7 @@ struct LegacyContainerRecorder {
             OfflinePlaybackSyncAction(
                 accountProfileID: nil,
                 serverID: V.legacyBaseURLServer,
-                ratingKey: "3001",
+                itemID: "3001",
                 kind: .watched,
                 viewOffsetMs: nil,
                 durationMs: nil,
@@ -176,7 +176,7 @@ struct LegacyContainerRecorder {
             OfflinePlaybackSyncAction(
                 accountProfileID: V.kidProfile,
                 serverID: V.serverB,
-                ratingKey: "2011",
+                itemID: "2011",
                 kind: .unwatched,
                 viewOffsetMs: 0,
                 durationMs: 2_520_000,
@@ -203,8 +203,8 @@ struct LegacyContainerRecorder {
     @Test func recordPinnedPlaylists() throws {
         try LegacyFixture.withScratchDefaults { defaults in
             let store = PinnedPlaylistStore(defaults: defaults)
-            store.pin(MediaItemID(serverID: V.serverA, ratingKey: "5001"), title: "Friday Movie Night", profileID: V.ownerProfile)
-            store.pin(MediaItemID(serverID: nil, ratingKey: "5002"), title: "Old Pin", profileID: V.ownerProfile)
+            store.pin(MediaItemID(serverID: V.serverA, itemID: "5001"), title: "Friday Movie Night", profileID: V.ownerProfile)
+            store.pin(MediaItemID(serverID: nil, itemID: "5002"), title: "Old Pin", profileID: V.ownerProfile)
             let data = try #require(defaults.data(forKey: "PinnedHomePlaylists.v1.4f2a9c1d7e3b5a60"))
             try LegacyFixture.record(data, as: "LegacyContainer-PinnedHomePlaylists.json")
         }
@@ -370,11 +370,11 @@ struct LegacyContainerRecorder {
         // captured container (LegacyContainer-real-siriTitleCatalog.json).
         let entries = [
             SiriCatalogEntry(
-                id: MediaItemID(serverID: V.serverA, ratingKey: "1001"),
+                id: MediaItemID(serverID: V.serverA, itemID: "1001"),
                 kind: .movie, title: "Arrival", year: 2016, lastViewedAt: 1_767_225_600
             ),
             SiriCatalogEntry(
-                id: MediaItemID(serverID: V.serverB, ratingKey: "2000"),
+                id: MediaItemID(serverID: V.serverB, itemID: "2000"),
                 kind: .show, title: "Severance", year: nil, lastViewedAt: nil
             ),
         ]
@@ -383,7 +383,7 @@ struct LegacyContainerRecorder {
 
     @Test func recordWatchTogetherActivity() throws {
         let activity = DuskWatchTogetherActivity(
-            serverIdentifier: V.serverA, ratingKey: "1001", title: "Arrival", subtitle: nil
+            serverIdentifier: V.serverA, itemID: "1001", title: "Arrival", subtitle: nil
         )
         try LegacyFixture.record(try JSONEncoder().encode(activity), as: "LegacyContainer-WatchTogetherActivity.json")
     }

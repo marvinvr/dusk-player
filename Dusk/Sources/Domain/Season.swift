@@ -4,19 +4,19 @@ import Foundation
 /// Returned from `GET /library/metadata/{showRatingKey}/children`.
 struct Season: Codable, Sendable, Identifiable {
     /// Server-scoped identity; see `MediaItemID`.
-    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     /// Stamped by `ServerPool.decoder(for:)`; never part of the Plex payload,
     /// so it is excluded from `CodingKeys` and dropped when re-encoded.
     let serverID: String?
 
-    let ratingKey: String
+    let itemID: String
     let key: String
     let title: String
     let index: Int
 
     // Parent show
-    let parentRatingKey: String?
+    let parentID: String?
     let parentTitle: String?
     let parentThumb: String?
 
@@ -33,8 +33,8 @@ struct Season: Codable, Sendable, Identifiable {
     let updatedAt: Int?
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, title, index
-        case parentRatingKey, parentTitle, parentThumb
+        case itemID = "ratingKey", key, title, index
+        case parentID = "parentRatingKey", parentTitle, parentThumb
         case thumb, art
         case leafCount, viewedLeafCount
         case addedAt, updatedAt
@@ -43,11 +43,11 @@ struct Season: Codable, Sendable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         serverID = decoder.duskServerID
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         key = try container.decode(String.self, forKey: .key)
         title = try container.decode(String.self, forKey: .title)
         index = try container.decode(Int.self, forKey: .index)
-        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
         parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)

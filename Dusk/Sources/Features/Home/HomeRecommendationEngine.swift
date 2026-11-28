@@ -179,11 +179,11 @@ struct HomeRecommendationEngine {
         let signals = collapsedSignals(from: history)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
             guard let details = try? await plexService.getMediaDetails(
-                ratingKey: signal.ratingKey,
+                itemID: signal.itemID,
                 serverID: signal.serverID
             ) else {
                 homeRecommendationLogger.debug(
-                    "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
+                    "Skipping ratingKey \(signal.itemID, privacy: .public) because metadata could not be loaded"
                 )
                 return []
             }
@@ -539,15 +539,15 @@ struct HomeRecommendationEngine {
 
         switch entry.type {
         case .episode:
-            guard let showKey = extractRatingKey(from: entry.grandparentRatingKey),
+            guard let showKey = extractRatingKey(from: entry.grandparentID),
                   !showKey.isEmpty else {
                 return nil
             }
 
-            let id = MediaItemID(serverID: serverID, ratingKey: showKey)
+            let id = MediaItemID(serverID: serverID, itemID: showKey)
             return ("show:\(id.storageKey)", id)
         case .movie, .show:
-            let id = MediaItemID(serverID: serverID, ratingKey: entry.ratingKey)
+            let id = MediaItemID(serverID: serverID, itemID: entry.itemID)
             return ("\(entry.type.rawValue):\(id.storageKey)", id)
         default:
             return nil
@@ -599,7 +599,7 @@ struct HomeRecommendationEngine {
         }
 
         guard let details = try? await plexService.getMediaDetails(
-            ratingKey: item.ratingKey,
+            itemID: item.itemID,
             serverID: item.serverID
         ), let genres = details.genres else {
             return false

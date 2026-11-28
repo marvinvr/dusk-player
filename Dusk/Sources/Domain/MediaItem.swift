@@ -5,18 +5,18 @@ import Foundation
 /// Fields are optional because different item types populate different subsets.
 struct MediaItem: Decodable, Sendable, Identifiable {
     /// Server-scoped identity. Rating keys collide across servers, so nothing
-    /// may key, compare, or route on `ratingKey` alone.
-    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    /// may key, compare, or route on `itemID` alone.
+    var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     /// Machine identifier of the server this item was decoded from. Stamped by
     /// `ServerPool.decoder(for:)` through `decoder.duskServerID`.
     let serverID: String?
 
-    let ratingKey: String
+    let itemID: String
     let key: String
     let type: MediaKind
     let subtype: String?
-    let librarySectionID: String?
+    let libraryID: String?
     let title: String
     /// Plex edition name ("Director's Cut") when the server holds several
     /// editions of one movie or show. Each edition is its own item with the
@@ -52,10 +52,10 @@ struct MediaItem: Decodable, Sendable, Identifiable {
     // Hierarchy (for seasons/episodes)
     let index: Int?
     let parentIndex: Int?
-    let parentRatingKey: String?
+    let parentID: String?
     let parentTitle: String?
     let parentThumb: String?
-    let grandparentRatingKey: String?
+    let grandparentID: String?
     let grandparentTitle: String?
     let grandparentThumb: String?
     let grandparentArt: String?
@@ -80,15 +80,15 @@ struct MediaItem: Decodable, Sendable, Identifiable {
     let guids: [PlexGuid]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, subtype, librarySectionID, title, editionTitle, guid
+        case itemID = "ratingKey", key, type, subtype, libraryID = "librarySectionID", title, editionTitle, guid
         case summary, studio, contentRating, year, originallyAvailableAt
         case thumb, art, banner, clearLogo
         case rating, audienceRating
         case duration, viewCount, viewOffset, lastViewedAt
         case addedAt, updatedAt
         case index, parentIndex
-        case parentRatingKey, parentTitle, parentThumb
-        case grandparentRatingKey, grandparentTitle, grandparentThumb, grandparentArt
+        case parentID = "parentRatingKey", parentTitle, parentThumb
+        case grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb, grandparentArt
         case leafCount, viewedLeafCount, childCount, smart
         case genres = "Genre"
         case directors = "Director"
@@ -102,14 +102,14 @@ struct MediaItem: Decodable, Sendable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         serverID = decoder.duskServerID
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         key = try container.decode(String.self, forKey: .key)
         type = try container.decode(MediaKind.self, forKey: .type)
         subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
-        if let sectionID = try? container.decode(Int.self, forKey: .librarySectionID) {
-            librarySectionID = String(sectionID)
+        if let sectionID = try? container.decode(Int.self, forKey: .libraryID) {
+            libraryID = String(sectionID)
         } else {
-            librarySectionID = try container.decodeIfPresent(String.self, forKey: .librarySectionID)
+            libraryID = try container.decodeIfPresent(String.self, forKey: .libraryID)
         }
         title = try container.decode(String.self, forKey: .title)
         editionTitle = Self.trimmedEditionTitle(try container.decodeIfPresent(String.self, forKey: .editionTitle))
@@ -138,10 +138,10 @@ struct MediaItem: Decodable, Sendable, Identifiable {
 
         index = try container.decodeIfPresent(Int.self, forKey: .index)
         parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
-        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
         parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
-        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
         grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
         grandparentArt = try container.decodeIfPresent(String.self, forKey: .grandparentArt)
@@ -360,7 +360,7 @@ extension MediaItem {
             return String(keyPersonID)
         }
 
-        return ratingKey.isEmpty ? nil : ratingKey
+        return itemID.isEmpty ? nil : itemID
     }
 }
 

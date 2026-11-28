@@ -107,7 +107,7 @@ struct ShowDetailView: View {
 
                     DetailCollectionShelves(
                         itemID: details.id,
-                        sectionID: details.librarySectionID,
+                        sectionID: details.libraryID,
                         tags: details.collections,
                         plexService: plexService
                     )

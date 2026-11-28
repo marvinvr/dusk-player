@@ -1079,7 +1079,7 @@ so the whole live HUD is derived from one instant.
   height at/below target, then closest above target, then unknown-height
   candidates by bitrate.
 - Tie-breakers are higher bitrate, `optimizedForStreaming`, then Plex order.
-- `playVersion(ratingKey:mediaID:)` bypasses automatic version choice but still
+- `playVersion(id:mediaID:)` bypasses automatic version choice but still
   requires that media version to have at least one part.
 - `StreamResolver.evaluate` only decides engine type, reason, and the
   `requiresServerTranscode` flag. It does not build URLs, validate network

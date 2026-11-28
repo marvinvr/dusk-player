@@ -203,7 +203,7 @@ struct DownloadFileStore: Sendable {
     }
 
     /// Writes an already normalized sidecar and returns its relative path.
-    func saveSubtitle(_ data: Data, globalKey: String, streamID: Int, fileExtension: String) throws -> String {
+    func saveSubtitle(_ data: Data, globalKey: String, streamID: String, fileExtension: String) throws -> String {
         let directory = subtitleDirectory(globalKey: globalKey)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent("\(streamID).\(fileExtension)")

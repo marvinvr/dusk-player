@@ -664,8 +664,8 @@ extension MediaItem {
 
     /// A relative of this item — its season or its show — always lives on the
     /// same server, so the route inherits this item's `serverID`.
-    private func relativeID(_ ratingKey: String) -> MediaItemID {
-        MediaItemID(serverID: serverID, ratingKey: ratingKey)
+    private func relativeID(_ itemID: String) -> MediaItemID {
+        MediaItemID(serverID: serverID, itemID: itemID)
     }
 
     // tvOS has one page per show that every episode/season/show route opens, so
@@ -675,8 +675,8 @@ extension MediaItem {
         #if os(tvOS)
         return nil
         #else
-        guard type == .episode, let parentRatingKey else { return nil }
-        return .media(type: .season, id: relativeID(parentRatingKey))
+        guard type == .episode, let parentID else { return nil }
+        return .media(type: .season, id: relativeID(parentID))
         #endif
     }
 
@@ -686,11 +686,11 @@ extension MediaItem {
         #else
         switch type {
         case .episode:
-            guard let grandparentRatingKey else { return nil }
-            return .media(type: .show, id: relativeID(grandparentRatingKey))
+            guard let grandparentID else { return nil }
+            return .media(type: .show, id: relativeID(grandparentID))
         case .season:
-            guard let parentRatingKey else { return nil }
-            return .media(type: .show, id: relativeID(parentRatingKey))
+            guard let parentID else { return nil }
+            return .media(type: .show, id: relativeID(parentID))
         default:
             return nil
         }

@@ -35,10 +35,10 @@ struct CollectionSortTests {
             try movie("4", title: "Encanto", year: 2021),
         ]
         let sorted = CollectionSort.sorted(items, by: LibrarySortOption(.releaseDate, descending: true))
-        #expect(sorted.map(\.ratingKey) == ["4", "3", "1", "2"])
+        #expect(sorted.map(\.itemID) == ["4", "3", "1", "2"])
 
         let oldest = CollectionSort.sorted(items, by: LibrarySortOption(.releaseDate, descending: false))
-        #expect(oldest.map(\.ratingKey) == ["1", "3", "4", "2"])
+        #expect(oldest.map(\.itemID) == ["1", "3", "4", "2"])
     }
 
     @Test("Titles sort without a leading article, ignoring case and accents")
@@ -50,7 +50,7 @@ struct CollectionSortTests {
             try movie("4", title: "A Bug's Life"),
         ]
         let sorted = CollectionSort.sorted(items, by: .titleAscending)
-        #expect(sorted.map(\.ratingKey) == ["4", "2", "3", "1"])
+        #expect(sorted.map(\.itemID) == ["4", "2", "3", "1"])
     }
 
     @Test("Equal values keep the collection's order")
@@ -61,7 +61,7 @@ struct CollectionSortTests {
             try movie("3", title: "C", rating: 9),
         ]
         let sorted = CollectionSort.sorted(items, by: LibrarySortOption(.criticRating))
-        #expect(sorted.map(\.ratingKey) == ["3", "1", "2"])
+        #expect(sorted.map(\.itemID) == ["3", "1", "2"])
     }
 
     @Test("A page in the requested order counts as sorted by the server")
@@ -87,14 +87,14 @@ struct CollectionSortTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = CollectionSortStore(defaults: defaults)
-        let disney = MediaItemID(serverID: "a", ratingKey: "100")
+        let disney = MediaItemID(serverID: "a", itemID: "100")
         #expect(store.sort(for: disney) == nil)
 
         let newest = LibrarySortOption(.releaseDate, descending: true)
         store.setSort(newest, for: disney)
         #expect(CollectionSortStore(defaults: defaults).sort(for: disney) == newest)
         // The same rating key on another server is another collection.
-        #expect(store.sort(for: MediaItemID(serverID: "b", ratingKey: "100")) == nil)
+        #expect(store.sort(for: MediaItemID(serverID: "b", itemID: "100")) == nil)
 
         store.setSort(nil, for: disney)
         #expect(store.sort(for: disney) == nil)

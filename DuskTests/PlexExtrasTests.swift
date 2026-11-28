@@ -34,7 +34,7 @@ struct PlexExtrasTests {
 
     @Test func extrasKeepPlexOrderAndDropNonClips() throws {
         let extras = try decodeExtras()
-        #expect(extras.map(\.item.ratingKey) == ["501", "502", "503"])
+        #expect(extras.map(\.item.itemID) == ["501", "502", "503"])
     }
 
     @Test func extraTypeDecodesFromNumberStringOrSubtype() throws {

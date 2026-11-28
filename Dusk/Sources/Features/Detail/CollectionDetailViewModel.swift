@@ -38,14 +38,14 @@ final class CollectionDetailViewModel {
         self.sortStore = sortStore
         let selectedSort = sortStore.sort(for: id)
         self.selectedSort = selectedSort
-        let ratingKey = id.ratingKey
+        let itemID = id.itemID
         let serverID = id.serverID
         let serverSort = ServerSort()
         serverSort.value = selectedSort?.plexValue
         self.serverSort = serverSort
         self.pager = MediaItemPager { [plexService] start, size in
             try await plexService.getCollectionItems(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 start: start,
                 size: size,
                 sort: serverSort.value,
@@ -166,7 +166,7 @@ final class CollectionDetailViewModel {
 
         async let items: Void = loadItems()
         do {
-            collection = try await plexService.getCollection(ratingKey: id.ratingKey, serverID: serverID)
+            collection = try await plexService.getCollection(itemID: id.itemID, serverID: serverID)
         } catch {
             if !Task.isCancelled {
                 self.error = error.localizedDescription

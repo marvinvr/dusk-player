@@ -311,7 +311,7 @@ final class DownloadManager {
         let grouped = Dictionary(grouping: downloadedEpisodes) { record in
             MediaItemID(
                 serverID: record.serverID,
-                ratingKey: record.grandparentRatingKey ?? record.parentRatingKey ?? record.ratingKey
+                itemID: record.grandparentID ?? record.parentID ?? record.itemID
             )
         }
 
@@ -321,38 +321,38 @@ final class DownloadManager {
                   let accountProfileID = first.accountProfileID else {
                 return nil
             }
-            let showKey = showID.ratingKey
+            let showKey = showID.itemID
             // Every record in the group shares the server the key was grouped on.
             let serverID = first.serverID
             let cachedShow = metadataCache.mediaDetails(
                 accountProfileID: accountProfileID,
                 serverID: serverID,
-                ratingKey: showKey
+                itemID: showKey
             )
             let title = cachedShow?.title ?? first.grandparentTitle ?? "TV Show"
             return DownloadedShowSummary(
                 serverID: serverID,
-                ratingKey: showKey,
+                itemID: showKey,
                 title: title,
                 thumbPath: cachedShow?.thumb ?? first.thumbPath,
                 artPath: cachedShow?.art ?? first.artPath,
                 downloadedEpisodeCount: episodes.count,
                 totalEpisodeCount: cachedShow?.leafCount,
-                smartRule: rules.first { $0.showID == MediaItemID(serverID: serverID, ratingKey: showKey) }
+                smartRule: rules.first { $0.showID == MediaItemID(serverID: serverID, itemID: showKey) }
             )
         }
         // A smart show stays listed while its next episodes are still on the
         // way or it is fully watched, so the rule can always be found and
         // turned off.
-        for rule in rules where !summaries.contains(where: { $0.itemID == rule.showID }) {
+        for rule in rules where !summaries.contains(where: { $0.mediaItemID == rule.showID }) {
             let cachedShow = metadataCache.mediaDetails(
                 accountProfileID: rule.accountProfileID,
                 serverID: rule.serverID,
-                ratingKey: rule.showRatingKey
+                itemID: rule.showRatingKey
             )
             summaries.append(DownloadedShowSummary(
                 serverID: rule.serverID,
-                ratingKey: rule.showRatingKey,
+                itemID: rule.showRatingKey,
                 title: cachedShow?.title ?? rule.showTitle ?? "TV Show",
                 thumbPath: cachedShow?.thumb ?? rule.thumbPath,
                 artPath: cachedShow?.art ?? rule.artPath,
@@ -376,10 +376,10 @@ final class DownloadManager {
     /// that rating key — an ambiguous match is no match.
     func record(for id: MediaItemID) -> DownloadedMediaRecord? {
         guard let serverID = id.serverID else {
-            let matches = records.filter { $0.ratingKey == id.ratingKey }
+            let matches = records.filter { $0.itemID == id.itemID }
             return matches.count == 1 ? matches.first : nil
         }
-        return records.first { $0.ratingKey == id.ratingKey && $0.serverID == serverID }
+        return records.first { $0.itemID == id.itemID && $0.serverID == serverID }
     }
 
     func serverID(for id: MediaItemID) -> String? {
@@ -491,7 +491,7 @@ final class DownloadManager {
 
     func downloadedEpisodeCount(show: MediaItemID) -> Int {
         downloadedEpisodes.filter { record in
-            record.grandparentRatingKey == show.ratingKey && matchesServer(record, of: show)
+            record.grandparentID == show.itemID && matchesServer(record, of: show)
         }.count
     }
 
@@ -538,11 +538,11 @@ final class DownloadManager {
     /// match; a nil server on the scope means "any server", for callers that
     /// only have a cached key.
     private func matchesSeason(_ record: DownloadedMediaRecord, of season: MediaItemID) -> Bool {
-        record.parentRatingKey == season.ratingKey && matchesServer(record, of: season)
+        record.parentID == season.itemID && matchesServer(record, of: season)
     }
 
     private func matchesBranch(_ record: DownloadedMediaRecord, of show: MediaItemID) -> Bool {
-        (record.grandparentRatingKey == show.ratingKey || record.parentRatingKey == show.ratingKey)
+        (record.grandparentID == show.itemID || record.parentID == show.itemID)
             && matchesServer(record, of: show)
     }
 
@@ -1099,7 +1099,7 @@ final class DownloadManager {
         deleteRecords(records)
     }
 
-    func localPlaybackURL(for id: MediaItemID, selectedMediaID: Int? = nil) -> URL? {
+    func localPlaybackURL(for id: MediaItemID, selectedMediaID: String? = nil) -> URL? {
         guard let record = record(for: id),
               record.status == .completed,
               selectedMediaID == nil || selectedMediaID == record.mediaID else {
@@ -1109,7 +1109,7 @@ final class DownloadManager {
     }
 
     /// The saved copy of one of the download's external subtitles, if any.
-    func localSubtitleURL(for id: MediaItemID, streamID: Int) -> URL? {
+    func localSubtitleURL(for id: MediaItemID, streamID: String) -> URL? {
         guard let record = record(for: id), record.status == .completed else { return nil }
         return fileStore.existingFileURL(for: record.externalSubtitlePaths?[streamID])
     }
@@ -1117,7 +1117,7 @@ final class DownloadManager {
     func downloadedMediaVersion(
         for id: MediaItemID,
         in details: MediaDetails,
-        selectedMediaID: Int? = nil
+        selectedMediaID: String? = nil
     ) -> (media: MediaVersion, part: MediaPart)? {
         guard let record = record(for: id),
               record.status == .completed,
@@ -1140,7 +1140,7 @@ final class DownloadManager {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
         return metadataCache.firstCachedMediaDetails(
             accountProfileID: accountProfileID,
-            ratingKey: id.ratingKey,
+            itemID: id.itemID,
             serverIDs: candidateServerIDs(for: id)
         )
     }
@@ -1149,7 +1149,7 @@ final class DownloadManager {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
         return metadataCache.firstCachedSeasons(
             accountProfileID: accountProfileID,
-            showKey: show.ratingKey,
+            showKey: show.itemID,
             serverIDs: candidateServerIDs(for: show)
         )
     }
@@ -1158,23 +1158,23 @@ final class DownloadManager {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
         return metadataCache.firstCachedEpisodes(
             accountProfileID: accountProfileID,
-            seasonKey: season.ratingKey,
+            seasonKey: season.itemID,
             serverIDs: candidateServerIDs(for: season)
         )
     }
 
     func cachedNextDownloadedEpisode(after episode: MediaDetails) -> Episode? {
         guard episode.type == .episode,
-              let seasonKey = episode.parentRatingKey,
-              let showKey = episode.grandparentRatingKey else {
+              let seasonKey = episode.parentID,
+              let showKey = episode.grandparentID else {
             return nil
         }
 
         let serverID = episode.serverID
-        let currentSeasonEpisodes = (cachedEpisodes(season: MediaItemID(serverID: serverID, ratingKey: seasonKey)) ?? [])
+        let currentSeasonEpisodes = (cachedEpisodes(season: MediaItemID(serverID: serverID, itemID: seasonKey)) ?? [])
             .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
 
-        if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }) {
+        if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.itemID == episode.itemID }) {
             let remainingEpisodes = currentSeasonEpisodes[currentSeasonEpisodes.index(after: currentEpisodeIndex)...]
             if let nextDownloadedEpisode = remainingEpisodes.first(where: { isPlayableOffline(id: $0.id) }) {
                 return nextDownloadedEpisode
@@ -1187,10 +1187,10 @@ final class DownloadManager {
             return nextDownloadedEpisode
         }
 
-        let seasons = (cachedSeasons(show: MediaItemID(serverID: serverID, ratingKey: showKey)) ?? [])
+        let seasons = (cachedSeasons(show: MediaItemID(serverID: serverID, itemID: showKey)) ?? [])
             .sorted { $0.index < $1.index }
         let currentSeasonIndex = episode.parentIndex
-            ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
+            ?? seasons.first(where: { $0.itemID == seasonKey })?.index
 
         guard let currentSeasonIndex else { return nil }
 
@@ -1211,14 +1211,14 @@ final class DownloadManager {
     /// actually reach.
     func cachedAdjacentDownloadedEpisodes(around episode: MediaDetails) -> AdjacentEpisodes {
         guard episode.type == .episode,
-              let seasonKey = episode.parentRatingKey,
-              let showKey = episode.grandparentRatingKey else {
+              let seasonKey = episode.parentID,
+              let showKey = episode.grandparentID else {
             return AdjacentEpisodes()
         }
 
         let serverID = episode.serverID
         let isDownloaded: (Episode) -> Bool = { [self] in isPlayableOffline(id: $0.id) }
-        let currentSeasonEpisodes = (cachedEpisodes(season: MediaItemID(serverID: serverID, ratingKey: seasonKey)) ?? [])
+        let currentSeasonEpisodes = (cachedEpisodes(season: MediaItemID(serverID: serverID, itemID: seasonKey)) ?? [])
             .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
         var adjacent = AdjacentEpisodes.inSeason(
             currentSeasonEpisodes,
@@ -1227,10 +1227,10 @@ final class DownloadManager {
         )
         guard adjacent.previous == nil || adjacent.next == nil else { return adjacent }
 
-        let seasons = (cachedSeasons(show: MediaItemID(serverID: serverID, ratingKey: showKey)) ?? [])
+        let seasons = (cachedSeasons(show: MediaItemID(serverID: serverID, itemID: showKey)) ?? [])
             .sorted { $0.index < $1.index }
         let currentSeasonIndex = episode.parentIndex
-            ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
+            ?? seasons.first(where: { $0.itemID == seasonKey })?.index
         guard let currentSeasonIndex else { return adjacent }
 
         func downloadedEpisodes(in season: Season) -> [Episode] {
@@ -1307,9 +1307,9 @@ final class DownloadManager {
             throw PlexServiceError.notAuthenticated
         }
         let serverID = try downloadServerID(for: id)
-        let ratingKey = id.ratingKey
+        let itemID = id.itemID
 
-        if let existing = record(for: MediaItemID(serverID: serverID, ratingKey: ratingKey)),
+        if let existing = record(for: MediaItemID(serverID: serverID, itemID: itemID)),
            existing.status != .cancelled {
             if existing.status.canResume { resumeDownload(globalKey: existing.globalKey) }
             return
@@ -1318,20 +1318,20 @@ final class DownloadManager {
         let cachedDetails = metadataCache.mediaDetails(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            ratingKey: ratingKey
+            itemID: itemID
         )
         let record = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: serverName(for: serverID),
-            ratingKey: ratingKey,
+            itemID: itemID,
             type: cachedDetails?.type ?? type,
             isClip: isClip || type == .clip || cachedDetails?.isClip == true,
             title: cachedDetails?.title ?? "Download",
             subtitle: cachedDetails.flatMap(subtitle),
-            parentRatingKey: cachedDetails?.parentRatingKey,
+            parentID: cachedDetails?.parentID,
             parentTitle: nil,
-            grandparentRatingKey: cachedDetails?.grandparentRatingKey,
+            grandparentID: cachedDetails?.grandparentID,
             grandparentTitle: cachedDetails?.grandparentTitle,
             thumbPath: cachedDetails.flatMap { $0.thumb ?? $0.parentThumb ?? $0.grandparentThumb },
             artPath: cachedDetails?.art,
@@ -1365,7 +1365,7 @@ final class DownloadManager {
         }
         let serverID = try downloadServerID(for: episode.id)
 
-        if let existing = record(for: MediaItemID(serverID: serverID, ratingKey: episode.ratingKey)),
+        if let existing = record(for: MediaItemID(serverID: serverID, itemID: episode.itemID)),
            existing.status != .cancelled {
             if existing.status.canResume { resumeDownload(globalKey: existing.globalKey) }
             return
@@ -1374,22 +1374,22 @@ final class DownloadManager {
         let cachedDetails = metadataCache.mediaDetails(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            ratingKey: episode.ratingKey
+            itemID: episode.itemID
         )
         let record = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: serverName(for: serverID),
-            ratingKey: episode.ratingKey,
+            itemID: episode.itemID,
             type: .episode,
             title: cachedDetails?.title ?? episode.title,
             subtitle: cachedDetails.map(subtitle) ?? MediaTextFormatter.seasonEpisodeLabel(
                 season: episode.parentIndex,
                 episode: episode.index
             ),
-            parentRatingKey: cachedDetails?.parentRatingKey ?? episode.parentRatingKey,
+            parentID: cachedDetails?.parentID ?? episode.parentID,
             parentTitle: episode.parentTitle,
-            grandparentRatingKey: cachedDetails?.grandparentRatingKey ?? episode.grandparentRatingKey,
+            grandparentID: cachedDetails?.grandparentID ?? episode.grandparentID,
             grandparentTitle: cachedDetails?.grandparentTitle ?? episode.grandparentTitle,
             thumbPath: cachedDetails.flatMap { $0.thumb ?? $0.parentThumb ?? $0.grandparentThumb }
                 ?? episode.thumb
@@ -1420,12 +1420,12 @@ final class DownloadManager {
     private func queueSeasonDownload(season: MediaItemID, quality: DownloadQuality) async throws {
         let profileID = plexService.activeProfileID
         let serverID = try downloadServerID(for: season)
-        let seasonDetails = try await fetchAndCacheDetails(ratingKey: season.ratingKey, serverID: serverID)
-        if let showKey = seasonDetails.parentRatingKey {
-            _ = try? await fetchAndCacheDetails(ratingKey: showKey, serverID: serverID)
+        let seasonDetails = try await fetchAndCacheDetails(itemID: season.itemID, serverID: serverID)
+        if let showKey = seasonDetails.parentID {
+            _ = try? await fetchAndCacheDetails(itemID: showKey, serverID: serverID)
             if let seasons = try? await fetchAndCacheChildren(
                 Season.self,
-                ratingKey: showKey,
+                itemID: showKey,
                 serverID: serverID
             ) {
                 await cacheArtwork(for: seasons, serverID: serverID)
@@ -1434,7 +1434,7 @@ final class DownloadManager {
 
         let episodes = try await fetchAndCacheChildren(
             Episode.self,
-            ratingKey: season.ratingKey,
+            itemID: season.itemID,
             serverID: serverID
         )
         .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
@@ -1449,10 +1449,10 @@ final class DownloadManager {
     private func queueShowDownload(show: MediaItemID, quality: DownloadQuality) async throws {
         let profileID = plexService.activeProfileID
         let serverID = try downloadServerID(for: show)
-        _ = try await fetchAndCacheDetails(ratingKey: show.ratingKey, serverID: serverID)
+        _ = try await fetchAndCacheDetails(itemID: show.itemID, serverID: serverID)
         let seasons = try await fetchAndCacheChildren(
             Season.self,
-            ratingKey: show.ratingKey,
+            itemID: show.itemID,
             serverID: serverID
         )
         .sorted { $0.index < $1.index }
@@ -1461,7 +1461,7 @@ final class DownloadManager {
         for season in seasons {
             guard profileID == plexService.activeProfileID, !isProfileSwitching else { throw CancellationError() }
             try await queueSeasonDownload(
-                season: MediaItemID(serverID: serverID, ratingKey: season.ratingKey),
+                season: MediaItemID(serverID: serverID, itemID: season.itemID),
                 quality: quality
             )
         }
@@ -1539,10 +1539,10 @@ final class DownloadManager {
             if record.downloadQuality == .original,
                let accountProfileID = record.accountProfileID,
                let cached = metadataCache.mediaDetails(accountProfileID: accountProfileID,
-                                                       serverID: record.serverID, ratingKey: record.ratingKey) {
+                                                       serverID: record.serverID, itemID: record.itemID) {
                 details = cached
             } else {
-                details = try await fetchAndCacheDetails(ratingKey: record.ratingKey, serverID: record.serverID)
+                details = try await fetchAndCacheDetails(itemID: record.itemID, serverID: record.serverID)
             }
             try checkPreparation(record)
             guard details.type == .movie || details.type == .episode || details.type == .clip else {
@@ -1566,8 +1566,8 @@ final class DownloadManager {
                 item.title = details.title
                 item.isClip = item.isClip || details.isClip
                 item.subtitle = subtitle(for: details)
-                item.parentRatingKey = details.parentRatingKey
-                item.grandparentRatingKey = details.grandparentRatingKey
+                item.parentID = details.parentID
+                item.grandparentID = details.grandparentID
                 item.grandparentTitle = details.grandparentTitle
                 item.thumbPath = details.thumb ?? details.parentThumb ?? details.grandparentThumb
                 item.artPath = details.art
@@ -1684,21 +1684,21 @@ final class DownloadManager {
                 try checkPreparation(record)
             }
             try fileStore.saveSnapshot(currentSnapshot)
-            let itemID: String
+            let queueItemID: String
             if let existing = latest.plexDownloadItemID {
-                itemID = existing
+                queueItemID = existing
             } else {
-                itemID = try await plexService.addDownloadQueueItem(
-                    context: context, queueID: queueID, ratingKey: record.ratingKey,
+                queueItemID = try await plexService.addDownloadQueueItem(
+                    context: context, queueID: queueID, itemID: record.itemID,
                     mediaIndex: mediaIndex, quality: record.downloadQuality
                 )
                 // Save a late add even after a pause. If cancelled, remember
                 // cleanup independently of the deleted download record.
                 if self.record(globalKey: record.globalKey) == nil || deletingDownloadIDs.contains(record.globalKey) {
                     enqueueQueueRemoval(DownloadQueueRemoval(profileID: profileID, serverID: record.serverID,
-                        clientIdentifier: latest.queueClientIdentifier!, ratingKey: record.ratingKey, queueID: queueID, itemID: itemID))
+                        clientIdentifier: latest.queueClientIdentifier!, itemID: record.itemID, queueID: queueID, queueItemID: queueItemID))
                 } else {
-                    update(globalKey: record.globalKey) { $0.plexDownloadItemID = itemID }
+                    update(globalKey: record.globalKey) { $0.plexDownloadItemID = queueItemID }
                 }
                 try checkPreparation(record)
             }
@@ -1713,7 +1713,7 @@ final class DownloadManager {
                 )
                 let item: PlexDownloadQueueItem
                 do {
-                    item = try await plexService.downloadQueueItem(context: pollContext, queueID: queueID, itemID: itemID)
+                    item = try await plexService.downloadQueueItem(context: pollContext, queueID: queueID, queueItemID: queueItemID)
                     failedPolls = 0
                 } catch PlexServiceError.networkError where failedPolls < 10 {
                     // A poll dropped by a network blip or app suspension must not
@@ -1723,7 +1723,7 @@ final class DownloadManager {
                     continue
                 }
                 try checkPreparation(record)
-                guard item.key == "/library/metadata/\(record.ratingKey)" else {
+                guard item.key == "/library/metadata/\(record.itemID)" else {
                     throw PlexDownloadQueueError.invalidResponse("Plex returned a different item for this download.")
                 }
                 update(globalKey: record.globalKey) { $0.preparationProgress = item.progress }
@@ -1736,7 +1736,7 @@ final class DownloadManager {
                     // regenerates it here.
                     if DownloadQueuePolicy.Counts(records: records).handedOff < DownloadQueuePolicy.maximumHandedOffTransfers {
                         let prepared = try await plexService.preparedDownload(
-                            context: pollContext, queueID: queueID, itemID: itemID, sourceMedia: sourceMedia
+                            context: pollContext, queueID: queueID, queueItemID: queueItemID, sourceMedia: sourceMedia
                         )
                         try checkPreparation(record)
                         return prepared
@@ -1787,8 +1787,8 @@ final class DownloadManager {
     private func enqueueQueueRemoval(for record: DownloadedMediaRecord) {
         guard let profileID = record.accountProfileID, let clientID = record.queueClientIdentifier else { return }
         enqueueQueueRemoval(DownloadQueueRemoval(profileID: profileID, serverID: record.serverID,
-            clientIdentifier: clientID, ratingKey: record.ratingKey,
-            queueID: record.plexDownloadQueueID, itemID: record.plexDownloadItemID))
+            clientIdentifier: clientID, itemID: record.itemID,
+            queueID: record.plexDownloadQueueID, queueItemID: record.plexDownloadItemID))
     }
 
     private func enqueueQueueRemoval(_ removal: DownloadQueueRemoval) {
@@ -1813,7 +1813,7 @@ final class DownloadManager {
             }
             for removal in batch {
                 let globalKey = DownloadedMediaRecord.globalKey(accountProfileID: removal.profileID,
-                    serverID: removal.serverID, ratingKey: removal.ratingKey)
+                    serverID: removal.serverID, itemID: removal.itemID)
                 guard self.preparationTasks[globalKey] == nil,
                       removal.profileID == self.plexService.activeProfileID,
                       let context = try? self.plexService.captureDownloadQueueContext(
@@ -1823,14 +1823,14 @@ final class DownloadManager {
                     let queueID: String
                     if let existing = removal.queueID { queueID = existing }
                     else { queueID = try await self.plexService.createDownloadQueue(context: context) }
-                    if let itemID = removal.itemID {
-                        try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, itemID: itemID)
+                    if let queueItemID = removal.queueItemID {
+                        try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, queueItemID: queueItemID)
                     } else {
                         // Covers cancellation/termination after PMS accepted add
                         // but before its response could be persisted.
                         let items = try await self.plexService.downloadQueueItems(context: context, queueID: queueID)
-                        for item in items where item.key == "/library/metadata/\(removal.ratingKey)" {
-                            try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, itemID: item.id)
+                        for item in items where item.key == "/library/metadata/\(removal.itemID)" {
+                            try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, queueItemID: item.id)
                         }
                     }
                     self.pendingQueueRemovals.removeAll { $0 == removal }
@@ -1873,7 +1873,7 @@ final class DownloadManager {
                   let details = metadataCache.mediaDetails(
                     accountProfileID: accountProfileID,
                     serverID: record.serverID,
-                    ratingKey: record.ratingKey
+                    itemID: record.itemID
                   ) else {
                 throw PlexServiceError.decodingError("Cached metadata missing for \(record.title)")
             }
@@ -1938,7 +1938,7 @@ final class DownloadManager {
     }
 
     private func fetchAndCacheDetails(
-        ratingKey: String,
+        itemID: String,
         serverID: String
     ) async throws -> MediaDetails {
         guard !isProfileSwitching,
@@ -1946,7 +1946,7 @@ final class DownloadManager {
             throw PlexServiceError.noServerConnected
         }
 
-        let data = try await plexService.getMediaDetailsPayload(ratingKey: ratingKey, serverID: serverID)
+        let data = try await plexService.getMediaDetailsPayload(itemID: itemID, serverID: serverID)
         guard !Task.isCancelled,
               !isProfileSwitching,
               plexService.activeProfileID == accountProfileID else {
@@ -1956,7 +1956,7 @@ final class DownloadManager {
             data,
             accountProfileID: accountProfileID,
             serverID: serverID,
-            endpoint: PlexMetadataCache.metadataEndpoint(ratingKey)
+            endpoint: PlexMetadataCache.metadataEndpoint(itemID)
         )
         let response = try plexService.decodeJSON(
             MetadataResponse<MediaDetails>.self,
@@ -1964,20 +1964,20 @@ final class DownloadManager {
             serverID: serverID
         )
         guard let details = response.MediaContainer.Metadata?.first else {
-            throw PlexServiceError.decodingError("No metadata found for \(ratingKey)")
+            throw PlexServiceError.decodingError("No metadata found for \(itemID)")
         }
         await cacheArtwork(for: details, serverID: serverID)
         return details
     }
 
     @discardableResult
-    private func fetchAndCacheChildren(ratingKey: String, serverID: String) async throws -> Data {
+    private func fetchAndCacheChildren(itemID: String, serverID: String) async throws -> Data {
         guard !isProfileSwitching,
               let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
             throw PlexServiceError.noServerConnected
         }
 
-        let data = try await plexService.getChildrenPayload(ratingKey: ratingKey, serverID: serverID)
+        let data = try await plexService.getChildrenPayload(itemID: itemID, serverID: serverID)
         guard !Task.isCancelled,
               !isProfileSwitching,
               plexService.activeProfileID == accountProfileID else {
@@ -1987,17 +1987,17 @@ final class DownloadManager {
             data,
             accountProfileID: accountProfileID,
             serverID: serverID,
-            endpoint: PlexMetadataCache.childrenEndpoint(ratingKey)
+            endpoint: PlexMetadataCache.childrenEndpoint(itemID)
         )
         return data
     }
 
     private func fetchAndCacheChildren<T: Decodable>(
         _ type: T.Type,
-        ratingKey: String,
+        itemID: String,
         serverID: String
     ) async throws -> [T] {
-        let data = try await fetchAndCacheChildren(ratingKey: ratingKey, serverID: serverID)
+        let data = try await fetchAndCacheChildren(itemID: itemID, serverID: serverID)
         let response = try plexService.decodeJSON(
             MetadataResponse<T>.self,
             from: data,
@@ -2007,22 +2007,22 @@ final class DownloadManager {
     }
 
     private func cacheEpisodeContext(_ details: MediaDetails, serverID: String) async throws {
-        if let seasonKey = details.parentRatingKey {
-            _ = try? await fetchAndCacheDetails(ratingKey: seasonKey, serverID: serverID)
+        if let seasonKey = details.parentID {
+            _ = try? await fetchAndCacheDetails(itemID: seasonKey, serverID: serverID)
             if let episodes = try? await fetchAndCacheChildren(
                 Episode.self,
-                ratingKey: seasonKey,
+                itemID: seasonKey,
                 serverID: serverID
             ) {
                 await cacheArtwork(for: episodes, serverID: serverID)
             }
         }
 
-        if let showKey = details.grandparentRatingKey {
-            _ = try? await fetchAndCacheDetails(ratingKey: showKey, serverID: serverID)
+        if let showKey = details.grandparentID {
+            _ = try? await fetchAndCacheDetails(itemID: showKey, serverID: serverID)
             if let seasons = try? await fetchAndCacheChildren(
                 Season.self,
-                ratingKey: showKey,
+                itemID: showKey,
                 serverID: serverID
             ) {
                 await cacheArtwork(for: seasons, serverID: serverID)
@@ -2148,7 +2148,7 @@ final class DownloadManager {
                 guard let self, let details = self.metadataCache.mediaDetails(
                     accountProfileID: activeProfileID,
                     serverID: record.serverID,
-                    ratingKey: record.ratingKey
+                    itemID: record.itemID
                 ) else { continue }
                 await self.cacheExternalSubtitles(globalKey: record.globalKey, details: details)
             }
@@ -2340,7 +2340,7 @@ final class DownloadManager {
 
     private func relatedRecords(for scope: DownloadScope) -> [DownloadedMediaRecord] {
         let ownRecords = records.filter {
-            $0.ratingKey == scope.ratingKey && matchesServer($0, of: scope.id)
+            $0.itemID == scope.itemID && matchesServer($0, of: scope.id)
         }
         switch scope.type {
         case .season:
@@ -2752,7 +2752,7 @@ final class DownloadManager {
               let details = metadataCache.mediaDetails(
                 accountProfileID: accountProfileID,
                 serverID: record.serverID,
-                ratingKey: record.ratingKey
+                itemID: record.itemID
               ) else {
             return record.totalBytes
         }
@@ -2809,19 +2809,19 @@ final class DownloadManager {
               let serverID = try? downloadServerID(for: id) else {
             return
         }
-        let ratingKey = id.ratingKey
+        let itemID = id.itemID
         let placeholder = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: serverName(for: serverID),
-            ratingKey: ratingKey,
+            itemID: itemID,
             type: type,
             isClip: isClip || type == .clip,
-            title: cachedMediaDetails(for: MediaItemID(serverID: serverID, ratingKey: ratingKey))?.title ?? "Download",
+            title: cachedMediaDetails(for: MediaItemID(serverID: serverID, itemID: itemID))?.title ?? "Download",
             subtitle: nil,
-            parentRatingKey: nil,
+            parentID: nil,
             parentTitle: nil,
-            grandparentRatingKey: nil,
+            grandparentID: nil,
             grandparentTitle: nil,
             thumbPath: nil,
             artPath: nil,
@@ -2869,7 +2869,7 @@ final class DownloadManager {
         let originalCount = storedRecords.count
         storedRecords.removeAll {
             $0.accountProfileID == activeProfileID
-                && $0.ratingKey == scope.ratingKey
+                && $0.itemID == scope.itemID
                 && (scope.serverID == nil || $0.serverID == scope.serverID)
                 && $0.type == scope.type
                 && $0.mediaID == nil
@@ -2947,7 +2947,7 @@ extension DownloadManager {
 
     func smartDownloadRule(show: MediaItemID) -> SmartDownloadRule? {
         activeSmartDownloadRules.first {
-            $0.showRatingKey == show.ratingKey && (show.serverID == nil || $0.serverID == show.serverID)
+            $0.showRatingKey == show.itemID && (show.serverID == nil || $0.serverID == show.serverID)
         }
     }
 
@@ -2958,7 +2958,7 @@ extension DownloadManager {
         guard !isProfileSwitching, plexService.isSessionReady,
               let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
               let serverID = show.serverID ?? plexService.pool.primary?.serverID else { return }
-        let showID = MediaItemID(serverID: serverID, ratingKey: show.ratingKey)
+        let showID = MediaItemID(serverID: serverID, itemID: show.itemID)
         if let existing = smartDownloadRule(show: showID) {
             updateSmartDownloadRule(existing.globalKey) {
                 $0.count = count
@@ -2968,14 +2968,14 @@ extension DownloadManager {
             storedSmartDownloadRules.append(SmartDownloadRule(
                 accountProfileID: accountProfileID,
                 serverID: serverID,
-                showRatingKey: show.ratingKey,
+                showRatingKey: show.itemID,
                 count: count,
                 quality: quality,
                 createdAt: .now
             ))
             persist()
             // Title and artwork for the Downloads grid before any episode lands.
-            if let details = try? await fetchAndCacheDetails(ratingKey: show.ratingKey, serverID: serverID),
+            if let details = try? await fetchAndCacheDetails(itemID: show.itemID, serverID: serverID),
                let rule = smartDownloadRule(show: showID) {
                 updateSmartDownloadRule(rule.globalKey) {
                     $0.showTitle = details.title
@@ -3017,10 +3017,10 @@ extension DownloadManager {
     /// Called when an episode crossed the watched threshold in Dusk. Plex may
     /// not have the scrobble yet, so the episode counts as watched here.
     func smartDownloadsEpisodeWatched(_ episode: MediaItemID, showRatingKey: String) {
-        guard let rule = smartDownloadRule(show: MediaItemID(serverID: episode.serverID, ratingKey: showRatingKey)) else {
+        guard let rule = smartDownloadRule(show: MediaItemID(serverID: episode.serverID, itemID: showRatingKey)) else {
             return
         }
-        refillSmartDownloads(rule: rule, force: true, justWatched: [episode.ratingKey])
+        refillSmartDownloads(rule: rule, force: true, justWatched: [episode.itemID])
     }
 
     /// Refills every rule of the active profile (optionally only the rules on
@@ -3089,17 +3089,17 @@ extension DownloadManager {
         let plan = SmartDownloadPlanner.plan(
             episodes: episodes.map { episode in
                 let plexWatched = episode.isWatched
-                let watched = justWatched.contains(episode.ratingKey)
-                    || (effectiveWatchedState?(current.serverID, episode.ratingKey, plexWatched) ?? plexWatched)
+                let watched = justWatched.contains(episode.itemID)
+                    || (effectiveWatchedState?(current.serverID, episode.itemID, plexWatched) ?? plexWatched)
                 return SmartDownloadPlanner.Episode(
-                    ratingKey: episode.ratingKey,
+                    itemID: episode.itemID,
                     seasonIndex: episode.parentIndex,
                     index: episode.index,
                     isWatched: watched
                 )
             },
             downloads: showRecords.map {
-                SmartDownloadPlanner.Download(globalKey: $0.globalKey, ratingKey: $0.ratingKey, isSmart: $0.isSmartDownload)
+                SmartDownloadPlanner.Download(globalKey: $0.globalKey, itemID: $0.itemID, isSmart: $0.isSmartDownload)
             },
             count: current.count
         )
@@ -3113,9 +3113,9 @@ extension DownloadManager {
             if $0.thumbPath == nil { $0.thumbPath = episodes.first?.grandparentThumb }
         }
 
-        let episodesByKey = Dictionary(episodes.map { ($0.ratingKey, $0) }, uniquingKeysWith: { first, _ in first })
-        for ratingKey in plan.ratingKeysToQueue {
-            guard let episode = episodesByKey[ratingKey],
+        let episodesByKey = Dictionary(episodes.map { ($0.itemID, $0) }, uniquingKeysWith: { first, _ in first })
+        for itemID in plan.ratingKeysToQueue {
+            guard let episode = episodesByKey[itemID],
                   storedSmartDownloadRules.contains(where: { $0.globalKey == ruleKey }),
                   rule.accountProfileID == plexService.activeProfileID else { break }
             try? await queueEpisodeDownload(episode, quality: current.quality, isSmartDownload: true)
@@ -3190,12 +3190,12 @@ extension DownloadManager {
             if type == .season {
                 let episodes = try await fetchAndCacheChildren(
                     Episode.self,
-                    ratingKey: id.ratingKey,
+                    itemID: id.itemID,
                     serverID: serverID
                 )
                 for episode in episodes {
                     await seedCompletedDownloadForScreenshot(
-                        id: MediaItemID(serverID: serverID, ratingKey: episode.ratingKey),
+                        id: MediaItemID(serverID: serverID, itemID: episode.itemID),
                         type: .episode
                     )
                 }
@@ -3203,7 +3203,7 @@ extension DownloadManager {
             }
 
             guard record(for: id)?.status != .completed else { return }
-            let details = try await fetchAndCacheDetails(ratingKey: id.ratingKey, serverID: serverID)
+            let details = try await fetchAndCacheDetails(itemID: id.itemID, serverID: serverID)
             if details.type == .episode {
                 try await cacheEpisodeContext(details, serverID: serverID)
             }
@@ -3230,14 +3230,14 @@ extension DownloadManager {
                 accountProfileID: accountProfileID,
                 serverID: serverID,
                 serverName: serverName(for: serverID),
-                ratingKey: id.ratingKey,
+                itemID: id.itemID,
                 type: details.type,
                 isClip: details.isClip,
                 title: details.title,
                 subtitle: subtitle(for: details),
-                parentRatingKey: details.parentRatingKey,
+                parentID: details.parentID,
                 parentTitle: nil,
-                grandparentRatingKey: details.grandparentRatingKey,
+                grandparentID: details.grandparentID,
                 grandparentTitle: details.grandparentTitle,
                 thumbPath: details.thumb ?? details.parentThumb ?? details.grandparentThumb,
                 artPath: details.art,
@@ -3255,7 +3255,7 @@ extension DownloadManager {
                 updatedAt: .now
             ))
         } catch {
-            print("Screenshot download seed failed for \(id.ratingKey): \(error)")
+            print("Screenshot download seed failed for \(id.itemID): \(error)")
         }
     }
 }

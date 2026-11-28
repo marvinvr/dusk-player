@@ -31,7 +31,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
     let isWatched: Bool
 
     var serverID: String? { id.serverID }
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
 
     init(
         id: MediaItemID,

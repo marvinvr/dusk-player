@@ -48,12 +48,12 @@ struct PlexLiveTuneDecodingTests {
 
         let tuneMedia = try #require(session.media)
         let media = tuneMedia.makeMedia(sessionPath: session.sessionPath)
-        #expect(media.id == 222512)
+        #expect(media.id == "222512")
         #expect(media.videoCodec == "h264")
         #expect(media.audioCodec == "aac")
         let part = try #require(media.parts.first)
-        #expect(part.id == 228619)
-        #expect(part.streams.map(\.id) == [919191, 919192])
+        #expect(part.id == "228619")
+        #expect(part.streams.map(\.id) == ["919191", "919192"])
         #expect(part.streams.first?.profile == "constrained baseline")
     }
 
@@ -65,11 +65,11 @@ struct PlexLiveTuneDecodingTests {
 
     @Test func codecLessLiveMediaIsNotSentToVLCKit() {
         let part = MediaPart(
-            id: 0, key: "/livetv/sessions/x", file: nil, size: nil, container: "mpegts",
+            id: "0", key: "/livetv/sessions/x", file: nil, size: nil, container: "mpegts",
             duration: nil, videoProfile: nil, audioProfile: nil, accessible: true, exists: true, streams: []
         )
         let media = MediaVersion(
-            id: 0, container: "hls", videoCodec: nil, audioCodec: nil, videoResolution: nil,
+            id: "0", container: "hls", videoCodec: nil, audioCodec: nil, videoResolution: nil,
             videoProfile: nil, audioProfile: nil, audioChannels: nil, width: nil, height: nil,
             bitrate: nil, duration: nil, optimizedForStreaming: nil, parts: [part]
         )
@@ -105,7 +105,7 @@ struct PlexLiveTVTranscodeRequestTests {
 
     private func query(sourcePath: String?) -> [String: String] {
         Dictionary(uniqueKeysWithValues: PlexService().transcodeQueryItems(
-            ratingKey: "1", mediaIndex: 0, sourcePath: sourcePath, mode: .directStreamFallback,
+            itemID: "1", mediaIndex: 0, sourcePath: sourcePath, mode: .directStreamFallback,
             sessionIdentifier: "session", transcodeSessionID: "transcode",
             audioStreamID: nil, subtitleStreamID: nil, token: nil
         ).map { ($0.name, $0.value ?? "") })

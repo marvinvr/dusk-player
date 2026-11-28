@@ -23,11 +23,11 @@ extension PlexService {
         // A library grid may not have visited a merged surface yet. Discover
         // same-server movie copies before the explicit action reaches Plex.
         if alternates.contentKey(for: id)?.isMovie != false,
-           let details = try? await getMediaDetails(ratingKey: id.ratingKey, serverID: id.serverID),
+           let details = try? await getMediaDetails(itemID: id.itemID, serverID: id.serverID),
            !details.movieContentKeys.isEmpty {
             _ = await movieCopies(for: details, includeOtherServers: false)
         }
-        try await setWatched(watched, ratingKey: id.ratingKey, serverID: id.serverID)
+        try await setWatched(watched, itemID: id.itemID, serverID: id.serverID)
 
         for instance in alternates.instances(of: id) {
             guard let serverID = instance.serverID,
@@ -37,7 +37,7 @@ extension PlexService {
             }
 
             do {
-                try await setWatched(watched, ratingKey: instance.ratingKey, serverID: serverID)
+                try await setWatched(watched, itemID: instance.itemID, serverID: serverID)
             } catch {
                 watchedFanOutLogger.notice(
                     "Could not mark \(instance.storageKey, privacy: .public) as \(watched ? "watched" : "unwatched", privacy: .public): \(error.localizedDescription, privacy: .public)"

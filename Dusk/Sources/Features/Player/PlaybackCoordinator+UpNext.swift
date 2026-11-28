@@ -159,12 +159,12 @@ extension PlaybackCoordinator {
     ///   episode, the end of a queue), so no poster can ever appear for it.
     @discardableResult
     func presentUpNextPosterIfPossible(
-        creditsMarkerID: Int,
+        creditsMarkerID: String,
         isEstimated: Bool,
         presentationID expectedPresentationID: UUID,
-        ratingKey expectedRatingKey: String?
+        itemID expectedRatingKey: String?
     ) async -> Bool {
-        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return false }
+        guard isActiveSession(presentationID: expectedPresentationID, itemID: expectedRatingKey) else { return false }
         if let existing = upNextPoster, existing.creditsMarkerID == creditsMarkerID { return false }
         // The full-screen Up Next screen takes precedence over the poster.
         guard upNextPresentation == nil else { return false }
@@ -173,7 +173,7 @@ extension PlaybackCoordinator {
 
         let startedAt = ContinuousClock.now
         let resolved = await resolveUpNext(after: activeItemDetails, prefersDownloadCache: true)
-        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return false }
+        guard isActiveSession(presentationID: expectedPresentationID, itemID: expectedRatingKey) else { return false }
         guard let candidate = resolved else { return true }
         guard upNextPresentation == nil else { return false }
         // A poster for a newer credits marker was raised while we resolved.
@@ -400,7 +400,7 @@ extension PlaybackCoordinator {
         upNextPosterCountdownTask = nil
     }
 
-    private func upNextPosterMode(creditsMarkerID: Int, estimated: Bool) -> UpNextPosterPresentation.Mode {
+    private func upNextPosterMode(creditsMarkerID: String, estimated: Bool) -> UpNextPosterPresentation.Mode {
         // A guessed credits point (no real Plex marker) must never auto-skip or
         // auto-advance — only ever a manual poster the user can choose to tap.
         if estimated { return .manual }
@@ -755,8 +755,8 @@ extension PlaybackCoordinator {
         return Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
     }
 
-    private func isActiveSession(presentationID expectedPresentationID: UUID, ratingKey expectedRatingKey: String?) -> Bool {
-        playerPresentationID == expectedPresentationID && ratingKey == expectedRatingKey
+    private func isActiveSession(presentationID expectedPresentationID: UUID, itemID expectedRatingKey: String?) -> Bool {
+        playerPresentationID == expectedPresentationID && itemID == expectedRatingKey
     }
 
     private func startUpNextPlayback(trigger: UpNextStartTrigger) async {

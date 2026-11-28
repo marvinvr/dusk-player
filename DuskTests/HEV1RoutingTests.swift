@@ -70,11 +70,11 @@ struct HEV1RoutingTests {
     @Test func stampedProbeResultReroutes() throws {
         let details = try makeDetails()
         #expect(StreamResolver.evaluate(media: details.media[0]).engine == .avPlayer)
-        let stamped = details.stampingVideoSampleEntry("hev1", mediaID: 10, partID: 20)
+        let stamped = details.stampingVideoSampleEntry("hev1", mediaID: "10", partID: "20")
         #expect(stamped.media[0].parts[0].streams[0].codecID == "hev1")
         #expect(stamped.media[0].parts[0].streams[1].codecID == nil)
         #expect(StreamResolver.evaluate(media: stamped.media[0]).requiresServerTranscode)
-        let otherPart = details.stampingVideoSampleEntry("hev1", mediaID: 10, partID: 99)
+        let otherPart = details.stampingVideoSampleEntry("hev1", mediaID: "10", partID: "99")
         #expect(StreamResolver.evaluate(media: otherPart.media[0]).engine == .avPlayer)
     }
 

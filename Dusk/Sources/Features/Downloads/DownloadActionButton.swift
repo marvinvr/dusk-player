@@ -321,7 +321,7 @@ struct DownloadActionButton: View {
         if smartRule != nil {
             // Re-queuing the whole show would download every episode.
             for record in state.records where record.status == .failed {
-                downloadManager.retryDownload(id: record.itemID)
+                downloadManager.retryDownload(id: record.mediaItemID)
             }
         } else if type == .season || type == .show {
             startDownload()

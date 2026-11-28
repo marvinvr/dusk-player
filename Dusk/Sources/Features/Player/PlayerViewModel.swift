@@ -98,30 +98,30 @@ final class PlayerViewModel {
     )
     var autoSkipIntroMode: AutoSkipIntroMode = .alwaysExceptFirstEpisode
     var isFirstEpisodeInSeason = false
-    var autoSkipCountdownMarkerID: Int?
+    var autoSkipCountdownMarkerID: String?
     /// Intro marker whose countdown finished while auto-skip was off. The chip
     /// stays hidden until the playhead leaves the marker; seeking back in
     /// shows it again. Never seeks.
-    var countdownDismissedMarkerID: Int?
+    var countdownDismissedMarkerID: String?
     var autoSkipHandler: (@MainActor (Marker) -> Void)?
     /// Markers this episode has already skipped once, seeded from the
     /// coordinator so the record survives a rebuilt player (quality switch,
     /// Picture in Picture restore). A marker in here never arms another
     /// auto-skip countdown: seeking back into the intro shows the button again,
     /// but the jump forward is the viewer's to make.
-    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
+    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<String> = []
     /// Reports a newly spent auto-skip back to the coordinator, which owns the
     /// per-episode record.
-    var autoSkipSpentHandler: (@MainActor (Int) -> Void)?
+    var autoSkipSpentHandler: (@MainActor (String) -> Void)?
     /// Fires when the reached credits marker changes (nil when leaving the
     /// credits, e.g. a seek back before the marker). The player forwards it to
     /// the coordinator, which resolves the next episode and shows/hides the
     /// bottom-right Up Next poster.
     var upNextPosterHandler: (@MainActor (Marker?) -> Void)?
-    @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
+    @ObservationIgnored var lastNotifiedCreditsMarkerID: String?
     /// The reached credits marker when the coordinator found nothing to play
     /// after this item, so it gets a Skip Credits chip instead of the poster.
-    var creditsMarkerWithoutUpNextID: Int?
+    var creditsMarkerWithoutUpNextID: String?
     /// Ends the session for a skip that runs off the end of the item, so it
     /// does not depend on how each engine treats a seek to the very end.
     var skipToEndHandler: (@MainActor () -> Void)?
@@ -143,12 +143,12 @@ final class PlayerViewModel {
     /// Asks the coordinator to restart this session on VLCKit so a Plex sidecar
     /// can be mounted. Fired when the viewer picks an external subtitle in an
     /// AVPlayer session, which cannot attach one to a live item.
-    var externalSubtitleRestartHandler: (@MainActor (Int) -> Void)?
+    var externalSubtitleRestartHandler: (@MainActor (String) -> Void)?
     /// Plex subtitle stream id to select as soon as it is mounted: carried
     /// across the AVPlayer → VLCKit restart and set after a subtitle download.
-    var pendingExternalSubtitleStreamID: Int?
+    var pendingExternalSubtitleStreamID: String?
     /// External Plex streams already handed to the engine this session.
-    @ObservationIgnored var attachedExternalSubtitleStreamIDs: Set<Int> = []
+    @ObservationIgnored var attachedExternalSubtitleStreamIDs: Set<String> = []
     /// The part's sidecar subtitle streams paired with their resolved URLs.
     /// Cached because the track lists are rebuilt on every sync tick and
     /// building a stream URL is not free.
@@ -156,7 +156,7 @@ final class PlayerViewModel {
     /// Sidecars Plex overwrote in place this session (same stream id and URL),
     /// with how often. The count goes into the URL so the engine fetches the
     /// new file instead of reusing the slave it already mounted.
-    @ObservationIgnored var externalSubtitleURLRevisions: [Int: Int] = [:]
+    @ObservationIgnored var externalSubtitleURLRevisions: [String: Int] = [:]
     /// URLs of the slaves those replacements superseded; their engine tracks
     /// are hidden from the picker.
     @ObservationIgnored var supersededExternalSubtitleURLs: Set<URL> = []
@@ -180,10 +180,10 @@ final class PlayerViewModel {
     /// Plex streams the viewer explicitly chose before an engine swap (Atmos
     /// remux → direct play). They replace the automatic picks once.
     @ObservationIgnored var explicitTrackSelection: ExplicitTrackSelection?
-    var serverSelectedAudioStreamID: Int?
-    var serverSelectedSubtitleStreamID: Int?
-    var userTrackSelectionHandler: (@MainActor (PlexStreamType, Int?) -> Void)?
-    var plexTrackSelectionHandler: (@MainActor (Int?, Int?) -> Void)?
+    var serverSelectedAudioStreamID: String?
+    var serverSelectedSubtitleStreamID: String?
+    var userTrackSelectionHandler: (@MainActor (PlexStreamType, String?) -> Void)?
+    var plexTrackSelectionHandler: (@MainActor (String?, String?) -> Void)?
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
     var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?
@@ -261,11 +261,11 @@ final class PlayerViewModel {
         mediaDetails: MediaDetails? = nil,
         usesServerTrackSelection: Bool = false,
         rendersServerSubtitleTrack: Bool = false,
-        selectedAudioStreamID: Int? = nil,
-        selectedSubtitleStreamID: Int? = nil,
-        pendingExternalSubtitleStreamID: Int? = nil,
+        selectedAudioStreamID: String? = nil,
+        selectedSubtitleStreamID: String? = nil,
+        pendingExternalSubtitleStreamID: String? = nil,
         explicitTrackSelection: ExplicitTrackSelection? = nil,
-        spentAutoSkipMarkerIDs: Set<Int> = []
+        spentAutoSkipMarkerIDs: Set<String> = []
     ) {
         userPreferences = preferences
         // Apply the saved zoom-to-fill choice now that preferences are known.
@@ -274,7 +274,7 @@ final class PlayerViewModel {
         applyPersistedAspectFill()
         sourcePart = part
         self.usesServerTrackSelection = usesServerTrackSelection
-        serverSelectedAudioStreamID = userSelectedAudioTrack?.id ?? selectedAudioStreamID
+        serverSelectedAudioStreamID = userSelectedAudioTrack.map { String($0.id) } ?? selectedAudioStreamID
         serverSelectedSubtitleStreamID = selectedSubtitleStreamID
         pendingServerSubtitleRenditionSelection = usesServerTrackSelection
             && rendersServerSubtitleTrack

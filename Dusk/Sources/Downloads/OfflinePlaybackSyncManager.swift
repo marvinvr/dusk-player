@@ -45,7 +45,7 @@ final class OfflinePlaybackSyncManager {
 
     func recordProgress(
         serverID: String?,
-        ratingKey: String,
+        itemID: String,
         viewOffsetMs: Int,
         durationMs: Int,
         state: PlaybackState = .stopped
@@ -54,7 +54,7 @@ final class OfflinePlaybackSyncManager {
         let shouldMarkWatched = durationMs > 0 && Double(viewOffsetMs) / Double(durationMs) >= 0.9
         upsertAction(
             serverID: serverID,
-            ratingKey: ratingKey,
+            itemID: itemID,
             kind: .progress,
             viewOffsetMs: viewOffsetMs,
             durationMs: durationMs,
@@ -63,11 +63,11 @@ final class OfflinePlaybackSyncManager {
         )
     }
 
-    func recordWatchState(serverID: String?, ratingKey: String, watched: Bool) {
+    func recordWatchState(serverID: String?, itemID: String, watched: Bool) {
         guard let serverID = serverID?.nilIfEmpty else { return }
         upsertAction(
             serverID: serverID,
-            ratingKey: ratingKey,
+            itemID: itemID,
             kind: watched ? .watched : .unwatched,
             viewOffsetMs: nil,
             durationMs: nil,
@@ -118,8 +118,8 @@ final class OfflinePlaybackSyncManager {
         startAutomaticSync()
     }
 
-    func effectiveViewOffsetMs(serverID: String?, ratingKey: String, fallback: Int?) -> Int? {
-        guard let action = action(serverID: serverID, ratingKey: ratingKey),
+    func effectiveViewOffsetMs(serverID: String?, itemID: String, fallback: Int?) -> Int? {
+        guard let action = action(serverID: serverID, itemID: itemID),
               action.kind == .progress,
               let viewOffsetMs = action.viewOffsetMs,
               viewOffsetMs > 0 else {
@@ -128,8 +128,8 @@ final class OfflinePlaybackSyncManager {
         return viewOffsetMs
     }
 
-    func effectiveWatched(serverID: String?, ratingKey: String, fallback: Bool) -> Bool {
-        guard let action = action(serverID: serverID, ratingKey: ratingKey) else {
+    func effectiveWatched(serverID: String?, itemID: String, fallback: Bool) -> Bool {
+        guard let action = action(serverID: serverID, itemID: itemID) else {
             return fallback
         }
 
@@ -216,19 +216,19 @@ final class OfflinePlaybackSyncManager {
         switch action.kind {
         case .progress:
             try await plexService.submitTimeline(
-                ratingKey: action.ratingKey,
+                itemID: action.itemID,
                 state: playbackState(for: action.plexState),
                 timeMs: action.viewOffsetMs ?? 0,
                 durationMs: action.durationMs ?? 0,
                 serverID: action.serverID
             )
             if action.shouldMarkWatched {
-                try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID)
+                try await plexService.scrobble(itemID: action.itemID, serverID: action.serverID)
             }
         case .watched:
-            try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID)
+            try await plexService.scrobble(itemID: action.itemID, serverID: action.serverID)
         case .unwatched:
-            try await plexService.unscrobble(ratingKey: action.ratingKey, serverID: action.serverID)
+            try await plexService.unscrobble(itemID: action.itemID, serverID: action.serverID)
         }
     }
 
@@ -253,19 +253,19 @@ final class OfflinePlaybackSyncManager {
         persist()
     }
 
-    private func action(serverID: String?, ratingKey: String) -> OfflinePlaybackSyncAction? {
+    private func action(serverID: String?, itemID: String) -> OfflinePlaybackSyncAction? {
         guard let serverID = serverID?.nilIfEmpty else { return nil }
         let globalKey = DownloadedMediaRecord.globalKey(
             accountProfileID: plexService.activeProfileID,
             serverID: serverID,
-            ratingKey: ratingKey
+            itemID: itemID
         )
         return storedActions.first { $0.globalKey == globalKey }
     }
 
     private func upsertAction(
         serverID: String,
-        ratingKey: String,
+        itemID: String,
         kind: OfflinePlaybackSyncActionKind,
         viewOffsetMs: Int?,
         durationMs: Int?,
@@ -280,7 +280,7 @@ final class OfflinePlaybackSyncManager {
         let globalKey = DownloadedMediaRecord.globalKey(
             accountProfileID: activeProfileID,
             serverID: serverID,
-            ratingKey: ratingKey
+            itemID: itemID
         )
         if let index = storedActions.firstIndex(where: { $0.globalKey == globalKey }) {
             storedActions[index].kind = kind
@@ -294,7 +294,7 @@ final class OfflinePlaybackSyncManager {
             storedActions.append(OfflinePlaybackSyncAction(
                 accountProfileID: activeProfileID,
                 serverID: serverID,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 kind: kind,
                 viewOffsetMs: viewOffsetMs,
                 durationMs: durationMs,

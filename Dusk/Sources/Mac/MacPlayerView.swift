@@ -467,10 +467,10 @@ private struct MacPlayerSessionView: View {
 
     @ViewBuilder
     private var subtitleSearchView: some View {
-        if let ratingKey = playback.ratingKey {
+        if let itemID = playback.itemID {
             SubtitleSearchView(
                 plexService: plexService,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
                 onWillDownload: { result in
@@ -597,7 +597,7 @@ private struct MacPlayerSessionView: View {
             !playback.isAutomaticDirectPlayFallbackPending
     }
 
-    private var scrubPreviewPartID: Int? {
+    private var scrubPreviewPartID: String? {
         guard let debugInfo, debugInfo.canLoadScrubPreviews else { return nil }
         return debugInfo.part.id
     }
@@ -608,7 +608,7 @@ private struct MacPlayerSessionView: View {
     }
 
     @MainActor
-    private func loadScrubPreviewSource(partID: Int?) async {
+    private func loadScrubPreviewSource(partID: String?) async {
         scrubPreviewSource = nil
         guard let partID else { return }
 
@@ -720,13 +720,13 @@ private struct MacPlayerSessionView: View {
         }
 
         let presentationID = playback.playerPresentationID
-        let ratingKey = playback.ratingKey
+        let itemID = playback.itemID
         Task {
             let nothingFollows = await playback.presentUpNextPosterIfPossible(
                 creditsMarkerID: marker.id,
                 isEstimated: marker.isEstimated,
                 presentationID: presentationID,
-                ratingKey: ratingKey
+                itemID: itemID
             )
             if nothingFollows, viewModel.reachedCreditsMarker?.id == marker.id {
                 viewModel.creditsMarkerWithoutUpNextID = marker.id

@@ -86,10 +86,10 @@ struct SeriesDetailView: View {
         .task {
             await viewModel.load()
         }
-        .task(id: "\(viewModel.season?.ratingKey ?? "")|\(viewModel.anchorEpisode?.ratingKey ?? "")") {
+        .task(id: "\(viewModel.season?.itemID ?? "")|\(viewModel.anchorEpisode?.itemID ?? "")") {
             await loadAnchorEpisodeDetailsIfNeeded()
         }
-        .onChange(of: viewModel.season?.ratingKey) { _, _ in
+        .onChange(of: viewModel.season?.itemID) { _, _ in
             // A pending focus commit belongs to the previous season's row.
             episodeFocusTask?.cancel()
         }
@@ -189,7 +189,7 @@ struct SeriesDetailView: View {
                     if let show = viewModel.show?.details {
                         DetailCollectionShelves(
                             itemID: show.id,
-                            sectionID: show.librarySectionID,
+                            sectionID: show.libraryID,
                             tags: show.collections,
                             plexService: plexService
                         )
@@ -499,7 +499,7 @@ struct SeriesDetailView: View {
                             isUnavailableOffline: season.isUnavailableOffline(episode),
                             isWatched: season.isWatched(episode),
                             artworkWidth: artworkWidth,
-                            focusRequestID: episodeFollowRequest?.ratingKey == episode.ratingKey && episodeFollowRequest?.movesFocus == true
+                            focusRequestID: episodeFollowRequest?.itemID == episode.itemID && episodeFollowRequest?.movesFocus == true
                                 ? episodeFollowRequest?.id
                                 : nil,
                             onFocusRequestHandled: {
@@ -512,7 +512,7 @@ struct SeriesDetailView: View {
                                 play(episode, in: season)
                             }
                         )
-                        .id(episode.ratingKey)
+                        .id(episode.itemID)
                         .contextMenu {
                             episodeContextMenu(episode, in: season)
                         }
@@ -527,15 +527,15 @@ struct SeriesDetailView: View {
             // Start each season's row on the episode the page opened on. Keyed on
             // the season only: re-scrolling when next-up moves (after playback)
             // would pull the row out from under the card that has focus.
-            .task(id: season.ratingKey) {
+            .task(id: season.itemID) {
                 guard let anchor = viewModel.anchorEpisode else { return }
-                proxy.scrollTo(anchor.ratingKey, anchor: .leading)
+                proxy.scrollTo(anchor.itemID, anchor: .leading)
             }
             // Playback moved on to another episode of this season: bring its
             // card into view (a season switch is covered by the task above).
             .onChange(of: episodeFollowRequest?.id) { _, id in
-                guard id != nil, let ratingKey = episodeFollowRequest?.ratingKey else { return }
-                proxy.scrollTo(ratingKey, anchor: .leading)
+                guard id != nil, let itemID = episodeFollowRequest?.itemID else { return }
+                proxy.scrollTo(itemID, anchor: .leading)
                 if episodeFollowRequest?.movesFocus == false {
                     episodeFollowRequest = nil
                 }
@@ -627,23 +627,23 @@ struct SeriesDetailView: View {
             alignment: .topLeading
         )
         .clipped()
-        .animation(.easeInOut(duration: 0.16), value: details?.ratingKey)
+        .animation(.easeInOut(duration: 0.16), value: details?.itemID)
     }
 
     // MARK: - Focus
 
     private func focusedEpisode(in season: SeasonDetailViewModel) -> Episode? {
-        season.displayEpisodes.first { $0.ratingKey == focusedEpisodeKey }
+        season.displayEpisodes.first { $0.itemID == focusedEpisodeKey }
             ?? viewModel.anchorEpisode
             ?? season.displayEpisodes.first
     }
 
     private func focusedEpisodeDetails(in season: SeasonDetailViewModel) -> MediaDetails? {
-        let ratingKey = focusedEpisode(in: season)?.ratingKey
-        if season.focusedEpisodeDetails?.ratingKey == ratingKey {
+        let itemID = focusedEpisode(in: season)?.itemID
+        if season.focusedEpisodeDetails?.itemID == itemID {
             return season.focusedEpisodeDetails
         }
-        if season.nextEpisodeDetails?.ratingKey == ratingKey {
+        if season.nextEpisodeDetails?.itemID == itemID {
             return season.nextEpisodeDetails
         }
         return nil
@@ -658,17 +658,17 @@ struct SeriesDetailView: View {
         guard let season = viewModel.season else { return }
         // A card the user already focused in this season keeps the banner.
         if let focusedEpisodeKey,
-           season.displayEpisodes.contains(where: { $0.ratingKey == focusedEpisodeKey }) {
+           season.displayEpisodes.contains(where: { $0.itemID == focusedEpisodeKey }) {
             return
         }
         guard let episode = viewModel.anchorEpisode ?? season.displayEpisodes.first else { return }
-        setFocusedEpisodeKey(episode.ratingKey)
+        setFocusedEpisodeKey(episode.itemID)
         await season.focusEpisode(episode)
     }
 
     @MainActor
     private func focusEpisode(_ episode: Episode, in season: SeasonDetailViewModel) {
-        guard focusedEpisodeKey != episode.ratingKey else { return }
+        guard focusedEpisodeKey != episode.itemID else { return }
 
         // Debounce the committed focus. The banner tracks the focused episode, so
         // updating it rebuilds the whole page; doing that on every card while the
@@ -685,18 +685,18 @@ struct SeriesDetailView: View {
             }
 
             guard !Task.isCancelled else { return }
-            setFocusedEpisodeKey(episode.ratingKey)
+            setFocusedEpisodeKey(episode.itemID)
             await season.focusEpisode(episode)
         }
     }
 
     @MainActor
-    private func setFocusedEpisodeKey(_ ratingKey: String) {
+    private func setFocusedEpisodeKey(_ itemID: String) {
         var transaction = Transaction()
         transaction.disablesAnimations = true
 
         withTransaction(transaction) {
-            focusedEpisodeKey = ratingKey
+            focusedEpisodeKey = itemID
         }
     }
 
@@ -708,10 +708,10 @@ struct SeriesDetailView: View {
     private func followPlayedEpisode(_ details: MediaDetails, movesFocus: Bool) async {
         guard await viewModel.follow(playedEpisode: details),
               let season = viewModel.season,
-              let episode = season.displayEpisodes.first(where: { $0.ratingKey == details.ratingKey }) else { return }
+              let episode = season.displayEpisodes.first(where: { $0.itemID == details.itemID }) else { return }
         episodeFocusTask?.cancel()
-        setFocusedEpisodeKey(episode.ratingKey)
-        episodeFollowRequest = EpisodeFollowRequest(ratingKey: episode.ratingKey, movesFocus: movesFocus)
+        setFocusedEpisodeKey(episode.itemID)
+        episodeFollowRequest = EpisodeFollowRequest(itemID: episode.itemID, movesFocus: movesFocus)
         await season.focusEpisode(episode)
     }
 
@@ -731,7 +731,7 @@ struct SeriesDetailView: View {
 
 private struct EpisodeFollowRequest {
     let id = UUID()
-    let ratingKey: String
+    let itemID: String
     let movesFocus: Bool
 }
 
@@ -769,7 +769,7 @@ private struct SeriesSeasonPills<SeasonMenu: View>: View {
     private func pill(for item: ShowDetailViewModel.SeasonItem) -> some View {
         switch item {
         case .plex(let season):
-            let isSelected = season.ratingKey == selectedSeasonKey
+            let isSelected = season.itemID == selectedSeasonKey
             Button {
                 onSelect(season)
             } label: {

@@ -4,13 +4,13 @@ import Foundation
 /// Returned from `GET /library/metadata/{seasonRatingKey}/children`.
 struct Episode: Codable, Sendable, Identifiable {
     /// Server-scoped identity; see `MediaItemID`.
-    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     /// Stamped by `ServerPool.decoder(for:)`; never part of the Plex payload,
     /// so it is excluded from `CodingKeys` and dropped when re-encoded.
     let serverID: String?
 
-    let ratingKey: String
+    let itemID: String
     let key: String
     let title: String
 
@@ -19,11 +19,11 @@ struct Episode: Codable, Sendable, Identifiable {
     let parentIndex: Int?
 
     // Parent season
-    let parentRatingKey: String?
+    let parentID: String?
     let parentTitle: String?
 
     // Grandparent show
-    let grandparentRatingKey: String?
+    let grandparentID: String?
     let grandparentTitle: String?
     let grandparentThumb: String?
 
@@ -48,10 +48,10 @@ struct Episode: Codable, Sendable, Identifiable {
     let updatedAt: Int?
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, title
+        case itemID = "ratingKey", key, title
         case index, parentIndex
-        case parentRatingKey, parentTitle
-        case grandparentRatingKey, grandparentTitle, grandparentThumb
+        case parentID = "parentRatingKey", parentTitle
+        case grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb
         case summary, contentRating, originallyAvailableAt, year
         case thumb, art
         case duration, viewCount, viewOffset, lastViewedAt
@@ -61,14 +61,14 @@ struct Episode: Codable, Sendable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         serverID = decoder.duskServerID
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         key = try container.decode(String.self, forKey: .key)
         title = try container.decode(String.self, forKey: .title)
         index = try container.decodeIfPresent(Int.self, forKey: .index)
         parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
-        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
-        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
         grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
@@ -121,7 +121,7 @@ struct AdjacentEpisodes: Sendable {
         around episode: MediaDetails,
         isEligible: (Episode) -> Bool = { _ in true }
     ) -> AdjacentEpisodes {
-        if let position = episodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }) {
+        if let position = episodes.firstIndex(where: { $0.itemID == episode.itemID }) {
             return AdjacentEpisodes(
                 previous: episodes[..<position].last(where: isEligible),
                 next: episodes[episodes.index(after: position)...].first(where: isEligible)

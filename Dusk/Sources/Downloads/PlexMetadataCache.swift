@@ -27,11 +27,11 @@ struct PlexMetadataCache: Sendable {
         ))
     }
 
-    func mediaDetails(accountProfileID: String, serverID: String, ratingKey: String) -> MediaDetails? {
+    func mediaDetails(accountProfileID: String, serverID: String, itemID: String) -> MediaDetails? {
         guard let data = payload(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            endpoint: Self.metadataEndpoint(ratingKey)
+            endpoint: Self.metadataEndpoint(itemID)
         ) else {
             return nil
         }
@@ -62,14 +62,14 @@ struct PlexMetadataCache: Sendable {
 
     func firstCachedMediaDetails(
         accountProfileID: String,
-        ratingKey: String,
+        itemID: String,
         serverIDs: [String]
     ) -> MediaDetails? {
         for serverID in serverIDs {
             if let details = mediaDetails(
                 accountProfileID: accountProfileID,
                 serverID: serverID,
-                ratingKey: ratingKey
+                itemID: itemID
             ) {
                 return details
             }
@@ -111,12 +111,12 @@ struct PlexMetadataCache: Sendable {
         return nil
     }
 
-    static func metadataEndpoint(_ ratingKey: String) -> String {
-        "/library/metadata/\(ratingKey)"
+    static func metadataEndpoint(_ itemID: String) -> String {
+        "/library/metadata/\(itemID)"
     }
 
-    static func childrenEndpoint(_ ratingKey: String) -> String {
-        "/library/metadata/\(ratingKey)/children"
+    static func childrenEndpoint(_ itemID: String) -> String {
+        "/library/metadata/\(itemID)/children"
     }
 
     /// Stamps the server onto the decoder so cached models carry the same

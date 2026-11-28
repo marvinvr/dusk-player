@@ -74,8 +74,9 @@ extension PlexService {
         return try await executeBinaryRequest(request)
     }
 
-    func scrubPreviewSource(forPartID partID: Int, serverID: String? = nil) async -> PlexScrubPreviewSource? {
-        guard partID > 0 else { return nil }
+    func scrubPreviewSource(forPartID partID: String, serverID: String? = nil) async -> PlexScrubPreviewSource? {
+        // Plex part ids are positive numbers; 0 or below is a placeholder.
+        guard Int(partID).map({ $0 > 0 }) ?? !partID.isEmpty else { return nil }
 
         do {
             let data = try await rawScrubPreviewRequest(partID: partID, serverID: serverID)
@@ -140,7 +141,7 @@ extension PlexService {
         return connection
     }
 
-    private func rawScrubPreviewRequest(partID: Int, serverID: String?) async throws -> Data {
+    private func rawScrubPreviewRequest(partID: String, serverID: String?) async throws -> Data {
         let targetID = try resolveServerID(serverID)
 
         if pool.connection(for: targetID) == nil {
@@ -172,7 +173,7 @@ extension PlexService {
         return data
     }
 
-    private func sendScrubPreviewRequest(partID: Int, serverID: String) async throws -> Data {
+    private func sendScrubPreviewRequest(partID: String, serverID: String) async throws -> Data {
         guard let connection = pool.connection(for: serverID) else {
             switch pool.state(for: serverID) {
             case .unauthorized:

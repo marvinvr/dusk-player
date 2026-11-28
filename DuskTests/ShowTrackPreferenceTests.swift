@@ -17,8 +17,8 @@ struct ShowTrackPreferenceTests {
             {"id":82,"streamType":3,"languageTag":"en-GB","codec":"webvtt"}
             """#)
         let remembered = try preferences(from: first)
-        #expect(remembered.audioStream(in: next.media[0].parts[0])?.id == 81)
-        #expect(remembered.subtitleStreamID(in: next.media[0].parts[0], fallback: nil) == 82)
+        #expect(remembered.audioStream(in: next.media[0].parts[0])?.id == "81")
+        #expect(remembered.subtitleStreamID(in: next.media[0].parts[0], fallback: nil) == "82")
         #expect(scope(first) == scope(next))
     }
 
@@ -33,8 +33,8 @@ struct ShowTrackPreferenceTests {
         let part = details.media[0].parts[0]
         let index = ["normal": 0, "forced": 1, "sdh": 2, "forced-sdh": 3][kind]!
         let descriptor = try #require(ShowTrackDescriptor(stream: part.streams[index]))
-        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == index + 1)
-        #expect(descriptor.match(in: part.streams.filter { $0.id != index + 1 }, type: .subtitle) == nil)
+        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == String(index + 1))
+        #expect(descriptor.match(in: part.streams.filter { $0.id != String(index + 1) }, type: .subtitle) == nil)
     }
 
     @Test func titleFlagsMatchExplicitFlags() throws {
@@ -46,7 +46,7 @@ struct ShowTrackPreferenceTests {
             {"id":3,"streamType":3,"languageCode":"en","forced":true}
             """#)
         let descriptor = try #require(ShowTrackDescriptor(stream: source.media[0].parts[0].streams[0]))
-        #expect(descriptor.match(in: target.media[0].parts[0].streams, type: .subtitle)?.id == 2)
+        #expect(descriptor.match(in: target.media[0].parts[0].streams, type: .subtitle)?.id == "2")
     }
 
     // Shaped like a Plex OpenSubtitles download: a sidecar key, the provider's
@@ -64,7 +64,7 @@ struct ShowTrackPreferenceTests {
         #expect(descriptor.external == true)
         #expect(!descriptor.hearingImpaired && !descriptor.forced)
         let next = try episode(season: 1, streams: downloadedSubtitle(id: 9, release: "Show.S01E02.1080p.WEB.H264-SDHQ"))
-        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == 9)
+        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == "9")
     }
 
     @Test func downloadedSubtitlePrefersTheNextDownloadInItsLanguage() throws {
@@ -75,7 +75,7 @@ struct ShowTrackPreferenceTests {
             {"id":21,"streamType":3,"languageCode":"ger","codec":"srt","key":"/library/streams/21"},
             """# + downloadedSubtitle(id: 22, release: "Show.S01E02"))
         // A same-language download wins even when its SDH flag differs.
-        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == 22)
+        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == "22")
     }
 
     @Test func downloadedSubtitleFallsBackToAnEmbeddedTrackInItsLanguage() throws {
@@ -89,12 +89,12 @@ struct ShowTrackPreferenceTests {
             """#)
         let part = next.media[0].parts[0]
         // Same SDH flag first, then any normal track; never the forced one.
-        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == 33)
-        #expect(descriptor.match(in: part.streams.filter { $0.id != 33 }, type: .subtitle)?.id == 32)
-        #expect(descriptor.match(in: part.streams.filter { $0.id == 30 || $0.id == 31 }, type: .subtitle) == nil)
+        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == "33")
+        #expect(descriptor.match(in: part.streams.filter { $0.id != "33" }, type: .subtitle)?.id == "32")
+        #expect(descriptor.match(in: part.streams.filter { $0.id == "30" || $0.id == "31" }, type: .subtitle) == nil)
         let remembered = ShowTrackPreferences(subtitles: .track(descriptor))
         #expect(remembered.hasMatch(in: part))
-        #expect(remembered.subtitleStreamID(in: part, fallback: nil) == 33)
+        #expect(remembered.subtitleStreamID(in: part, fallback: nil) == "33")
     }
 
     @Test func embeddedSubtitleStillRequiresItsPurposeAndPrefersEmbedded() throws {
@@ -107,7 +107,7 @@ struct ShowTrackPreferenceTests {
             {"id":42,"streamType":3,"languageCode":"eng","codec":"srt","hearingImpaired":true}
             """#)
         let streams = next.media[0].parts[0].streams
-        #expect(descriptor.match(in: streams, type: .subtitle)?.id == 41)
+        #expect(descriptor.match(in: streams, type: .subtitle)?.id == "41")
         #expect(descriptor.match(in: [streams[2]], type: .subtitle) == nil)
     }
 
@@ -131,9 +131,9 @@ struct ShowTrackPreferenceTests {
             """#)
         let streams = details.media[0].parts[0].streams
         let descriptor = try #require(ShowTrackDescriptor(stream: streams[2]))
-        #expect(descriptor.match(in: streams, type: .audio)?.id == 3)
-        #expect(descriptor.match(in: Array(streams.prefix(2)), type: .audio)?.id == 2)
-        #expect(descriptor.match(in: Array(streams.prefix(1)), type: .audio)?.id == 1)
+        #expect(descriptor.match(in: streams, type: .audio)?.id == "3")
+        #expect(descriptor.match(in: Array(streams.prefix(2)), type: .audio)?.id == "2")
+        #expect(descriptor.match(in: Array(streams.prefix(1)), type: .audio)?.id == "1")
         #expect(descriptor.match(in: [streams[3]], type: .audio) == nil)
     }
 
@@ -163,9 +163,9 @@ struct ShowTrackPreferenceTests {
         let remembered = try preferences(from: first)
         let part = missing.media[0].parts[0]
         #expect(remembered.audioStream(in: part) == nil)
-        #expect(remembered.subtitleStreamID(in: part, fallback: 22) == 22)
+        #expect(remembered.subtitleStreamID(in: part, fallback: "22") == "22")
         #expect(!remembered.hasMatch(in: part))
-        #expect(remembered.subtitleStreamID(in: first.media[0].parts[0], fallback: 22) == 12)
+        #expect(remembered.subtitleStreamID(in: first.media[0].parts[0], fallback: "22") == "12")
     }
 
     @Test func offSurvivesRelaunchAndOverridesSelectedForcedAndGlobalDefaults() throws {
@@ -178,10 +178,10 @@ struct ShowTrackPreferenceTests {
             let reopened = ShowTrackPreferenceStore(defaults: defaults)
             let remembered = try #require(reopened.preferences(for: identity))
             #expect(remembered.hasMatch(in: details.media[0].parts[0]))
-            #expect(remembered.subtitleStreamID(in: details.media[0].parts[0], fallback: 12) == nil)
+            #expect(remembered.subtitleStreamID(in: details.media[0].parts[0], fallback: "12") == nil)
             let resolved = Optional(remembered).map {
-                $0.subtitleStreamID(in: details.media[0].parts[0], fallback: 12)
-            } ?? 12
+                $0.subtitleStreamID(in: details.media[0].parts[0], fallback: "12")
+            } ?? "12"
             #expect(resolved == nil) // Preserve the distinction between missing and Off.
         }
     }
@@ -227,13 +227,13 @@ struct ShowTrackPreferenceTests {
                 media: media, part: media.parts[0], attemptID: UUID(),
                 resolverReason: "Fixture", sanitizedPlaybackURL: "/fixture.mp4"
             )
-            playback.rememberShowTrackChoice(type: .audio, streamID: 11)
-            playback.rememberShowTrackChoice(type: .subtitle, streamID: 12)
+            playback.rememberShowTrackChoice(type: .audio, streamID: "11")
+            playback.rememberShowTrackChoice(type: .subtitle, streamID: "12")
             let identity = try #require(scope(details))
             let reopened = ShowTrackPreferenceStore(defaults: defaults)
             let saved = try #require(reopened.preferences(for: identity))
-            #expect(saved.audioStream(in: media.parts[0])?.id == 11)
-            #expect(saved.subtitleStreamID(in: media.parts[0], fallback: nil) == 12)
+            #expect(saved.audioStream(in: media.parts[0])?.id == "11")
+            #expect(saved.subtitleStreamID(in: media.parts[0], fallback: nil) == "12")
             playback.rememberShowTrackChoice(type: .subtitle, streamID: nil)
             let off = try #require(reopened.preferences(for: identity))
             #expect(off.subtitles == .off)
@@ -299,25 +299,25 @@ struct ShowTrackPreferenceTests {
             {"id":4,"streamType":3,"languageCode":"eng","codec":"srt","forced":true}
             """#).media[0].parts[0]
         let unchanged = ServerStreamSelectionRestore(
-            part: part, writtenAudioStreamID: 1, writtenSubtitleStreamID: 3, serverID: "server"
+            part: part, writtenAudioStreamID: "1", writtenSubtitleStreamID: "3", serverID: "server"
         )
         #expect(unchanged.isEmpty)
         // A remux that drops the bitmap subtitle cleared it on the server.
         let dropped = ServerStreamSelectionRestore(
-            part: part, writtenAudioStreamID: 2, writtenSubtitleStreamID: nil, serverID: "server"
+            part: part, writtenAudioStreamID: "2", writtenSubtitleStreamID: nil, serverID: "server"
         )
-        #expect(dropped.audioStreamID == 1)
-        #expect(dropped.subtitleStreamID == 3)
+        #expect(dropped.audioStreamID == "1")
+        #expect(dropped.subtitleStreamID == "3")
         // Nothing selected before means writing "none" back.
         let none = try episode(streams: #"""
             {"id":1,"streamType":2,"languageCode":"eng","codec":"aac"},
             {"id":4,"streamType":3,"languageCode":"eng","codec":"srt","forced":true}
             """#).media[0].parts[0]
         let forced = ServerStreamSelectionRestore(
-            part: none, writtenAudioStreamID: 1, writtenSubtitleStreamID: 4, serverID: "server"
+            part: none, writtenAudioStreamID: "1", writtenSubtitleStreamID: "4", serverID: "server"
         )
         #expect(forced.audioStreamID == nil)
-        #expect(forced.subtitleStreamID == 0)
+        #expect(forced.subtitleStreamID == "0")
     }
 
     @Test func manualPickKeepsItsHalfOnTheServer() throws {
@@ -333,12 +333,12 @@ struct ShowTrackPreferenceTests {
                 part: details.media[0].parts[0], writtenAudioStreamID: nil,
                 writtenSubtitleStreamID: nil, serverID: "server"
             )
-            playback.automaticServerSelectionRestore?.audioStreamID = 11
-            #expect(playback.automaticServerSelectionRestore?.subtitleStreamID == 12)
+            playback.automaticServerSelectionRestore?.audioStreamID = "11"
+            #expect(playback.automaticServerSelectionRestore?.subtitleStreamID == "12")
             playback.rememberShowTrackChoice(type: .subtitle, streamID: nil)
             #expect(playback.automaticServerSelectionRestore?.subtitleStreamID == nil)
-            #expect(playback.automaticServerSelectionRestore?.audioStreamID == 11)
-            playback.rememberShowTrackChoice(type: .audio, streamID: 11)
+            #expect(playback.automaticServerSelectionRestore?.audioStreamID == "11")
+            playback.rememberShowTrackChoice(type: .audio, streamID: "11")
             #expect(playback.automaticServerSelectionRestore?.isEmpty == true)
         }
     }
@@ -392,8 +392,8 @@ struct ShowTrackPreferenceTests {
         let media = details.media[0]
         let part = media.parts[0]
         // Picture first: the PGS gives way to the English text subtitle.
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 3)
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(3, in: part) == 3)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: part) == "3")
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("3", in: part) == "3")
         let descriptor = try #require(ShowTrackDescriptor(stream: part.streams[2]))
         let remembered = ShowTrackPreferences(subtitles: .track(descriptor))
         let decision = StreamResolver.evaluateForDirectPlayback(
@@ -423,14 +423,14 @@ struct ShowTrackPreferenceTests {
             {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng","hearingImpaired":true,"displayTitle":"English SDH"},
             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English"}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part) == 7)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: part) == "7")
         for vobsub in ["vobsub", "dvd_subtitle"] {
             let vob = try episode(streams: """
                 \(hdr10Video),
                 {"id":6,"streamType":3,"codec":"\(vobsub)","languageCode":"eng"},
                 {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
                 """).media[0].parts[0]
-            #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: vob) == 7, "\(vobsub)")
+            #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: vob) == "7", "\(vobsub)")
         }
     }
 
@@ -440,7 +440,7 @@ struct ShowTrackPreferenceTests {
             {"id":5,"streamType":3,"codec":"srt","languageCode":"fra"},
             {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part) == nil)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: part) == nil)
     }
 
     @Test func forcedStaysForcedAndFullStaysFull() throws {
@@ -451,15 +451,15 @@ struct ShowTrackPreferenceTests {
             {"id":6,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English"},
             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English Forced"}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 7)
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(5, in: part) == 6)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: part) == "7")
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("5", in: part) == "6")
         // Forced-only text never stands in for full subtitles, nor the reverse.
         let fullOnly = try episode(streams: """
             \(hdr10Video),
             {"id":4,"streamType":3,"codec":"pgs","languageCode":"eng","forced":true},
             {"id":6,"streamType":3,"codec":"srt","languageCode":"eng"}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: fullOnly) == nil)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: fullOnly) == nil)
     }
 
     @Test func matchingSDHFlagIsPreferred() throws {
@@ -469,7 +469,7 @@ struct ShowTrackPreferenceTests {
             {"id":5,"streamType":3,"codec":"srt","languageCode":"eng"},
             {"id":6,"streamType":3,"codec":"srt","languageCode":"eng","hearingImpaired":true}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 6)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: part) == "6")
     }
 
     @Test func sdrAndTextPicksAreUnchanged() throws {
@@ -478,12 +478,12 @@ struct ShowTrackPreferenceTests {
             {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"},
             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: sdr) == 6)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: sdr) == "6")
         let hdr = try episode(streams: """
             \(hdr10Video),
             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
             """).media[0].parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(7, in: hdr) == 7)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID("7", in: hdr) == "7")
         #expect(ShowTrackPreferences.remuxSubtitleStreamID(nil, in: hdr) == nil)
     }
 
@@ -498,15 +498,15 @@ struct ShowTrackPreferenceTests {
         let part = media.parts[0]
         let decision = StreamResolver.evaluate(media: media)
         let audio = try #require(part.streams.first { $0.streamType == .audio })
-        func blocker(_ subtitleID: Int?) -> String? {
+        func blocker(_ subtitleID: String?) -> String? {
             StreamResolver.hdrAudioConversionRemuxBlocker(
                 media: media, decision: decision, audioStream: audio,
                 subtitleStream: subtitleID.flatMap { id in part.streams.first { $0.id == id } },
                 displaySupportsHDR: true, hdrVideoRemuxEnabled: true
             )
         }
-        #expect(blocker(6) != nil)
-        #expect(blocker(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part)) == nil)
+        #expect(blocker("6") != nil)
+        #expect(blocker(ShowTrackPreferences.remuxSubtitleStreamID("6", in: part)) == nil)
     }
 
     private func episode(

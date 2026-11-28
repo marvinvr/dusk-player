@@ -103,8 +103,8 @@ struct PlexDownloadQueueTests {
         let decision = try PlexDownloadQueueResponse.decision(decisionData([decisionMedia()]))
         let converted = decision.convertedMedia(sourceMedia: source, mediaPath: "/downloadQueue/7/item/23/media", expectedBytes: 1234)
         let part = try #require(converted.parts.first)
-        #expect(converted.id == 41)
-        #expect(part.id == 17)
+        #expect(converted.id == "41")
+        #expect(part.id == "17")
         #expect(converted.container == "mkv")
         #expect(converted.videoCodec == "h264")
         #expect(converted.audioCodec == "aac")
@@ -134,8 +134,8 @@ struct PlexDownloadQueueTests {
         record.convertedMediaData = try JSONEncoder().encode(converted)
         let restored = try JSONDecoder().decode(DownloadedMediaRecord.self, from: JSONEncoder().encode(record))
         #expect(restored.downloadQuality == .p720)
-        #expect(restored.mediaID == 41)
-        #expect(restored.partID == 17)
+        #expect(restored.mediaID == "41")
+        #expect(restored.partID == "17")
         #expect(restored.convertedMedia?.videoCodec == "h264")
         #expect(restored.convertedMedia?.parts.first?.streams.isEmpty == true)
         #expect(restored.relativeVideoPath == "Movies/Example.mkv")
@@ -151,8 +151,8 @@ struct PlexDownloadQueueTests {
         let sourcePart = try JSONDecoder().decode(MediaPart.self, from: Data(sourcePartJSON.utf8))
 
         let version = try #require(record.convertedMediaVersion(sourcePart: sourcePart))
-        #expect(version.part.streams.map(\.id) == [104])
-        #expect(version.media.parts.first?.streams.map(\.id) == [104])
+        #expect(version.part.streams.map(\.id) == ["104"])
+        #expect(version.media.parts.first?.streams.map(\.id) == ["104"])
         #expect(version.part.key == "/downloadQueue/7/item/23/media")
         #expect(version.media.videoCodec == "h264")
         #expect(record.convertedMediaVersion(sourcePart: nil)?.part.streams.isEmpty == true)
@@ -164,17 +164,17 @@ struct PlexDownloadQueueTests {
         #expect(record.externalSubtitlePaths == nil)
         #expect(record.hasMissingExternalSubtitles == false)
 
-        record.externalSubtitlePaths = [104: "Subtitles/abc/104.srt", 105: "Subtitles/abc/105.ass"]
+        record.externalSubtitlePaths = ["104": "Subtitles/abc/104.srt", "105": "Subtitles/abc/105.ass"]
         record.hasMissingExternalSubtitles = true
         let restored = try JSONDecoder().decode(DownloadedMediaRecord.self, from: JSONEncoder().encode(record))
-        #expect(restored.externalSubtitlePaths == [104: "Subtitles/abc/104.srt", 105: "Subtitles/abc/105.ass"])
+        #expect(restored.externalSubtitlePaths == ["104": "Subtitles/abc/104.srt", "105": "Subtitles/abc/105.ass"])
         #expect(restored.hasMissingExternalSubtitles)
     }
 
     @Test func onlyExternalTextSubtitlesAreSavedForOffline() throws {
         let json = #"{"id":17,"key":"/library/parts/17/file.mp4","Stream":[{"id":101,"streamType":1,"codec":"h264"},{"id":102,"streamType":3,"codec":"mov_text"},{"id":103,"streamType":3,"codec":"srt","key":"/library/streams/103"},{"id":104,"streamType":3,"codec":"ass","key":"/library/streams/104"},{"id":105,"streamType":3,"codec":"ssa","key":"/library/streams/105"},{"id":106,"streamType":3,"codec":"vtt","key":"/library/streams/106"},{"id":107,"streamType":3,"codec":"vobsub","key":"/library/streams/107"},{"id":108,"streamType":3,"codec":"srt","key":""}]}"#
         let part = try JSONDecoder().decode(MediaPart.self, from: Data(json.utf8))
-        #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: part).map(\.id) == [103, 104, 105, 106])
+        #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: part).map(\.id) == ["103", "104", "105", "106"])
         #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: nil).isEmpty)
     }
 
@@ -184,13 +184,13 @@ struct PlexDownloadQueueTests {
         let store = DownloadFileStore(rootDirectory: root)
         let body = try #require(SubtitleTextDecoder.normalizedFileData(Data("1\n00:00:00,000 --> 00:00:01,000\nHi\n".utf8)))
 
-        let path = try store.saveSubtitle(body, globalKey: "profile:server-a:42", streamID: 103, fileExtension: "srt")
+        let path = try store.saveSubtitle(body, globalKey: "profile:server-a:42", streamID: "103", fileExtension: "srt")
         #expect(path.hasPrefix("Subtitles/"))
         #expect(path.hasSuffix("/103.srt"))
         let url = try #require(store.existingFileURL(for: path))
         #expect(try Data(contentsOf: url) == body)
         // A sibling record's folder must survive the delete.
-        let other = try store.saveSubtitle(body, globalKey: "profile:server-a:43", streamID: 1, fileExtension: "srt")
+        let other = try store.saveSubtitle(body, globalKey: "profile:server-a:43", streamID: "1", fileExtension: "srt")
 
         // Re-keyed since the file was written: the stored path still wins.
         store.deleteSubtitles(relativePaths: [path], globalKey: "profile:server-b:42")

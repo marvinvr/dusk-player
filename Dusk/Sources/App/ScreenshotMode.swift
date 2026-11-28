@@ -186,7 +186,7 @@ enum ScreenshotMode {
         /// Plex Live TV lineup, tuned and playing.
         case plexLivePlayer
         /// The Playlists tab; `playlist` opens `-DuskScreenshotItem <playlist
-        /// ratingKey>`; `playlistPlay` plays it from item
+        /// itemID>`; `playlistPlay` plays it from item
         /// `-DuskScreenshotPlaylistStart <n>`; `addToPlaylist` opens the
         /// item's detail page with the Add to Playlist sheet over it.
         case playlists, playlist, playlistPlay, addToPlaylist
@@ -263,13 +263,13 @@ enum ScreenshotMode {
         // found by asking each connected server for it.
         var item: MediaItemID?
         if [.playlist, .playlistPlay].contains(screen),
-           let ratingKey = defaults.string(forKey: Key.item)?.nilIfEmpty,
+           let itemID = defaults.string(forKey: Key.item)?.nilIfEmpty,
            let primary = plexService.pool.primary?.serverID {
             // A playlist is not library metadata; the demo has one server.
-            item = MediaItemID(serverID: primary, ratingKey: ratingKey)
-        } else if let ratingKey = defaults.string(forKey: Key.item)?.nilIfEmpty {
-            guard let serverID = await server(holding: ratingKey, plexService: plexService) else { return nil }
-            item = MediaItemID(serverID: serverID, ratingKey: ratingKey)
+            item = MediaItemID(serverID: primary, itemID: itemID)
+        } else if let itemID = defaults.string(forKey: Key.item)?.nilIfEmpty {
+            guard let serverID = await server(holding: itemID, plexService: plexService) else { return nil }
+            item = MediaItemID(serverID: serverID, itemID: itemID)
         }
         hasRouted = true
 
@@ -288,7 +288,7 @@ enum ScreenshotMode {
         case .shows:
             destination.tab = .library(.show)
         case .photos:
-            // `-DuskScreenshotPhotoAlbum <ratingKey>:<title>` opens that album
+            // `-DuskScreenshotPhotoAlbum <itemID>:<title>` opens that album
             // of the first photo library.
             destination.tab = .library(.photo)
             if let value = defaults.string(forKey: Key.photoAlbum)?.nilIfEmpty,
@@ -296,7 +296,7 @@ enum ScreenshotMode {
                 let parts = value.split(separator: ":", maxSplits: 1).map(String.init)
                 destination.routes = [.photoAlbum(PhotoAlbumRoute(
                     library: library,
-                    ratingKey: parts[0],
+                    itemID: parts[0],
                     title: parts.count > 1 ? parts[1] : "Album"
                 ))]
             }
@@ -388,7 +388,7 @@ enum ScreenshotMode {
         case .addToPlaylist:
             if let item {
                 destination.routes = [.media(type: itemType, id: item)]
-                let details = try? await plexService.getMediaDetails(ratingKey: item.ratingKey, serverID: item.serverID)
+                let details = try? await plexService.getMediaDetails(itemID: item.itemID, serverID: item.serverID)
                 destination.addToPlaylist = details.flatMap(AddToPlaylistTarget.init(details:))
                     ?? AddToPlaylistTarget(id: item, type: itemType, title: "Item")
             }
@@ -397,9 +397,9 @@ enum ScreenshotMode {
     }
 
     @MainActor
-    private static func server(holding ratingKey: String, plexService: PlexService) async -> String? {
+    private static func server(holding itemID: String, plexService: PlexService) async -> String? {
         for connection in plexService.pool.connections {
-            if (try? await plexService.getMediaDetails(ratingKey: ratingKey, serverID: connection.serverID)) != nil {
+            if (try? await plexService.getMediaDetails(itemID: itemID, serverID: connection.serverID)) != nil {
                 return connection.serverID
             }
         }
@@ -415,14 +415,14 @@ enum ScreenshotMode {
             (defaults.string(forKey: Key.downloads) ?? "").split(separator: ",").compactMap { entry -> (String, DownloadQuality)? in
                 let parts = entry.split(separator: "@").map(String.init)
                 guard parts.count == 2, let quality = DownloadQuality(rawValue: parts[1]),
-                      let ratingKey = parts[0].split(separator: ":").last else { return nil }
-                return (String(ratingKey), quality)
+                      let itemID = parts[0].split(separator: ":").last else { return nil }
+                return (String(itemID), quality)
             },
             uniquingKeysWith: { first, _ in first }
         )
         for (type, id) in await downloadEntries(Key.downloads, plexService: plexService) {
             guard downloadManager.record(for: id) == nil else { continue }
-            await downloadManager.queueDownload(id: id, type: type, quality: qualities[id.ratingKey])
+            await downloadManager.queueDownload(id: id, type: type, quality: qualities[id.itemID])
         }
     }
 
@@ -444,7 +444,7 @@ enum ScreenshotMode {
             let parts = entry.split(separator: "@")[0].split(separator: ":").map(String.init)
             guard parts.count == 2, let type = MediaKind(rawValue: parts[0]),
                   let serverID = await server(holding: parts[1], plexService: plexService) else { continue }
-            entries.append((type, MediaItemID(serverID: serverID, ratingKey: parts[1])))
+            entries.append((type, MediaItemID(serverID: serverID, itemID: parts[1])))
         }
         return entries
     }

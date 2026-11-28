@@ -54,12 +54,12 @@ extension PlaybackCoordinator {
     /// be copied. HDR/DV with TrueHD or DTS audio instead requests E-AC-3
     /// conversion up front: picture wins over local lossless audio.
     func requestSpatialAudioRemux(
-        ratingKey: String,
+        itemID: String,
         mediaIndex: Int,
         media: MediaVersion,
         part: MediaPart,
-        audioStreamID: Int?,
-        subtitleStreamID: Int?,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
         convertsAudio: Bool = false,
         restoresServerSelection: Bool = false,
         sessionIdentifier: String,
@@ -161,7 +161,7 @@ extension PlaybackCoordinator {
         }
         if let blocker {
             spatialAudioLogger.notice(
-                "No spatial-audio remux for ratingKey \(ratingKey, privacy: .public): \(blocker, privacy: .public)"
+                "No spatial-audio remux for ratingKey \(itemID, privacy: .public): \(blocker, privacy: .public)"
             )
             return nil
         }
@@ -175,7 +175,7 @@ extension PlaybackCoordinator {
             try await plexService.selectStreams(
                 partID: part.id,
                 audioStreamID: audioStreamID,
-                subtitleStreamID: subtitleStreamID ?? 0,
+                subtitleStreamID: subtitleStreamID ?? "0",
                 serverID: serverID
             )
             if restoresServerSelection {
@@ -186,7 +186,7 @@ extension PlaybackCoordinator {
             }
         } catch {
             spatialAudioLogger.error(
-                "Could not record stream selection for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); declining remux"
+                "Could not record stream selection for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public); declining remux"
             )
             return nil
         }
@@ -194,7 +194,7 @@ extension PlaybackCoordinator {
         func hdrFallback() async -> SpatialAudioRemux? {
             guard StreamResolver.containsHDRVideo(inPart: part), !Task.isCancelled else { return nil }
             return await requestHDRServerRemux(
-                ratingKey: ratingKey, mediaIndex: mediaIndex, part: part,
+                itemID: itemID, mediaIndex: mediaIndex, part: part,
                 audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
                 sessionIdentifier: sessionIdentifier, serverID: serverID,
                 stages: [.convertedAudio]
@@ -204,7 +204,7 @@ extension PlaybackCoordinator {
         let transcodeSessionID = UUID().uuidString
         do {
             let result = try await plexService.spatialAudioRemuxURL(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 mediaIndex: mediaIndex,
                 sessionIdentifier: sessionIdentifier,
                 transcodeSessionID: transcodeSessionID,
@@ -231,13 +231,13 @@ extension PlaybackCoordinator {
                   subtitleStreamID == nil || result.streams.subtitleLocation == "segments-subs" else {
                 stopTranscodeSessionInBackground(transcodeSessionID, serverID: serverID)
                 spatialAudioLogger.notice(
-                    "Plex declined a compatible spatial-audio remux for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public), \(result.streams.logDescription, privacy: .public)); trying HDR server recovery where eligible"
+                    "Plex declined a compatible spatial-audio remux for ratingKey \(itemID, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public), \(result.streams.logDescription, privacy: .public)); trying HDR server recovery where eligible"
                 )
                 return await hdrFallback()
             }
 
             spatialAudioLogger.notice(
-                "Spatial-audio remux accepted for ratingKey \(ratingKey, privacy: .public): \(result.streams.logDescription, privacy: .public)"
+                "Spatial-audio remux accepted for ratingKey \(itemID, privacy: .public): \(result.streams.logDescription, privacy: .public)"
             )
             let reason: String
             if isAV1Remux {
@@ -282,7 +282,7 @@ extension PlaybackCoordinator {
         } catch {
             stopTranscodeSessionInBackground(transcodeSessionID, serverID: serverID)
             spatialAudioLogger.error(
-                "Spatial-audio remux request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); trying HDR server recovery where eligible"
+                "Spatial-audio remux request failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public); trying HDR server recovery where eligible"
             )
             return await hdrFallback()
         }
@@ -326,7 +326,7 @@ extension PlaybackCoordinator {
     func retryHDRRemuxOnServer(failureDescription: String) async -> Bool {
         guard !didFinalizeCurrentSession, !activePlaybackUsesLocalDownload,
               !isSwitchingQuality, !isPreparingAirPlay,
-              let details = activeItemDetails, let ratingKey, let debugInfo,
+              let details = activeItemDetails, let itemID, let debugInfo,
               let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }) else {
             return false
         }
@@ -343,12 +343,12 @@ extension PlaybackCoordinator {
         case .convertedAudio: []
         }
         let remux = await requestHDRServerRemux(
-            ratingKey: ratingKey, mediaIndex: mediaIndex, part: part,
+            itemID: itemID, mediaIndex: mediaIndex, part: part,
             audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID,
             sessionIdentifier: sessionIdentifier, serverID: serverID, stages: stages
         )
         guard !didFinalizeCurrentSession, playerPresentationID == expectedPresentationID,
-              self.ratingKey == ratingKey, !Task.isCancelled else {
+              self.itemID == itemID, !Task.isCancelled else {
             if let remux { stopTranscodeSessionInBackground(remux.transcodeSessionID, serverID: serverID) }
             return true
         }
@@ -362,7 +362,7 @@ extension PlaybackCoordinator {
             : nil
         activateReplacementAttempt(
             transitionLabel: "retrying HDR through a Plex server remux",
-            attemptID: UUID(), details: details, ratingKey: ratingKey,
+            attemptID: UUID(), details: details, itemID: itemID,
             media: media, part: part, playbackURL: remux.url,
             sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
             playbackDecision: .spatialAudio, engineType: .avPlayer,
@@ -374,8 +374,8 @@ extension PlaybackCoordinator {
     }
 
     private func requestHDRServerRemux(
-        ratingKey: String, mediaIndex: Int, part: MediaPart,
-        audioStreamID: Int?, subtitleStreamID: Int?,
+        itemID: String, mediaIndex: Int, part: MediaPart,
+        audioStreamID: String?, subtitleStreamID: String?,
         sessionIdentifier: String, serverID: String?, stages: [HDRRemuxFallback]
     ) async -> SpatialAudioRemux? {
         let audio = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }
@@ -385,7 +385,7 @@ extension PlaybackCoordinator {
             let sessionID = UUID().uuidString
             do {
                 let result = try await plexService.spatialAudioRemuxURL(
-                    ratingKey: ratingKey, mediaIndex: mediaIndex,
+                    itemID: itemID, mediaIndex: mediaIndex,
                     sessionIdentifier: sessionIdentifier, transcodeSessionID: sessionID,
                     audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
                     convertsAudio: convertsAudio, serverID: serverID
@@ -473,7 +473,7 @@ extension PlaybackCoordinator {
               !isSwitchingQuality,
               !didFinalizeCurrentSession,
               let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
               let part = details.media[mediaIndex].parts.first else {
@@ -495,7 +495,7 @@ extension PlaybackCoordinator {
         let keepsAudioConversion = remuxAudioConversion.map { $0.audioStreamID == audioStreamID } ?? false
 
         let remux = await requestSpatialAudioRemux(
-            ratingKey: ratingKey,
+            itemID: itemID,
             mediaIndex: mediaIndex,
             media: media,
             part: part,
@@ -509,7 +509,7 @@ extension PlaybackCoordinator {
         guard !Task.isCancelled,
               !didFinalizeCurrentSession,
               playerPresentationID == expectedPresentationID,
-              self.ratingKey == ratingKey else {
+              self.itemID == itemID else {
             if let remux {
                 stopTranscodeSessionInBackground(remux.transcodeSessionID, serverID: activePlaybackServerID)
             }
@@ -534,7 +534,7 @@ extension PlaybackCoordinator {
             transitionLabel: transitionLabel,
             attemptID: UUID(),
             details: details,
-            ratingKey: ratingKey,
+            itemID: itemID,
             media: media,
             part: part,
             playbackURL: remux.url,
@@ -556,12 +556,12 @@ extension PlaybackCoordinator {
     /// so the caller can fall back to a full transcode. A bitmap subtitle
     /// cannot ride the remux and is dropped rather than forcing a video
     /// re-encode; picking one later moves the session to direct play.
-    func playConvertedAudioRemux(audioStreamID: Int?) async -> Bool {
+    func playConvertedAudioRemux(audioStreamID: String?) async -> Bool {
         guard !didFinalizeCurrentSession,
               !isSwitchingQuality,
               !isAirPlayPlaybackActive,
               let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
               let part = details.media[mediaIndex].parts.first else {
@@ -569,7 +569,7 @@ extension PlaybackCoordinator {
         }
 
         let media = details.media[mediaIndex]
-        let subtitleStreamID = activeSubtitleStreamID.flatMap { id -> Int? in
+        let subtitleStreamID = activeSubtitleStreamID.flatMap { id -> String? in
             guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
                 return nil
             }
@@ -580,7 +580,7 @@ extension PlaybackCoordinator {
         let expectedPresentationID = playerPresentationID
 
         guard let remux = await requestSpatialAudioRemux(
-            ratingKey: ratingKey,
+            itemID: itemID,
             mediaIndex: mediaIndex,
             media: media,
             part: part,
@@ -595,7 +595,7 @@ extension PlaybackCoordinator {
 
         guard !didFinalizeCurrentSession,
               playerPresentationID == expectedPresentationID,
-              self.ratingKey == ratingKey else {
+              self.itemID == itemID else {
             stopTranscodeSessionInBackground(remux.transcodeSessionID, serverID: activePlaybackServerID)
             return true
         }
@@ -615,7 +615,7 @@ extension PlaybackCoordinator {
             transitionLabel: "converting undecodable audio on the server (video copied)",
             attemptID: UUID(),
             details: details,
-            ratingKey: ratingKey,
+            itemID: itemID,
             media: media,
             part: part,
             playbackURL: remux.url,
@@ -639,7 +639,7 @@ extension PlaybackCoordinator {
         guard isSpatialAudioSession,
               !didFinalizeCurrentSession,
               let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
               let part = details.media[mediaIndex].parts.first else {
@@ -709,13 +709,13 @@ extension PlaybackCoordinator {
         activeTranscodeSessionID = nil
         remuxAudioConversion = nil
         spatialAudioLogger.notice(
-            "Leaving spatial-audio remux for ratingKey \(ratingKey, privacy: .public): \(reason, privacy: .public)"
+            "Leaving spatial-audio remux for ratingKey \(itemID, privacy: .public): \(reason, privacy: .public)"
         )
         activateReplacementAttempt(
             transitionLabel: "leaving the spatial-audio remux for direct play",
             attemptID: UUID(),
             details: details,
-            ratingKey: ratingKey,
+            itemID: itemID,
             media: media,
             part: part,
             playbackURL: directPlayURL,
@@ -821,7 +821,7 @@ extension PlaybackCoordinator {
 /// The audio stream a remux session has Plex convert (see
 /// `PlaybackCoordinator.remuxAudioConversion`).
 struct RemuxAudioConversion: Sendable, Equatable {
-    let audioStreamID: Int?
+    let audioStreamID: String?
     var restoresDolbyAtmos = false
 }
 
@@ -829,6 +829,6 @@ struct RemuxAudioConversion: Sendable, Equatable {
 /// so the new engine opens on them instead of re-running automatic selection.
 /// `subtitleStreamID == nil` means subtitles off.
 struct ExplicitTrackSelection: Sendable, Equatable {
-    let audioStreamID: Int?
-    let subtitleStreamID: Int?
+    let audioStreamID: String?
+    let subtitleStreamID: String?
 }

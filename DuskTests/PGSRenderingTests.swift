@@ -108,8 +108,8 @@ struct PGSRenderingTests {
         let controller = UIHostingController(rootView: engine.makePlayerView().ignoresSafeArea())
         window.rootViewController = controller
         window.makeKeyAndVisible()
-        let context = PlaybackAttemptContext(attemptID: UUID(), title: "Subtitle fixture", ratingKey: "1", engine: .vlcKit,
-            resolverReason: "Subtitle regression", mediaID: 1, partID: 1, sanitizedPlaybackURL: "local fixture")
+        let context = PlaybackAttemptContext(attemptID: UUID(), title: "Subtitle fixture", itemID: "1", engine: .vlcKit,
+            resolverReason: "Subtitle regression", mediaID: "1", partID: "1", sanitizedPlaybackURL: "local fixture")
         let source = PlaybackSource(url: url, startPosition: nil, context: context)
         engine.load(source: source)
         engine.selectSubtitleTrack(nil)

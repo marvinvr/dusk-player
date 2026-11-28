@@ -69,15 +69,15 @@ struct RealLegacyContainerTests {
             #expect(movie.accountProfileID == "bigplexuser")
             #expect(movie.serverID == "bigplexserver000000000000000000000000001")
             #expect(movie.serverName == "Big NAS")
-            #expect(movie.ratingKey == "1004")
+            #expect(movie.itemID == "1004")
             #expect(movie.type == .movie)
             #expect(movie.isClip == false)
             #expect(movie.title == "Winter Stone")
             #expect(movie.subtitle == "1977")
             #expect(movie.thumbPath == "/library/metadata/1004/thumb/1795812082")
             #expect(movie.artPath == "/library/metadata/1004/art/1795812082")
-            #expect(movie.mediaID == 1004)
-            #expect(movie.partID == 1004)
+            #expect(movie.mediaID == "1004")
+            #expect(movie.partID == "1004")
             #expect(movie.downloadQuality == .original)
             #expect(movie.relativeVideoPath == "Profiles/bigplexuser/Movies/Winter Stone (1977)/Winter Stone (1977).mp4")
             #expect(movie.externalSubtitlePaths == nil)
@@ -90,13 +90,13 @@ struct RealLegacyContainerTests {
             #expect(movie.globalKey == "bigplexuser:bigplexserver000000000000000000000000001:1004")
 
             let episodes = Array(snapshot.records.dropFirst())
-            #expect(episodes.map(\.ratingKey) == ["750002", "750003", "750004", "750005"])
+            #expect(episodes.map(\.itemID) == ["750002", "750003", "750004", "750005"])
             #expect(episodes.map(\.title) == ["Episode 1", "Episode 2", "Episode 3", "Episode 4"])
             #expect(episodes.map(\.subtitle) == [
                 "Season 1 · Episode 1", "Season 1 · Episode 2", "Season 1 · Episode 3", "Season 1 · Episode 4",
             ])
-            #expect(episodes.map(\.mediaID) == [750002, 750003, 750004, 750005])
-            #expect(episodes.map(\.partID) == [750002, 750003, 750004, 750005])
+            #expect(episodes.map(\.mediaID) == ["750002", "750003", "750004", "750005"])
+            #expect(episodes.map(\.partID) == ["750002", "750003", "750004", "750005"])
             #expect(episodes.map(\.relativeVideoPath) == [
                 "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E01 - Episode 1.mp4",
                 "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E02 - Episode 2.mp4",
@@ -107,15 +107,15 @@ struct RealLegacyContainerTests {
                 #expect(episode.accountProfileID == "bigplexuser")
                 #expect(episode.serverID == "bigplexserver000000000000000000000000001")
                 #expect(episode.type == .episode)
-                #expect(episode.parentRatingKey == "750001")
+                #expect(episode.parentID == "750001")
                 #expect(episode.parentTitle == nil)
-                #expect(episode.grandparentRatingKey == "1201")
+                #expect(episode.grandparentID == "1201")
                 #expect(episode.grandparentTitle == "Harbor Final")
-                #expect(episode.thumbPath == "/library/metadata/\(episode.ratingKey)/thumb/1795812082")
+                #expect(episode.thumbPath == "/library/metadata/\(episode.itemID)/thumb/1795812082")
                 #expect(episode.artPath == nil)
                 #expect(episode.status == .completed)
                 #expect(episode.downloadedBytes == 1_000_000_000)
-                #expect(episode.globalKey == "bigplexuser:bigplexserver000000000000000000000000001:\(episode.ratingKey)")
+                #expect(episode.globalKey == "bigplexuser:bigplexserver000000000000000000000000001:\(episode.itemID)")
             }
         }
     }
@@ -136,7 +136,7 @@ struct RealLegacyContainerTests {
             #expect(manifest.metadata.count == 9)
             let cache = PlexMetadataCache(fileStore: DownloadFileStore(rootDirectory: root))
 
-            let movie = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, ratingKey: "1004"))
+            let movie = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, itemID: "1004"))
             #expect(movie.serverID == "bigplexserver000000000000000000000000001")
             #expect(movie.id.storageKey == "bigplexserver000000000000000000000000001|1004")
             #expect(movie.type == .movie)
@@ -144,39 +144,39 @@ struct RealLegacyContainerTests {
             #expect(movie.year == 1977)
             #expect(movie.thumb == "/library/metadata/1004/thumb/1795812082")
             try #require(movie.media.count == 1)
-            #expect(movie.media[0].id == 1004)
-            #expect(movie.media[0].parts.map(\.id) == [1004])
+            #expect(movie.media[0].id == "1004")
+            #expect(movie.media[0].parts.map(\.id) == ["1004"])
             #expect(movie.media[0].parts[0].key == "/library/parts/1004/1/file.mp4")
             #expect(movie.media[0].parts[0].size == 4_000_000_000)
 
-            let show = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, ratingKey: "1201"))
+            let show = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, itemID: "1201"))
             #expect(show.type == .show)
             #expect(show.title == "Harbor Final")
 
-            let season = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, ratingKey: "750001"))
+            let season = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, itemID: "750001"))
             #expect(season.type == .season)
             #expect(season.title == "Season 1")
 
             let seasons = try #require(cache.seasons(accountProfileID: Self.profile, serverID: Self.server, showKey: "1201"))
-            #expect(seasons.map(\.ratingKey) == ["750001", "750006"])
+            #expect(seasons.map(\.itemID) == ["750001", "750006"])
             #expect(seasons.map(\.title) == ["Season 1", "Season 2"])
             #expect(seasons.map(\.index) == [1, 2])
 
             let episodes = try #require(cache.episodes(accountProfileID: Self.profile, serverID: Self.server, seasonKey: "750001"))
-            #expect(episodes.map(\.ratingKey) == ["750002", "750003", "750004", "750005"])
+            #expect(episodes.map(\.itemID) == ["750002", "750003", "750004", "750005"])
             #expect(episodes.map(\.title) == ["Episode 1", "Episode 2", "Episode 3", "Episode 4"])
 
-            for ratingKey in ["750002", "750003", "750004", "750005"] {
-                let episode = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, ratingKey: ratingKey))
+            for itemID in ["750002", "750003", "750004", "750005"] {
+                let episode = try #require(cache.mediaDetails(accountProfileID: Self.profile, serverID: Self.server, itemID: itemID))
                 #expect(episode.type == .episode)
-                #expect(episode.grandparentRatingKey == "1201")
-                #expect(episode.parentRatingKey == "750001")
-                #expect(episode.media.first?.parts.first?.id == Int(ratingKey))
+                #expect(episode.grandparentID == "1201")
+                #expect(episode.parentID == "750001")
+                #expect(episode.media.first?.parts.first?.id == itemID)
             }
 
             // Same profile, other server: nothing; other profile: nothing.
-            #expect(cache.mediaDetails(accountProfileID: Self.profile, serverID: "other", ratingKey: "1004") == nil)
-            #expect(cache.mediaDetails(accountProfileID: "plex-home-1", serverID: Self.server, ratingKey: "1004") == nil)
+            #expect(cache.mediaDetails(accountProfileID: Self.profile, serverID: "other", itemID: "1004") == nil)
+            #expect(cache.mediaDetails(accountProfileID: "plex-home-1", serverID: Self.server, itemID: "1004") == nil)
         }
     }
 
@@ -211,7 +211,7 @@ struct RealLegacyContainerTests {
             let cache = PlexMetadataCache(fileStore: store)
             for record in records {
                 let details = try #require(cache.mediaDetails(
-                    accountProfileID: Self.profile, serverID: Self.server, ratingKey: record.ratingKey
+                    accountProfileID: Self.profile, serverID: Self.server, itemID: record.itemID
                 ))
                 let part = try #require(details.media.first?.parts.first)
                 let url = try store.targetVideoURL(accountProfileID: Self.profile, for: details, part: part)
@@ -293,11 +293,11 @@ struct RealLegacyContainerTests {
         #expect(catalog.entries.count == 184)
         #expect(catalog.entries.filter { $0.kind == .movie }.count == 96)
         #expect(catalog.entries.first == SiriCatalogEntry(
-            id: MediaItemID(serverID: "bigplexserver000000000000000000000000001", ratingKey: "1281"),
+            id: MediaItemID(serverID: "bigplexserver000000000000000000000000001", itemID: "1281"),
             kind: .show, title: "River Golden 80", year: 2010, lastViewedAt: 1_795_809_247
         ))
         #expect(catalog.entries.last == SiriCatalogEntry(
-            id: MediaItemID(serverID: "bigplexserver000000000000000000000000001", ratingKey: "1298"),
+            id: MediaItemID(serverID: "bigplexserver000000000000000000000000001", itemID: "1298"),
             kind: .show, title: "Secret Northern 0", year: 1998, lastViewedAt: nil
         ))
         #expect(catalog.entries.allSatisfy { $0.id.serverID == "bigplexserver000000000000000000000000001" })

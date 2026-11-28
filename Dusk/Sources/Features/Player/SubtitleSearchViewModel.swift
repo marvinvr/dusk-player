@@ -29,7 +29,7 @@ final class SubtitleSearchViewModel {
     /// what the sidecar looked like and later tell when Plex replaced it.
     private let onWillDownload: (SubtitleSearchResult) async -> Void
 
-    let ratingKey: String
+    let itemID: String
     /// The server the item lives on; nil means the primary one.
     let serverID: String?
 
@@ -43,7 +43,7 @@ final class SubtitleSearchViewModel {
 
     init(
         plexService: PlexService,
-        ratingKey: String,
+        itemID: String,
         serverID: String? = nil,
         preferredLanguageCode: String?,
         onWillDownload: @escaping (SubtitleSearchResult) async -> Void = { _ in },
@@ -51,7 +51,7 @@ final class SubtitleSearchViewModel {
     ) {
         self.plexService = plexService
         self.onWillDownload = onWillDownload
-        self.ratingKey = ratingKey
+        self.itemID = itemID
         self.serverID = serverID
         self.onDownloaded = onDownloaded
         self.language = Self.defaultLanguage(preferredCode: preferredLanguageCode)
@@ -91,7 +91,7 @@ final class SubtitleSearchViewModel {
         do {
             // Server order is the match ranking (best first). Never re-sort it.
             let found = try await plexService.searchSubtitles(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 languageCode: language.code,
                 hearingImpaired: hearingImpaired,
                 serverID: serverID
@@ -120,7 +120,7 @@ final class SubtitleSearchViewModel {
         await onWillDownload(result)
         do {
             try await plexService.downloadSubtitle(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 result: result,
                 serverID: serverID
             )

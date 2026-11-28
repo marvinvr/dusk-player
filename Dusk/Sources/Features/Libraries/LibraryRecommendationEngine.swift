@@ -207,7 +207,7 @@ struct LibraryRecommendationEngine {
             for signal in scored {
                 group.addTask {
                     let details = try? await service.getMediaDetails(
-                        ratingKey: signal.ratingKey,
+                        itemID: signal.itemID,
                         serverID: signal.serverID
                     )
                     return (signal.identity, details.map { $0.genres ?? [] })
@@ -473,15 +473,15 @@ struct LibraryRecommendationEngine {
 
         switch entry.type {
         case .episode:
-            guard let showKey = extractRatingKey(from: entry.grandparentRatingKey),
+            guard let showKey = extractRatingKey(from: entry.grandparentID),
                   !showKey.isEmpty else {
                 return nil
             }
 
-            let id = MediaItemID(serverID: serverID, ratingKey: showKey)
+            let id = MediaItemID(serverID: serverID, itemID: showKey)
             return ("show:\(id.storageKey)", id, .show)
         case .movie, .show:
-            let id = MediaItemID(serverID: serverID, ratingKey: entry.ratingKey)
+            let id = MediaItemID(serverID: serverID, itemID: entry.itemID)
             return ("\(entry.type.rawValue):\(id.storageKey)", id, entry.type)
         default:
             return nil
@@ -519,7 +519,7 @@ struct LibraryRecommendationEngine {
         }
 
         guard let details = try? await plexService.getMediaDetails(
-            ratingKey: item.ratingKey,
+            itemID: item.itemID,
             serverID: item.serverID
         ), let genres = details.genres else {
             return false

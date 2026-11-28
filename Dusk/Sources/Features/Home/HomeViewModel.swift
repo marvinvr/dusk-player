@@ -613,7 +613,7 @@ final class HomeViewModel {
             for pin in pins {
                 let entries: [PlaylistEntry]
                 do {
-                    entries = try await service.getPlaylistEntries(ratingKey: pin.id.ratingKey, serverID: pin.id.serverID)
+                    entries = try await service.getPlaylistEntries(itemID: pin.id.itemID, serverID: pin.id.serverID)
                 } catch {
                     if Task.isCancelled { return }
                     if !Self.isGone(error), let row = previous[pin.id] { rows.append(row) }
@@ -664,7 +664,7 @@ final class HomeViewModel {
         where plexService.pool.connection(for: target.serverID) != nil {
             do {
                 try await plexService.removeFromContinueWatching(
-                    ratingKey: target.ratingKey,
+                    itemID: target.itemID,
                     serverID: target.serverID
                 )
             } catch {
@@ -870,13 +870,13 @@ final class HomeViewModel {
         return items.filter { item in
             let showRatingKey: String?
             switch item.type {
-            case .show: showRatingKey = item.ratingKey
-            case .season: showRatingKey = item.parentRatingKey
-            case .episode: showRatingKey = item.grandparentRatingKey
+            case .show: showRatingKey = item.itemID
+            case .season: showRatingKey = item.parentID
+            case .episode: showRatingKey = item.grandparentID
             default: return true
             }
             guard let showRatingKey else { return true }
-            return seenShows.insert(MediaItemID(serverID: item.serverID, ratingKey: showRatingKey)).inserted
+            return seenShows.insert(MediaItemID(serverID: item.serverID, itemID: showRatingKey)).inserted
         }
     }
 
@@ -1027,9 +1027,9 @@ final class HomeViewModel {
         var excludedContentKeys: Set<ContentKey> = []
 
         for item in continueWatchingItems {
-            for ratingKey in [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
+            for itemID in [item.itemID, item.parentID, item.grandparentID]
                 .compactMap({ $0 }) {
-                excludedIDs.insert(MediaItemID(serverID: item.serverID, ratingKey: ratingKey))
+                excludedIDs.insert(MediaItemID(serverID: item.serverID, itemID: itemID))
             }
             excludedContentKeys.insert(item.contentKey)
             excludedContentKeys.formUnion(item.movieContentKeys)

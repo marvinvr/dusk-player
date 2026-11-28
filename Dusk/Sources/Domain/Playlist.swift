@@ -5,12 +5,12 @@ import Foundation
 /// server. Dusk shows video playlists only.
 struct Playlist: Decodable, Sendable, Identifiable, Hashable {
     /// Server-scoped identity; see `MediaItemID`.
-    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     /// Stamped by `ServerPool.decoder(for:)`.
     let serverID: String?
 
-    let ratingKey: String
+    let itemID: String
     let title: String
     let summary: String?
     /// Filled from a saved filter, which only Plex Web can edit. Plex rejects
@@ -30,14 +30,14 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
     let updatedAt: Int?
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, title, summary, smart, playlistType, composite, thumb
+        case itemID = "ratingKey", title, summary, smart, playlistType, composite, thumb
         case duration, leafCount, viewCount, lastViewedAt, addedAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         serverID = decoder.duskServerID
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         title = try container.decode(String.self, forKey: .title)
         summary = try container.decodeIfPresent(String.self, forKey: .summary)?.nilIfEmpty
         if let value = try? container.decodeIfPresent(Bool.self, forKey: .smart) {
@@ -60,7 +60,7 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
 
     init(
         serverID: String?,
-        ratingKey: String,
+        itemID: String,
         title: String,
         summary: String? = nil,
         smart: Bool = false,
@@ -75,7 +75,7 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
         updatedAt: Int? = nil
     ) {
         self.serverID = serverID
-        self.ratingKey = ratingKey
+        self.itemID = itemID
         self.title = title
         self.summary = summary
         self.smart = smart
@@ -97,7 +97,7 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
 
     func renamed(_ newTitle: String) -> Playlist {
         Playlist(
-            serverID: serverID, ratingKey: ratingKey, title: newTitle, summary: summary,
+            serverID: serverID, itemID: itemID, title: newTitle, summary: summary,
             smart: smart, playlistType: playlistType, composite: composite, thumb: thumb,
             duration: duration, leafCount: leafCount, viewCount: viewCount,
             lastViewedAt: lastViewedAt, addedAt: addedAt, updatedAt: updatedAt

@@ -13,7 +13,7 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
     /// Plex stream id backing this track, when known (from merged part
     /// metadata). Used to pin a server transcode to this exact audio stream
     /// when the local engine cannot decode it.
-    var plexStreamID: Int? = nil
+    var plexStreamID: String? = nil
     /// Whether the engine that produced this track can actually decode it.
     /// A stock VLCKit build ships without TrueHD/MLP, and Dusk's own TrueHD
     /// decoder can still fail on a stream (`failedAudioDecoderTrackID`), so a
@@ -54,7 +54,9 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
 extension AudioTrack {
     /// Create from a Plex audio stream.
     init(stream: MediaStream) {
-        self.id = stream.id
+        // The engine track id; a track built from metadata has none, so it
+        // reuses the Plex stream number (0 for an id that is not one).
+        self.id = Int(stream.id) ?? 0
         self.displayTitle = stream.displayTitle ?? stream.language ?? "Unknown"
         self.language = stream.language
         self.languageCode = stream.languageCode

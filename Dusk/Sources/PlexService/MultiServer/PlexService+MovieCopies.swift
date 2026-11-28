@@ -4,7 +4,7 @@ import Foundation
 struct MoviePlaybackVersion: Identifiable, Sendable {
     struct ID: Hashable {
         let item: MediaItemID
-        let mediaID: Int
+        let mediaID: String
     }
     let details: MediaDetails
     let media: MediaVersion
@@ -65,7 +65,7 @@ extension PlexService {
             for await items in group { found += items }
             return hidden.filtering(found).filter {
                 !$0.movieContentKeys.isDisjoint(with: details.movieContentKeys)
-            }.sorted { $0.ratingKey < $1.ratingKey }
+            }.sorted { $0.itemID < $1.itemID }
         }
         guard !Task.isCancelled, session == serverSessionToken else { return [details] }
         let merged = MediaItemMerge.interleave([matches])
@@ -83,9 +83,9 @@ extension PlexService {
         for id in alternates.instances(of: details.id) where id != details.id {
             if !includeOtherServers, id.serverID != serverID { continue }
             guard let server = id.serverID, pool.connection(for: server) != nil else { continue }
-            if let copy = try? await getMediaDetails(ratingKey: id.ratingKey, checkFiles: checkFiles, serverID: server),
+            if let copy = try? await getMediaDetails(itemID: id.itemID, checkFiles: checkFiles, serverID: server),
                !copy.movieContentKeys.isDisjoint(with: details.movieContentKeys),
-               !hidden.hides(serverID: copy.serverID, librarySectionID: copy.librarySectionID) {
+               !hidden.hides(serverID: copy.serverID, libraryID: copy.libraryID) {
                 copies.append(copy)
             }
         }

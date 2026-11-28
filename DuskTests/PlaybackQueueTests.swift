@@ -4,11 +4,11 @@ import Testing
 
 @Suite("Playback queue")
 struct PlaybackQueueTests {
-    private let playlistID = MediaItemID(serverID: "srv", ratingKey: "900")
+    private let playlistID = MediaItemID(serverID: "srv", itemID: "900")
 
     private func item(_ key: String, type: MediaKind = .movie, watched: Bool = false, offset: Int? = nil, server: String = "srv") -> PlaybackQueueItem {
         PlaybackQueueItem(
-            id: MediaItemID(serverID: server, ratingKey: key),
+            id: MediaItemID(serverID: server, itemID: key),
             type: type,
             title: "Item \(key)",
             index: type == .episode ? Int(key) : nil,
@@ -25,13 +25,13 @@ struct PlaybackQueueTests {
     @Test func playlistPlaysThroughInOrderFromTheChosenItem() throws {
         let items = ["1", "2", "3", "4", "5"].map { item($0) }
         var queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: items, startIndex: 2))
-        #expect(queue.current?.ratingKey == "3")
+        #expect(queue.current?.itemID == "3")
         #expect(queue.title == "Mix")
 
-        var played: [String] = [queue.current!.ratingKey]
+        var played: [String] = [queue.current!.itemID]
         while let next = queue.next() {
             queue.move(to: next.index)
-            played.append(next.item.ratingKey)
+            played.append(next.item.itemID)
         }
         #expect(played == ["3", "4", "5"])
     }
@@ -44,7 +44,7 @@ struct PlaybackQueueTests {
         let items = [item("1", offset: 12_000), item("2", watched: true), item("3", watched: true, offset: 30_000), item("4")]
         let queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: items, startIndex: 0))
         let next = try #require(queue.next())
-        #expect(next.item.ratingKey == "2")
+        #expect(next.item.itemID == "2")
         #expect(next.item.queueResumeFallbackOffset == nil)
         #expect(items[2].queueResumeFallbackOffset == nil)
         // An unwatched one hands its list offset over as the fallback.
@@ -56,7 +56,7 @@ struct PlaybackQueueTests {
         let items = [item("A"), item("B"), item("A"), item("C")]
         let queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: items, startIndex: 2))
         #expect(queue.position == 2)
-        #expect(queue.next()?.item.ratingKey == "C")
+        #expect(queue.next()?.item.itemID == "C")
         // Dropped kinds before the start still count correctly.
         let mixed = [item("X", type: .track), item("A"), item("A")]
         let second = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: mixed, startIndex: 2))
@@ -68,25 +68,25 @@ struct PlaybackQueueTests {
         let items = [item("10", type: .episode), item("20"), item("11", type: .episode)]
         var queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: items))
         let afterEpisode = try #require(queue.next())
-        #expect(afterEpisode.item.ratingKey == "20")
+        #expect(afterEpisode.item.itemID == "20")
         #expect(afterEpisode.item.type == .movie)
         queue.move(to: afterEpisode.index)
-        #expect(queue.next()?.item.ratingKey == "11")
-        #expect(queue.previous()?.item.ratingKey == "10")
+        #expect(queue.next()?.item.itemID == "11")
+        #expect(queue.previous()?.item.itemID == "10")
     }
 
     @Test func endOfPlaylistHasNoNext() throws {
         let items = [item("1"), item("2")]
         let queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: items, startIndex: 1))
         #expect(queue.next() == nil)
-        #expect(queue.previous()?.item.ratingKey == "1")
+        #expect(queue.previous()?.item.itemID == "1")
     }
 
     @Test func unplayableKindsAreDroppedUpFront() throws {
         let items = [item("1"), item("2", type: .track), item("3", type: .clip)]
         let queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: items, startIndex: 2))
-        #expect(queue.items.map(\.ratingKey) == ["1", "3"])
-        #expect(queue.current?.ratingKey == "3")
+        #expect(queue.items.map(\.itemID) == ["1", "3"])
+        #expect(queue.current?.itemID == "3")
         #expect(PlaybackQueue.playlist(id: playlistID, title: "Empty", items: [item("9", type: .album)]) == nil)
     }
 
@@ -98,28 +98,28 @@ struct PlaybackQueueTests {
         var queue = try #require(PlaybackQueue.shuffledPlaylist(id: playlistID, title: "Mix", items: items, using: &generator))
         #expect(queue.isShuffled)
         #expect(queue.position == 0)
-        #expect(Set(queue.items.map(\.ratingKey)) == Set(items.map(\.ratingKey)))
-        #expect(queue.items.map(\.ratingKey) != items.map(\.ratingKey))
+        #expect(Set(queue.items.map(\.itemID)) == Set(items.map(\.itemID)))
+        #expect(queue.items.map(\.itemID) != items.map(\.itemID))
 
-        var played = [queue.current!.ratingKey]
+        var played = [queue.current!.itemID]
         while let next = queue.next() {
             queue.move(to: next.index)
-            played.append(next.item.ratingKey)
+            played.append(next.item.itemID)
         }
-        #expect(played == queue.items.map(\.ratingKey))
+        #expect(played == queue.items.map(\.itemID))
 
         var sameSeed = SeededGenerator(seed: 7)
         let again = try #require(PlaybackQueue.shuffledPlaylist(id: playlistID, title: "Mix", items: items, using: &sameSeed))
-        #expect(again.items.map(\.ratingKey) == queue.items.map(\.ratingKey))
+        #expect(again.items.map(\.itemID) == queue.items.map(\.itemID))
     }
 
     // MARK: Removed / unavailable / offline
 
     @Test func itemsGoneFromTheServerAreSkipped() throws {
         var queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: [item("1"), item("2"), item("3")]))
-        queue.markUnavailable(MediaItemID(serverID: "srv", ratingKey: "2"))
-        #expect(queue.next()?.item.ratingKey == "3")
-        queue.markUnavailable(MediaItemID(serverID: "srv", ratingKey: "3"))
+        queue.markUnavailable(MediaItemID(serverID: "srv", itemID: "2"))
+        #expect(queue.next()?.item.itemID == "3")
+        queue.markUnavailable(MediaItemID(serverID: "srv", itemID: "3"))
         #expect(queue.next() == nil)
     }
 
@@ -130,13 +130,13 @@ struct PlaybackQueueTests {
             title: "Mix",
             items: ["1", "2", "3", "4", "5"].map { item($0) }
         ))
-        let isPlayable: (PlaybackQueueItem) -> Bool = { downloaded.contains($0.ratingKey) }
+        let isPlayable: (PlaybackQueueItem) -> Bool = { downloaded.contains($0.itemID) }
         let next = try #require(queue.next(isPlayable: isPlayable))
-        #expect(next.item.ratingKey == "4")
+        #expect(next.item.itemID == "4")
         var moved = queue
         moved.move(to: next.index)
         #expect(moved.next(isPlayable: isPlayable) == nil)
-        #expect(moved.previous(isPlayable: isPlayable)?.item.ratingKey == "1")
+        #expect(moved.previous(isPlayable: isPlayable)?.item.itemID == "1")
     }
 
     @Test func fresherMetadataReplacesOnlyTheSameItem() throws {
@@ -144,7 +144,7 @@ struct PlaybackQueueTests {
         queue.replaceItem(at: 1, with: item("2", watched: true))
         #expect(queue.items[1].isWatched)
         queue.replaceItem(at: 1, with: item("99"))
-        #expect(queue.items[1].ratingKey == "2")
+        #expect(queue.items[1].itemID == "2")
     }
 
     // MARK: Lists (Videos libraries, collections)
@@ -157,10 +157,10 @@ struct PlaybackQueueTests {
             {"ratingKey":"4","key":"/library/metadata/4","type":"movie","subtype":"clip","title":"Clip C"}
             """)
         let list = try #require(PlaybackListContext(title: "Home Videos", plexItems: plexItems))
-        #expect(list.items.map(\.ratingKey) == ["1", "3", "4"])
+        #expect(list.items.map(\.itemID) == ["1", "3", "4"])
         let queue = try #require(list.queue(startingAt: plexItems[2].id))
-        #expect(queue.current?.ratingKey == "3")
-        #expect(queue.next()?.item.ratingKey == "4")
+        #expect(queue.current?.itemID == "3")
+        #expect(queue.next()?.item.itemID == "4")
         #expect(queue.title == "Home Videos")
         #expect(AppNavigationRoute.destination(for: plexItems[0], in: list) == .videoInList(id: plexItems[0].id, list: list))
         #expect(AppNavigationRoute.destination(for: plexItems[1], in: list) == .media(type: .show, id: plexItems[1].id))
@@ -225,7 +225,7 @@ struct UpNextResolutionTests {
         UpNextStubProtocol.reset()
 
         let candidate = try #require(await playback.resolveUpNext(after: details, prefersDownloadCache: true))
-        #expect(candidate.item.ratingKey == "102")
+        #expect(candidate.item.itemID == "102")
         #expect(candidate.queueIndex == nil)
         #expect(UpNextStubProtocol.requestCount == 0)
     }
@@ -244,7 +244,7 @@ struct UpNextResolutionTests {
             """.utf8)
 
         let candidate = try #require(await playback.resolveUpNext(after: details, prefersDownloadCache: false))
-        #expect(candidate.item.ratingKey == "102")
+        #expect(candidate.item.itemID == "102")
         #expect(UpNextStubProtocol.requestCount >= 1)
     }
 
@@ -275,9 +275,9 @@ struct UpNextResolutionTests {
     /// refreshes the Previous / Next targets.
     @Test func neighboursFollowTheQueuePositionNotJustTheItem() throws {
         let (playback, details) = try makeEpisodeSession()
-        let movie = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "500"), type: .movie, title: "Film")
+        let movie = PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "500"), type: .movie, title: "Film")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: MediaItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, itemID: "900"),
             title: "Mix",
             items: [episodeItem("101"), episodeItem("101"), movie]
         )
@@ -287,7 +287,7 @@ struct UpNextResolutionTests {
         playback.moveQueue(to: 1)
         playback.refreshAdjacentEpisodesIfNeeded()
         #expect(playback.adjacentEpisodes?.itemID == details.id)
-        #expect(playback.adjacentEpisodes?.next?.item.ratingKey == "500")
+        #expect(playback.adjacentEpisodes?.next?.item.itemID == "500")
         #expect(playback.adjacentEpisodes?.previous?.queueIndex == 0)
     }
 
@@ -300,7 +300,7 @@ struct UpNextResolutionTests {
         playback.upNextPoster = UpNextPosterPresentation(
             item: next,
             mode: .timedAutoplay(countdown: 30),
-            creditsMarkerID: 7,
+            creditsMarkerID: "7",
             secondsRemaining: 30,
             countdownClock: UpNextCountdownClock(duration: 30)
         )
@@ -310,7 +310,7 @@ struct UpNextResolutionTests {
         #expect(playback.haltUpNextPosterCountdown())
 
         let poster = try #require(playback.upNextPoster)
-        #expect(poster.item.ratingKey == "102")
+        #expect(poster.item.itemID == "102")
         #expect(poster.mode == .autoAdvanceAtEnd)
         #expect(poster.autoAdvancesAtEnd)
         #expect(poster.countdownClock == nil)
@@ -339,10 +339,10 @@ struct UpNextResolutionTests {
             isOnlineEpisodeLookup: true
         )
         await playback.presentUpNextPosterIfPossible(
-            creditsMarkerID: 7,
+            creditsMarkerID: "7",
             isEstimated: estimated,
             presentationID: playback.playerPresentationID,
-            ratingKey: details.ratingKey
+            itemID: details.itemID
         )
         let poster = try #require(playback.upNextPoster)
         #expect(poster.isEstimatedCredits == estimated)
@@ -353,7 +353,7 @@ struct UpNextResolutionTests {
         let (playback, _) = try makeEpisodeSession()
         #expect(!playback.haltUpNextPosterCountdown())
 
-        playback.upNextPoster = UpNextPosterPresentation(item: episodeItem("102"), mode: .manual, creditsMarkerID: 7)
+        playback.upNextPoster = UpNextPosterPresentation(item: episodeItem("102"), mode: .manual, creditsMarkerID: "7")
         #expect(!playback.haltUpNextPosterCountdown())
         #expect(playback.upNextPoster?.mode == .manual)
     }
@@ -362,19 +362,19 @@ struct UpNextResolutionTests {
     /// poster on to the following item (or away at the end).
     @Test func aGoneItemMovesTheVisiblePosterOn() throws {
         let (playback, _) = try makeEpisodeSession()
-        let b = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "600"), type: .movie, title: "B")
-        let c = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "700"), type: .movie, title: "C")
+        let b = PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "600"), type: .movie, title: "B")
+        let c = PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "700"), type: .movie, title: "C")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: MediaItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, itemID: "900"),
             title: "Mix",
             items: [episodeItem("101"), b, c]
         )
-        playback.upNextPoster = UpNextPosterPresentation(item: b, queueIndex: 1, queueTitle: "Mix", mode: .manual, creditsMarkerID: 1)
+        playback.upNextPoster = UpNextPosterPresentation(item: b, queueIndex: 1, queueTitle: "Mix", mode: .manual, creditsMarkerID: "1")
 
         playback.noteQueueItemUnavailable(b.id)
-        #expect(playback.upNextPoster?.item.ratingKey == "700")
+        #expect(playback.upNextPoster?.item.itemID == "700")
         #expect(playback.upNextPoster?.queueIndex == 2)
-        #expect(playback.revalidatedQueueCandidate(UpNextCandidate(item: b, queueIndex: 1))?.item.ratingKey == "700")
+        #expect(playback.revalidatedQueueCandidate(UpNextCandidate(item: b, queueIndex: 1))?.item.itemID == "700")
 
         playback.noteQueueItemUnavailable(c.id)
         #expect(playback.upNextPoster == nil)
@@ -384,17 +384,17 @@ struct UpNextResolutionTests {
     /// lookahead, not just the first three.
     @Test func lookaheadSkipsAnyRunOfRemovedEntries() async throws {
         let (playback, details) = try makeEpisodeSession()
-        let missing = (1...4).map { PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "m\($0)"), type: .movie, title: "Missing \($0)") }
-        let b = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "800"), type: .movie, title: "B")
+        let missing = (1...4).map { PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "m\($0)"), type: .movie, title: "Missing \($0)") }
+        let b = PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "800"), type: .movie, title: "B")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: MediaItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, itemID: "900"),
             title: "Mix",
             items: [episodeItem("101")] + missing + [b]
         )
         var lookups: [String] = []
         playback.queueItemLookup = { item in
-            lookups.append(item.ratingKey)
-            guard item.ratingKey == "800" else { throw PlexServiceError.httpError(statusCode: 404) }
+            lookups.append(item.itemID)
+            guard item.itemID == "800" else { throw PlexServiceError.httpError(statusCode: 404) }
             let decoder = JSONDecoder()
             decoder.userInfo[.duskServerID] = item.serverID
             return try decoder.decode(MediaDetails.self, from: Data("""
@@ -405,10 +405,10 @@ struct UpNextResolutionTests {
         await playback.queueLookaheadTask?.value
 
         #expect(lookups == ["m1", "m2", "m3", "m4", "800"])
-        #expect(playback.adjacentEpisodes?.next?.item.ratingKey == "800")
+        #expect(playback.adjacentEpisodes?.next?.item.itemID == "800")
         #expect(playback.adjacentEpisodes?.next?.item.isWatched == true)
         let candidate = try #require(await playback.resolveUpNext(after: details, prefersDownloadCache: true))
-        #expect(candidate.item.ratingKey == "800")
+        #expect(candidate.item.itemID == "800")
     }
 
     @Test func aMovieOutsideAQueueHasNoUpNext() async throws {
@@ -421,9 +421,9 @@ struct UpNextResolutionTests {
 
     @Test func queueSessionsFollowTheQueueAndEndWithIt() async throws {
         let (playback, details) = try makeEpisodeSession()
-        let movie = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "500"), type: .movie, title: "Film")
+        let movie = PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "500"), type: .movie, title: "Film")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: MediaItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, itemID: "900"),
             title: "Mix",
             items: [episodeItem("101"), movie]
         )
@@ -437,7 +437,7 @@ struct UpNextResolutionTests {
         UpNextStubProtocol.reset()
 
         let candidate = try #require(await playback.resolveUpNext(after: details, prefersDownloadCache: true))
-        #expect(candidate.item.ratingKey == "500")
+        #expect(candidate.item.itemID == "500")
         #expect(candidate.queueIndex == 1)
         #expect(UpNextStubProtocol.requestCount == 0)
 
@@ -447,15 +447,15 @@ struct UpNextResolutionTests {
 
     @Test func queueSkipsItemsWhoseServerIsUnreachable() async throws {
         let (playback, details) = try makeEpisodeSession()
-        let offline = PlaybackQueueItem(id: MediaItemID(serverID: "gone-server", ratingKey: "7"), type: .movie, title: "Offline")
-        let online = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "8"), type: .movie, title: "Online")
+        let offline = PlaybackQueueItem(id: MediaItemID(serverID: "gone-server", itemID: "7"), type: .movie, title: "Offline")
+        let online = PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "8"), type: .movie, title: "Online")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: MediaItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, itemID: "900"),
             title: "Mix",
             items: [episodeItem("101"), offline, online]
         )
         let candidate = try #require(await playback.resolveUpNext(after: details, prefersDownloadCache: true))
-        #expect(candidate.item.ratingKey == "8")
+        #expect(candidate.item.itemID == "8")
         #expect(candidate.queueIndex == 2)
     }
 
@@ -468,7 +468,7 @@ struct UpNextResolutionTests {
         #expect(playback.continuousPlayEpisodeRunCount == 0)
         playback.playbackQueue = PlaybackQueue.list(
             title: "Videos",
-            items: [PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "5"), type: .movie, title: "Movie")],
+            items: [PlaybackQueueItem(id: MediaItemID(serverID: serverID, itemID: "5"), type: .movie, title: "Movie")],
             startIndex: 0
         )
         playback.resetContinuousPlayEpisodeRunCountForCurrentItem()
@@ -479,7 +479,7 @@ struct UpNextResolutionTests {
 
     private func episodeItem(_ key: String) -> PlaybackQueueItem {
         PlaybackQueueItem(
-            id: MediaItemID(serverID: serverID, ratingKey: key),
+            id: MediaItemID(serverID: serverID, itemID: key),
             type: .episode,
             title: "Episode \(key)",
             index: Int(key).map { $0 - 100 },
@@ -510,7 +510,7 @@ struct UpNextResolutionTests {
         decoder.userInfo[.duskServerID] = serverID
         let details = try decoder.decode(MediaDetails.self, from: json)
         playback.activeItemDetails = details
-        playback.ratingKey = details.ratingKey
+        playback.itemID = details.itemID
         playback.activePlaybackServerID = serverID
         return (playback, details)
     }
@@ -571,7 +571,7 @@ private final class UpNextStubProtocol: URLProtocol, @unchecked Sendable {
 @MainActor
 struct PlaylistStoreTests {
     private func playlist(_ key: String, server: String) -> Playlist {
-        Playlist(serverID: server, ratingKey: key, title: "P\(key)")
+        Playlist(serverID: server, itemID: key, title: "P\(key)")
     }
 
     private func revision(_ servers: [String], profile: String? = "p1") -> ServerContentRevision {
@@ -592,7 +592,7 @@ struct PlaylistStoreTests {
 
         store.commit([playlist("3", server: "a")], serverID: "a", generation: new)
         store.finishLoad(failure: nil, generation: new)
-        #expect(store.playlists.map(\.ratingKey) == ["3"])
+        #expect(store.playlists.map(\.itemID) == ["3"])
         #expect(store.state == .loaded)
     }
 

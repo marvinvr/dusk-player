@@ -25,7 +25,7 @@ struct HDRVideoRemuxRoutingTests {
 
     @Test func bitmapSubtitleKeepsVLCKit() throws {
         let media = try makeMedia(video: #""colorTrc": "smpte2084""#, subtitleCodec: "pgs")
-        #expect(blocker(for: media, subtitleID: 3)?.contains("subtitle") == true)
+        #expect(blocker(for: media, subtitleID: "3")?.contains("subtitle") == true)
     }
 
     @Test func tenBitSDRIsNotHDR() throws {
@@ -83,7 +83,7 @@ struct HDRVideoRemuxRoutingTests {
 
     private func blocker(
         for media: MediaVersion,
-        subtitleID: Int? = nil,
+        subtitleID: String? = nil,
         displaySupportsHDR: Bool = true
     ) -> String? {
         let streams = media.parts[0].streams
@@ -175,9 +175,9 @@ struct HDRPictureFirstRoutingTests {
     func bitmapSubtitleStillVetoesTheRemux(audio: Audio) throws {
         // Subtitle routing is unchanged: a PGS pick at startup keeps VLCKit.
         let media = try makeMatrixMedia(video: Video.dv81.json, audio: audio.json, subtitleCodec: "pgs")
-        #expect(route(for: media, subtitleID: 3) == .vlcKitDirect)
+        #expect(route(for: media, subtitleID: "3") == .vlcKitDirect)
         let text = try makeMatrixMedia(video: Video.dv81.json, audio: audio.json, subtitleCodec: "srt")
-        #expect(route(for: text, subtitleID: 3) == .convertedAudioRemux)
+        #expect(route(for: text, subtitleID: "3") == .convertedAudioRemux)
     }
 
     @Test func mp4HDRWithAACStaysDirectOnAVPlayer() throws {
@@ -212,7 +212,7 @@ struct HDRPictureFirstRoutingTests {
 
     private func route(
         for media: MediaVersion,
-        subtitleID: Int? = nil,
+        subtitleID: String? = nil,
         displaySupportsHDR: Bool = true,
         hdrVideoRemuxEnabled: Bool = true
     ) -> Route {
@@ -378,14 +378,14 @@ struct RemuxVariantCodecsTests {
         ] }
         """.utf8))
         let playback = PlaybackCoordinator(plexService: PlexService())
-        playback.activeAudioStreamID = 2
-        playback.remuxAudioConversion = RemuxAudioConversion(audioStreamID: 2)
+        playback.activeAudioStreamID = "2"
+        playback.remuxAudioConversion = RemuxAudioConversion(audioStreamID: "2")
         #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ec-3")
         playback.remuxAudioConversion = nil
-        playback.activeAudioStreamID = 3
+        playback.activeAudioStreamID = "3"
         #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ac-3")
         // A copied TrueHD stream is not a remux Plex accepts; no declaration.
-        playback.activeAudioStreamID = 2
+        playback.activeAudioStreamID = "2"
         #expect(playback.remuxVariantCodecs(in: part) == nil)
     }
 

@@ -14,7 +14,7 @@ struct RecommendationTasteSignal: Sendable {
     var weight: Double
     var lastViewedAt: Int
 
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
     var serverID: String? { id.serverID }
 }
 

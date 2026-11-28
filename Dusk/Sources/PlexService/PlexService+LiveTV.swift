@@ -359,7 +359,7 @@ extension PlexService {
 
     private func makeFallbackLiveTVMedia(sessionPath: String) -> MediaVersion {
         let part = MediaPart(
-            id: 0,
+            id: "0",
             key: sessionPath,
             file: nil,
             size: nil,
@@ -372,7 +372,7 @@ extension PlexService {
             streams: []
         )
         return MediaVersion(
-            id: 0,
+            id: "0",
             container: "hls",
             videoCodec: nil,
             audioCodec: nil,

@@ -2,14 +2,14 @@ import Foundation
 
 /// One title on the account's Plex Watchlist, as plex.tv's Discover provider
 /// (`discover.provider.plex.tv`) returns it. Account-level, not on any server:
-/// `ratingKey` is Plex's global hex id, the same one that ends `guid`
-/// (`plex://movie/<ratingKey>`), and the artwork URLs are absolute CDN links.
+/// `itemID` is Plex's global hex id, the same one that ends `guid`
+/// (`plex://movie/<itemID>`), and the artwork URLs are absolute CDN links.
 ///
 /// The list payload carries no `Guid` array; only the metadata call
 /// (`PlexService.getWatchlistMetadata`) does, which is where the TMDB id for
 /// Seerr comes from.
 struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
-    let ratingKey: String
+    let itemID: String
     let guid: String
     let type: MediaKind
     let title: String
@@ -26,12 +26,12 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     var id: String { guid }
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, guid, type, title, year, thumb, art, summary, contentRating, duration, childCount
+        case itemID = "ratingKey", guid, type, title, year, thumb, art, summary, contentRating, duration, childCount
         case guids = "Guid"
     }
 
     init(
-        ratingKey: String,
+        itemID: String,
         guid: String,
         type: MediaKind,
         title: String,
@@ -44,7 +44,7 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
         childCount: Int? = nil,
         guids: [PlexGuid] = []
     ) {
-        self.ratingKey = ratingKey
+        self.itemID = itemID
         self.guid = guid
         self.type = type
         self.title = title
@@ -60,7 +60,7 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         guid = try container.decode(String.self, forKey: .guid)
         type = try container.decode(MediaKind.self, forKey: .type)
         title = try container.decode(String.self, forKey: .title)
@@ -77,16 +77,16 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     /// Built from a server item being added, so the Home row can show it
     /// before plex.tv's list is read again.
     init?(item: MediaItem) {
-        guard let ratingKey = WatchlistEntry.discoverRatingKey(guid: item.guid, type: item.type),
+        guard let itemID = WatchlistEntry.discoverRatingKey(guid: item.guid, type: item.type),
               let guid = item.guid else { return nil }
-        self.init(ratingKey: ratingKey, guid: guid, type: item.type, title: item.title, year: item.year)
+        self.init(itemID: itemID, guid: guid, type: item.type, title: item.title, year: item.year)
     }
 
     init?(details: MediaDetails) {
-        guard let ratingKey = WatchlistEntry.discoverRatingKey(guid: details.guid, type: details.type),
+        guard let itemID = WatchlistEntry.discoverRatingKey(guid: details.guid, type: details.type),
               let guid = details.guid else { return nil }
         self.init(
-            ratingKey: ratingKey,
+            itemID: itemID,
             guid: guid,
             type: details.type,
             title: details.title,
@@ -140,7 +140,7 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     }
 }
 
-/// `GET /library/metadata/{ratingKey}/availabilities`: where a title streams.
+/// `GET /library/metadata/{itemID}/availabilities`: where a title streams.
 /// Region-dependent; Dusk shows the service names only, no deep links.
 struct PlexWatchlistAvailability: Decodable, Hashable, Sendable {
     let title: String?

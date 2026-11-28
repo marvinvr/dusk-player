@@ -53,14 +53,14 @@ extension PlexService {
     func addDownloadQueueItem(
         context: PlexDownloadQueueContext,
         queueID: String,
-        ratingKey: String,
+        itemID: String,
         mediaIndex: Int,
         quality: DownloadQuality
     ) async throws -> String {
         guard mediaIndex >= 0, let bitrate = quality.bitrate, let resolution = quality.resolution else {
             throw PlexDownloadQueueError.invalidResponse("Choose a conversion quality and an available media version.")
         }
-        let key = try PlexDownloadQueueResponse.metadataKey(ratingKey)
+        let key = try PlexDownloadQueueResponse.metadataKey(itemID)
         let existing = try await downloadQueueItems(context: context, queueID: queueID)
         if !existing.isEmpty {
             guard existing.count == 1, existing[0].key == key else {
@@ -107,16 +107,16 @@ extension PlexService {
     func downloadQueueItem(
         context: PlexDownloadQueueContext,
         queueID: String,
-        itemID: String
+        queueItemID: String
     ) async throws -> PlexDownloadQueueItem {
         let data = try await downloadQueueRequest(
             context: context,
-            path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(itemID))",
+            path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(queueItemID))",
             canExpire: true
         )
         let items = try PlexDownloadQueueResponse.elements(data, named: "DownloadQueueItem")
             .map { try PlexDownloadQueueResponse.item($0, queueID: queueID) }
-            .filter { $0.id == itemID }
+            .filter { $0.id == queueItemID }
         guard items.count == 1 else { throw PlexDownloadQueueResponse.invalidResponse() }
         return items[0]
     }
@@ -126,10 +126,10 @@ extension PlexService {
     func preparedDownload(
         context: PlexDownloadQueueContext,
         queueID: String,
-        itemID: String,
+        queueItemID: String,
         sourceMedia: MediaVersion
     ) async throws -> PlexPreparedDownload {
-        let itemPath = "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/item/\(try PlexDownloadQueueResponse.id(itemID))"
+        let itemPath = "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/item/\(try PlexDownloadQueueResponse.id(queueItemID))"
         let data = try await downloadQueueRequest(context: context, path: itemPath + "/decision", canExpire: true)
         let decision = try PlexDownloadQueueResponse.decision(data)
 
@@ -168,12 +168,12 @@ extension PlexService {
     func removeDownloadQueueItem(
         context: PlexDownloadQueueContext,
         queueID: String,
-        itemID: String
+        queueItemID: String
     ) async throws {
         do {
             _ = try await downloadQueueRequest(
                 context: context, method: "DELETE",
-                path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(itemID))",
+                path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(queueItemID))",
                 canExpire: true
             )
         } catch PlexDownloadQueueError.expired {

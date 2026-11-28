@@ -1604,7 +1604,7 @@ struct HomeCinematicHero: View {
         guard !backdropRequests.isEmpty else { return }
 
         await withTaskGroup(of: HeroImageLoad.self) { group in
-            for (ratingKey, url) in backdropRequests {
+            for (itemID, url) in backdropRequests {
                 group.addTask {
                     var image = try? await DuskImageLoader.shared.image(for: url, using: plexService)
                     #if os(tvOS)
@@ -1616,18 +1616,18 @@ struct HomeCinematicHero: View {
                         image = await loaded.byPreparingForDisplay() ?? loaded
                     }
                     #endif
-                    return HeroImageLoad(ratingKey: ratingKey, image: image)
+                    return HeroImageLoad(itemID: itemID, image: image)
                 }
             }
 
             for await load in group {
                 guard let image = load.image else { continue }
-                let ratingKey = load.ratingKey
+                let itemID = load.itemID
 
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
-                    guard validKeys.contains(ratingKey) else { return }
-                    preloadedHeroBackdropImages[ratingKey] = image
+                    guard validKeys.contains(itemID) else { return }
+                    preloadedHeroBackdropImages[itemID] = image
                 }
             }
         }
@@ -1654,25 +1654,25 @@ struct HomeCinematicHero: View {
         guard !titleRequests.isEmpty else { return }
 
         await withTaskGroup(of: HeroImageLoad.self) { group in
-            for (ratingKey, url) in titleRequests {
+            for (itemID, url) in titleRequests {
                 group.addTask {
                     let image = try? await DuskImageLoader.shared.image(for: url, using: plexService)
-                    return HeroImageLoad(ratingKey: ratingKey, image: image)
+                    return HeroImageLoad(itemID: itemID, image: image)
                 }
             }
 
             for await load in group {
-                let ratingKey = load.ratingKey
+                let itemID = load.itemID
                 let image = load.image
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
-                    guard validKeys.contains(ratingKey) else { return }
+                    guard validKeys.contains(itemID) else { return }
 
                     if let image {
-                        preloadedHeroTitleImages[ratingKey] = image
-                        failedHeroTitleImageKeys.remove(ratingKey)
+                        preloadedHeroTitleImages[itemID] = image
+                        failedHeroTitleImageKeys.remove(itemID)
                     } else {
-                        failedHeroTitleImageKeys.insert(ratingKey)
+                        failedHeroTitleImageKeys.insert(itemID)
                     }
                 }
             }
@@ -1946,7 +1946,7 @@ struct HomeCinematicHero: View {
 /// One image's answer in the hero preload task groups; nil means it failed. A
 /// named type built in one place on purpose: see `Result.capturing`.
 private struct HeroImageLoad: Sendable {
-    let ratingKey: String
+    let itemID: String
     let image: PlatformImage?
 }
 

@@ -9,7 +9,7 @@ import Foundation
 /// — Home hubs and Continue Watching, search, hub paging, a person's titles,
 /// recommendations, Siri — runs its results through this.
 ///
-/// Matching is on `"<serverID>|<librarySectionID>"`, the `Library.id`
+/// Matching is on `"<serverID>|<libraryID>"`, the `Library.id`
 /// shape: section keys are per-server counters. An item or hub that does not
 /// say which section it belongs to is kept, because there is nothing to match
 /// it against.
@@ -52,11 +52,11 @@ struct HiddenLibraryFilter: Sendable {
         hiddenLibraryIDs = accountHiddenIDs.union(serverExcluded.map(\.id))
     }
 
-    func hides(serverID: String?, librarySectionID: String?) -> Bool {
+    func hides(serverID: String?, libraryID: String?) -> Bool {
         guard !hiddenLibraryIDs.isEmpty,
               let serverID = serverID?.nilIfEmpty,
-              let librarySectionID = librarySectionID?.nilIfEmpty else { return false }
-        return hiddenLibraryIDs.contains("\(serverID)|\(librarySectionID)")
+              let libraryID = libraryID?.nilIfEmpty else { return false }
+        return hiddenLibraryIDs.contains("\(serverID)|\(libraryID)")
     }
 
     func hides(_ library: Library) -> Bool {
@@ -64,7 +64,7 @@ struct HiddenLibraryFilter: Sendable {
     }
 
     func hides(_ item: MediaItem) -> Bool {
-        hides(serverID: item.serverID, librarySectionID: item.librarySectionID)
+        hides(serverID: item.serverID, libraryID: item.libraryID)
     }
 
     func filtering(_ items: [MediaItem]) -> [MediaItem] {
@@ -79,7 +79,7 @@ struct HiddenLibraryFilter: Sendable {
     func filtering(_ hubs: [HomeRow]) -> [HomeRow] {
         guard !hiddenLibraryIDs.isEmpty else { return hubs }
         return hubs.compactMap { hub in
-            guard !hides(serverID: hub.serverID, librarySectionID: hub.resolvedLibrarySectionID) else {
+            guard !hides(serverID: hub.serverID, libraryID: hub.resolvedLibrarySectionID) else {
                 return nil
             }
             let items = filtering(hub.items)

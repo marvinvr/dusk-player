@@ -43,20 +43,20 @@ struct RecentlyAddedMoviesTests {
 
         // Same-server libraries, including the /hubs/promoted first-paint path.
         let libraries = HubMerge.merge([[first], [second], [third]], mode: .libraryType)
-        #expect(libraries.hubs.first?.items.map(\.ratingKey) == ["new", "next", "old", "ancient"])
+        #expect(libraries.hubs.first?.items.map(\.itemID) == ["new", "next", "old", "ancient"])
 
         let remote = try hub(section: 2, server: "remote", items: second.items.map {
-            movie($0.ratingKey, addedAt: $0.addedAt)
+            movie($0.itemID, addedAt: $0.addedAt)
         })
         let home = HubMerge.merge([[first], [remote]])
-        #expect(home.hubs.first?.items.map(\.ratingKey) == ["new", "next", "old"])
+        #expect(home.hubs.first?.items.map(\.itemID) == ["new", "next", "old"])
     }
 
     @Test func repeatedTitlesSortBeforeApplyingRowLimit() throws {
         let first = try hub(section: 1, items: [movie("new", addedAt: 500), movie("next", addedAt: 400)])
         let second = try hub(section: 2, items: [movie("old", addedAt: 100), movie("ancient", addedAt: 10)])
         let folded = HubMerge.collapsingRepeatedTitles([first, second])
-        #expect(folded.hubs.first?.items.map(\.ratingKey) == ["new", "next"])
+        #expect(folded.hubs.first?.items.map(\.itemID) == ["new", "next"])
         #expect(folded.hubs.first?.sources.count == 2)
     }
 
@@ -68,7 +68,7 @@ struct RecentlyAddedMoviesTests {
         ])
         // Same merge used by inline expansion and Show All after fetching sources.
         let merged = MediaItemMerge.hubItems([first.items, second.items], for: first)
-        #expect(merged.items.map(\.ratingKey) == ["new-copy", "other"])
+        #expect(merged.items.map(\.itemID) == ["new-copy", "other"])
         #expect(merged.alternates[first.items[0].contentKey] == [first.items[0].id, second.items[0].id])
     }
 
@@ -76,7 +76,7 @@ struct RecentlyAddedMoviesTests {
         let first = try hub(section: 1, items: [movie("a", addedAt: 100), movie("b", addedAt: 100), movie("missing-a")])
         let second = try hub(section: 2, items: [movie("c", addedAt: 100), movie("missing-b")])
         let merged = MediaItemMerge.hubItems([first.items, second.items], for: first)
-        #expect(merged.items.map(\.ratingKey) == ["a", "b", "c", "missing-a", "missing-b"])
+        #expect(merged.items.map(\.itemID) == ["a", "b", "c", "missing-a", "missing-b"])
     }
 
     @Test func singleSourceCollapsesStrongMovieCopies() throws {
@@ -93,7 +93,7 @@ struct RecentlyAddedMoviesTests {
         let popular = try hub(section: 1, kind: "popular", items: [])
         let tv = try hub(section: 1, type: "show", items: [])
         for row in [popular, tv] {
-            #expect(MediaItemMerge.hubItems([first.items, second.items], for: row).items.map(\.ratingKey) == ["a", "c", "b"])
+            #expect(MediaItemMerge.hubItems([first.items, second.items], for: row).items.map(\.itemID) == ["a", "c", "b"])
         }
     }
 }

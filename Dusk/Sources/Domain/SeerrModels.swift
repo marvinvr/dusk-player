@@ -152,7 +152,11 @@ struct SeerrMediaInfo: Decodable, Sendable, Hashable {
     let status4k: SeerrMediaStatus?
     let requests: [SeerrMediaRequest]?
     let seasons: [SeerrMediaSeason]?
-    let ratingKey: String?
+    let itemID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, tmdbId, tvdbId, status, status4k, requests, seasons, itemID = "ratingKey"
+    }
 }
 
 struct SeerrMediaRequest: Decodable, Sendable, Hashable, Identifiable {

@@ -82,7 +82,7 @@ struct VideoEnhancementSubtitleTests {
     @Test(arguments: [VideoEnhancementMode.automatic, .enabled])
     func sdrEmbeddedSubtitleEngineChoiceIsTVOnly(mode: VideoEnhancementMode) throws {
         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
-        let decision = directDecision(media, mode: mode, subtitleID: 3)
+        let decision = directDecision(media, mode: mode, subtitleID: "3")
         #if os(tvOS)
         #expect(decision.engine == .vlcKit)
         #expect(decision.usesEnhancedSubtitleRenderer)
@@ -95,12 +95,12 @@ struct VideoEnhancementSubtitleTests {
     @Test func subtitleOffSidecarsAndDisabledEnhancementKeepTheNormalEngine() throws {
         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
         // Metadata says selected/default/forced, but an actual Off choice wins.
-        for subtitleID: Int? in [nil, 4, 999] {
+        for subtitleID: String? in [nil, "4", "999"] {
             let decision = directDecision(media, mode: .enabled, subtitleID: subtitleID)
             #expect(decision.engine == .avPlayer)
             #expect(!decision.usesEnhancedSubtitleRenderer)
         }
-        #expect(directDecision(media, mode: .disabled, subtitleID: 3).engine == .avPlayer)
+        #expect(directDecision(media, mode: .disabled, subtitleID: "3").engine == .avPlayer)
     }
 
     /// 10-bit H.264 is Hi10P: AVPlayer has no hardware decoder, so the
@@ -109,7 +109,7 @@ struct VideoEnhancementSubtitleTests {
     @Test(arguments: [VideoEnhancementMode.automatic, .enabled])
     func tenBitH264GoesToVLCKitWithoutTheEnhancementOverride(mode: VideoEnhancementMode) throws {
         let media = try engineSelectionMedia(videoFields: #","bitDepth":10"#)
-        let decision = directDecision(media, mode: mode, subtitleID: 3)
+        let decision = directDecision(media, mode: mode, subtitleID: "3")
         #expect(decision.engine == .vlcKit)
         #expect(decision.reason.contains("10-bit H.264"))
         #expect(!decision.usesEnhancedSubtitleRenderer)
@@ -132,7 +132,7 @@ struct VideoEnhancementSubtitleTests {
     func hdrDolbyVisionAndUnknownRangeNeverGetTheOverride(videoFields: String) throws {
         let media = try engineSelectionMedia(videoFields: videoFields)
         for mode: VideoEnhancementMode in [.automatic, .enabled] {
-            let decision = directDecision(media, mode: mode, subtitleID: 3)
+            let decision = directDecision(media, mode: mode, subtitleID: "3")
             #expect(decision.engine == .avPlayer)
             #expect(!decision.usesEnhancedSubtitleRenderer)
         }
@@ -140,7 +140,7 @@ struct VideoEnhancementSubtitleTests {
 
     @Test func sdrTransferCanEstablishRangeWithoutBitDepth() throws {
         let media = try engineSelectionMedia(videoFields: #","colorTrc":"bt709""#)
-        let decision = directDecision(media, mode: .enabled, subtitleID: 3)
+        let decision = directDecision(media, mode: .enabled, subtitleID: "3")
         #if os(tvOS)
         #expect(decision.usesEnhancedSubtitleRenderer)
         #else
@@ -150,7 +150,7 @@ struct VideoEnhancementSubtitleTests {
 
     @Test func sdrContainersThatNeedVLCCanAlsoPreferEnhancementOverTheAtmosRemux() throws {
         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#, container: "mkv")
-        let decision = directDecision(media, mode: .enabled, subtitleID: 3)
+        let decision = directDecision(media, mode: .enabled, subtitleID: "3")
         #expect(decision.engine == .vlcKit)
         #if os(tvOS)
         #expect(decision.usesEnhancedSubtitleRenderer)
@@ -158,18 +158,18 @@ struct VideoEnhancementSubtitleTests {
         #expect(!decision.usesEnhancedSubtitleRenderer)
         #endif
         let hdr = try engineSelectionMedia(videoFields: #","colorTrc":"smpte2084""#, container: "mkv")
-        #expect(!directDecision(hdr, mode: .enabled, subtitleID: 3).usesEnhancedSubtitleRenderer)
+        #expect(!directDecision(hdr, mode: .enabled, subtitleID: "3").usesEnhancedSubtitleRenderer)
     }
 
     @Test func frameRateLimitsAndExplicitEngineOverridesStillWin() throws {
         let media = try engineSelectionMedia(videoFields: #","bitDepth":8,"frameRate":120"#)
-        #expect(directDecision(media, mode: .enabled, subtitleID: 3).engine == .avPlayer)
+        #expect(directDecision(media, mode: .enabled, subtitleID: "3").engine == .avPlayer)
         let autoSkipped = try engineSelectionMedia(videoFields: #","bitDepth":8,"frameRate":60"#)
-        #expect(directDecision(autoSkipped, mode: .automatic, subtitleID: 3).engine == .avPlayer)
+        #expect(directDecision(autoSkipped, mode: .automatic, subtitleID: "3").engine == .avPlayer)
         let sdr = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
         let forcedAV = StreamResolver.evaluateForDirectPlayback(
             media: sdr, part: sdr.parts[0], enhancementMode: .enabled,
-            selectedSubtitleStreamID: 3, forceAVPlayer: true
+            selectedSubtitleStreamID: "3", forceAVPlayer: true
         )
         #expect(forcedAV.engine == .avPlayer)
         #expect(!forcedAV.usesEnhancedSubtitleRenderer)
@@ -182,7 +182,7 @@ struct VideoEnhancementSubtitleTests {
     }
 
     private func directDecision(
-        _ media: MediaVersion, mode: VideoEnhancementMode, subtitleID: Int?
+        _ media: MediaVersion, mode: VideoEnhancementMode, subtitleID: String?
     ) -> StreamResolver.Decision {
         StreamResolver.evaluateForDirectPlayback(
             media: media, part: media.parts[0], enhancementMode: mode,
@@ -215,15 +215,15 @@ struct VideoEnhancementSubtitleTests {
         player.subtitlePolicy = SubtitleSelectionPolicy(
             mode: .off, subtitleLanguage: nil, audioLanguage: nil, forcedSubtitlesEnabled: true
         )
-        player.subtitleTracks = media.parts[0].streams.filter { $0.id == 3 }.map(SubtitleTrack.init(stream:))
-        player.audioTracks = media.parts[0].streams.filter { $0.id == 11 }.map(AudioTrack.init(stream:))
+        player.subtitleTracks = media.parts[0].streams.filter { $0.id == "3" }.map(SubtitleTrack.init(stream:))
+        player.audioTracks = media.parts[0].streams.filter { $0.id == "11" }.map(AudioTrack.init(stream:))
         player.selectedAudioTrackID = 11
         var reported: ExplicitTrackSelection?
         player.plexTrackSelectionHandler = { audioID, subtitleID in
             reported = ExplicitTrackSelection(audioStreamID: audioID, subtitleStreamID: subtitleID)
         }
         player.applyAutomaticTrackSelectionIfNeeded()
-        #expect(reported == ExplicitTrackSelection(audioStreamID: 11, subtitleStreamID: 3))
+        #expect(reported == ExplicitTrackSelection(audioStreamID: "11", subtitleStreamID: "3"))
     }
 
     @Test @MainActor
@@ -252,16 +252,16 @@ struct VideoEnhancementSubtitleTests {
                 defer { playback.cancelDirectPlayFallbackWatch(); playback.engine?.stop() }
                 let oldEngine = SubtitleHandoffEngine(state: initialState)
                 playback.engine = oldEngine
-                playback.ratingKey = "1"
+                playback.itemID = "1"
                 playback.activeItemDetails = details
                 playback.activePlaybackSessionIdentifier = "existing-session"
                 playback.activePlaybackUsesLocalDownload = isDownload
                 playback.hasScrobbled = true
-                playback.activeAudioStreamID = 11
+                playback.activeAudioStreamID = "11"
                 let url = try #require(URL(string: isDownload ? "file:///tmp/clip.mp4" : "https://example.invalid/clip.mp4"))
                 let context = PlaybackAttemptContext(
-                    attemptID: UUID(), title: "SDR", ratingKey: "1", engine: .avPlayer,
-                    resolverReason: "MP4", mediaID: 1, partID: 1, sanitizedPlaybackURL: url.absoluteString
+                    attemptID: UUID(), title: "SDR", itemID: "1", engine: .avPlayer,
+                    resolverReason: "MP4", mediaID: "1", partID: "1", sanitizedPlaybackURL: url.absoluteString
                 )
                 playback.debugInfo = PlaybackDebugInfo(
                     title: "SDR", engine: .avPlayer, decision: isDownload ? .localDownload : .directPlay,
@@ -274,7 +274,7 @@ struct VideoEnhancementSubtitleTests {
                     url: url, startPosition: 100, shouldAutoPlay: initialState == .paused, context: context
                 )
                 let presentationID = playback.playerPresentationID
-                playback.selectPlexStreamsForPlayback(audioStreamID: 11, subtitleStreamID: 3)
+                playback.selectPlexStreamsForPlayback(audioStreamID: "11", subtitleStreamID: "3")
                 #expect(oldEngine.didStop)
                 #expect(playback.engine is VLCKitEngine)
                 #expect(playback.debugInfo?.engine == .vlcKit)
@@ -287,11 +287,11 @@ struct VideoEnhancementSubtitleTests {
                 #expect(playback.activePlaybackSessionIdentifier == "existing-session")
                 #expect(playback.hasScrobbled)
                 #expect(playback.playerPresentationID != presentationID)
-                #expect(playback.consumePendingExplicitTrackSelection() == ExplicitTrackSelection(audioStreamID: 11, subtitleStreamID: 3))
+                #expect(playback.consumePendingExplicitTrackSelection() == ExplicitTrackSelection(audioStreamID: "11", subtitleStreamID: "3"))
                 #expect(playback.consumePendingExplicitTrackSelection() == nil)
                 let vlcPresentationID = playback.playerPresentationID
-                for subtitleID: Int? in [nil, 3, nil, 3, nil] {
-                    playback.selectPlexStreamsForPlayback(audioStreamID: 11, subtitleStreamID: subtitleID)
+                for subtitleID: String? in [nil, "3", nil, "3", nil] {
+                    playback.selectPlexStreamsForPlayback(audioStreamID: "11", subtitleStreamID: subtitleID)
                     #expect(playback.playerPresentationID == vlcPresentationID)
                     #expect(playback.debugInfo?.engine == .vlcKit)
                     #expect(playback.playbackSource?.url == url)

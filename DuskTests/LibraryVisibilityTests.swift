@@ -79,8 +79,8 @@ struct LibraryVisibilityTests {
     func perServer() throws {
         let sections = [try library("2", hidden: 2)]
         let home = HiddenLibraryFilter(accountHiddenIDs: [], sections: sections, scope: .home)
-        #expect(home.hides(serverID: "a", librarySectionID: "2"))
-        #expect(!home.hides(serverID: "b", librarySectionID: "2"))
+        #expect(home.hides(serverID: "a", libraryID: "2"))
+        #expect(!home.hides(serverID: "b", libraryID: "2"))
     }
 
     // MARK: - Fixtures

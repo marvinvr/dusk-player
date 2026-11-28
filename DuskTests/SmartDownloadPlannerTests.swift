@@ -8,7 +8,7 @@ struct SmartDownloadPlannerTests {
     private func season(_ number: Int = 1, count: Int, watched: Int = 0) -> [SmartDownloadPlanner.Episode] {
         (1...count).map { index in
             SmartDownloadPlanner.Episode(
-                ratingKey: "s\(number)e\(index)",
+                itemID: "s\(number)e\(index)",
                 seasonIndex: number,
                 index: index,
                 isWatched: index <= watched
@@ -17,11 +17,11 @@ struct SmartDownloadPlannerTests {
     }
 
     private func smart(_ key: String) -> SmartDownloadPlanner.Download {
-        .init(globalKey: "p:srv:\(key)", ratingKey: key, isSmart: true)
+        .init(globalKey: "p:srv:\(key)", itemID: key, isSmart: true)
     }
 
     private func manual(_ key: String) -> SmartDownloadPlanner.Download {
-        .init(globalKey: "p:srv:\(key)", ratingKey: key, isSmart: false)
+        .init(globalKey: "p:srv:\(key)", itemID: key, isSmart: false)
     }
 
     @Test func freshShowQueuesTheFirstN() {
@@ -40,7 +40,7 @@ struct SmartDownloadPlannerTests {
     }
 
     @Test func windowCrossesSeasonsInOrderAndSkipsSpecials() {
-        let specials = [SmartDownloadPlanner.Episode(ratingKey: "special", seasonIndex: 0, index: 1, isWatched: false)]
+        let specials = [SmartDownloadPlanner.Episode(itemID: "special", seasonIndex: 0, index: 1, isWatched: false)]
         // Seasons arrive out of order, as a server may list them.
         let episodes = season(2, count: 3) + specials + season(1, count: 2, watched: 1)
         let plan = SmartDownloadPlanner.plan(episodes: episodes, downloads: [], count: 3)
@@ -51,8 +51,8 @@ struct SmartDownloadPlannerTests {
     @Test func nextStartsAfterTheFurthestWatchedEpisode() {
         // Episode 2 was skipped; watching 3 moves the window past it.
         var episodes = season(count: 6)
-        episodes[0] = .init(ratingKey: "s1e1", seasonIndex: 1, index: 1, isWatched: true)
-        episodes[2] = .init(ratingKey: "s1e3", seasonIndex: 1, index: 3, isWatched: true)
+        episodes[0] = .init(itemID: "s1e1", seasonIndex: 1, index: 1, isWatched: true)
+        episodes[2] = .init(itemID: "s1e3", seasonIndex: 1, index: 3, isWatched: true)
         let plan = SmartDownloadPlanner.plan(episodes: episodes, downloads: [smart("s1e2")], count: 2)
         #expect(plan.ratingKeysToQueue == ["s1e4", "s1e5"])
         #expect(plan.globalKeysToRemove == ["p:srv:s1e2"])
@@ -77,7 +77,7 @@ struct SmartDownloadPlannerTests {
 
     @Test func episodeDeletedOnTheServerLeavesTheWindow() {
         // s1e2 is gone from the server's episode list.
-        let episodes = season(count: 5).filter { $0.ratingKey != "s1e2" }
+        let episodes = season(count: 5).filter { $0.itemID != "s1e2" }
         let plan = SmartDownloadPlanner.plan(episodes: episodes, downloads: [smart("s1e1"), smart("s1e2")], count: 2)
         #expect(plan.globalKeysToRemove == ["p:srv:s1e2"])
         #expect(plan.ratingKeysToQueue == ["s1e3"])

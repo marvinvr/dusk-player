@@ -3,11 +3,11 @@ import Foundation
 struct PlaybackAttemptContext: Sendable {
     let attemptID: UUID
     let title: String
-    let ratingKey: String
+    let itemID: String
     let engine: PlaybackEngineType
     let resolverReason: String
-    let mediaID: Int
-    let partID: Int
+    let mediaID: String
+    let partID: String
     let sanitizedPlaybackURL: String
 
     var attemptLabel: String {
@@ -760,7 +760,7 @@ struct UpNextPosterPresentation: Sendable {
     var mode: Mode
     /// Identifies the credits marker that triggered this poster, so repeat
     /// notifications for the same marker don't re-resolve the next episode.
-    let creditsMarkerID: Int
+    let creditsMarkerID: String
     /// The credits point is Dusk's guess (no Plex credits marker), so the
     /// poster shows the compact pill rather than the big card (#84).
     var isEstimatedCredits = false

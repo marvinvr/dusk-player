@@ -19,7 +19,7 @@ struct PlaylistActions {
 
     /// Fetches the entries first (the grid has none loaded).
     func queue(for playlist: Playlist, shuffled: Bool) async throws -> (queue: PlaybackQueue?, entries: [PlaylistEntry]) {
-        let entries = try await plexService.getPlaylistEntries(ratingKey: playlist.ratingKey, serverID: playlist.serverID)
+        let entries = try await plexService.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID)
         let start = shuffled ? 0 : PlaylistActions.resumeIndex(in: entries) ?? 0
         return (queue(for: playlist, entries: entries, startIndex: start, shuffled: shuffled), entries)
     }

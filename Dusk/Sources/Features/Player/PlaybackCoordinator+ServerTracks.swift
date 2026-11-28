@@ -22,7 +22,7 @@ extension PlaybackCoordinator {
     func rebuildServerStreamSession(reason: String) async {
         guard !didFinalizeCurrentSession, !activePlaybackUsesLocalDownload,
               !isSwitchingQuality,
-              let details = activeItemDetails, let debugInfo, let ratingKey,
+              let details = activeItemDetails, let debugInfo, let itemID,
               let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }) else { return }
         isSwitchingQuality = true
         defer { isSwitchingQuality = false }
@@ -37,19 +37,19 @@ extension PlaybackCoordinator {
         do {
             try await plexService.selectStreams(
                 partID: debugInfo.part.id, audioStreamID: activeAudioStreamID,
-                subtitleStreamID: activeSubtitleStreamID ?? 0, serverID: serverID
+                subtitleStreamID: activeSubtitleStreamID ?? "0", serverID: serverID
             )
             let result: (url: URL, outcome: PlexService.TranscodeDecisionOutcome)
             if case let .transcode(preset) = debugInfo.decision {
                 result = try await plexService.transcodeURL(
-                    ratingKey: ratingKey, mediaIndex: mediaIndex, preset: preset,
+                    itemID: itemID, mediaIndex: mediaIndex, preset: preset,
                     sessionIdentifier: activePlaybackSessionIdentifier ?? UUID().uuidString,
                     transcodeSessionID: sessionID, audioStreamID: activeAudioStreamID,
                     subtitleStreamID: activeSubtitleStreamID, serverID: serverID
                 )
             } else {
                 result = try await plexService.serverStreamURL(
-                    ratingKey: ratingKey, mediaIndex: mediaIndex,
+                    itemID: itemID, mediaIndex: mediaIndex,
                     sessionIdentifier: activePlaybackSessionIdentifier ?? UUID().uuidString,
                     transcodeSessionID: sessionID, audioStreamID: activeAudioStreamID,
                     subtitleStreamID: activeSubtitleStreamID,
@@ -76,7 +76,7 @@ extension PlaybackCoordinator {
             activeTranscodeSessionID = sessionID
             remuxAudioConversion = nil
             activateReplacementAttempt(
-                transitionLabel: reason, attemptID: UUID(), details: details, ratingKey: ratingKey,
+                transitionLabel: reason, attemptID: UUID(), details: details, itemID: itemID,
                 media: debugInfo.media, part: debugInfo.part, playbackURL: result.url,
                 sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
                 playbackDecision: playbackDecision, engineType: engineType, resolverReason: reason,

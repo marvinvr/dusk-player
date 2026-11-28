@@ -7,24 +7,24 @@ private let plexMediaLogger = Logger(
 )
 
 /// Full metadata for a Plex item including the media/part/stream hierarchy.
-/// Returned from `GET /library/metadata/{ratingKey}`. Used by StreamResolver
+/// Returned from `GET /library/metadata/{itemID}`. Used by StreamResolver
 /// to determine which playback engine to use and to construct the direct play URL.
 struct MediaDetails: Decodable, Sendable, Identifiable {
     /// Server-scoped identity; see `MediaItemID`.
-    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     /// Machine identifier of the server this payload came from, stamped by
     /// `ServerPool.decoder(for:)`.
     let serverID: String?
 
-    let ratingKey: String
+    let itemID: String
     let key: String
     let type: MediaKind
     /// Plex marks video clips with `subtype == "clip"` even when `type` is `movie`.
     let subtype: String?
     /// The library section the item belongs to, as a string key usable with the
     /// `/library/sections/{id}/...` endpoints. Plex serializes it as a number.
-    let librarySectionID: String?
+    let libraryID: String?
     let librarySectionTitle: String?
     let title: String
     /// Plex edition name; see `MediaItem.editionTitle`.
@@ -66,9 +66,9 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
     // Episode hierarchy (when type == .episode)
     let index: Int?
     let parentIndex: Int?
-    let parentRatingKey: String?
+    let parentID: String?
     let parentThumb: String?
-    let grandparentRatingKey: String?
+    let grandparentID: String?
     let grandparentTitle: String?
     let grandparentThumb: String?
 
@@ -90,11 +90,11 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
     var media: [MediaVersion]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, subtype, librarySectionID, librarySectionTitle, title, editionTitle, summary, year, guid
+        case itemID = "ratingKey", key, type, subtype, libraryID = "librarySectionID", librarySectionTitle, title, editionTitle, summary, year, guid
         case duration, viewOffset, viewCount, thumb, art, clearLogo, contentRating, primaryExtraKey
         case rating, audienceRating, ratingImage, audienceRatingImage, userRating, studio, originallyAvailableAt
         case childCount, leafCount, viewedLeafCount
-        case index, parentIndex, parentRatingKey, parentThumb, grandparentRatingKey, grandparentTitle, grandparentThumb
+        case index, parentIndex, parentID = "parentRatingKey", parentThumb, grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb
         case genres = "Genre"
         case directors = "Director"
         case writers = "Writer"
@@ -110,15 +110,15 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         serverID = decoder.duskServerID
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         key = try container.decode(String.self, forKey: .key)
         type = try container.decode(MediaKind.self, forKey: .type)
         subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
-        // Plex serializes librarySectionID as a number; tolerate strings too.
-        if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .librarySectionID) {
-            librarySectionID = String(numericSectionID)
+        // Plex serializes libraryID as a number; tolerate strings too.
+        if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .libraryID) {
+            libraryID = String(numericSectionID)
         } else {
-            librarySectionID = (try? container.decodeIfPresent(String.self, forKey: .librarySectionID)) ?? nil
+            libraryID = (try? container.decodeIfPresent(String.self, forKey: .libraryID)) ?? nil
         }
         librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
         title = try container.decode(String.self, forKey: .title)
@@ -146,9 +146,9 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
         viewedLeafCount = try container.decodeIfPresent(Int.self, forKey: .viewedLeafCount)
         index = try container.decodeIfPresent(Int.self, forKey: .index)
         parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
-        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
         parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
-        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
         grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
         genres = try container.decodeIfPresent([Tag].self, forKey: .genres)
@@ -174,7 +174,7 @@ extension MediaDetails {
     /// A copy whose video streams in `partID` of `mediaID` carry
     /// `sampleEntry` as their `codecID`, so every later engine decision for
     /// the session sees what the file probe found.
-    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: Int, partID: Int) -> MediaDetails {
+    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: String, partID: String) -> MediaDetails {
         var copy = self
         for mediaIndex in copy.media.indices where copy.media[mediaIndex].id == mediaID {
             for partIndex in copy.media[mediaIndex].parts.indices
@@ -201,7 +201,7 @@ private extension KeyedDecodingContainer where Key == MediaDetails.CodingKeys {
 }
 
 struct Marker: Codable, Sendable, Identifiable, Equatable {
-    let id: Int
+    let id: String
     let type: String
     let startTimeOffset: Int
     let endTimeOffset: Int
@@ -216,7 +216,7 @@ struct Marker: Codable, Sendable, Identifiable, Equatable {
 
     /// Sentinel id for the synthesized "estimated credits" marker. Negative so it
     /// can never collide with a real Plex marker id.
-    static let estimatedCreditsID = -1
+    static let estimatedCreditsID = "-1"
 
     var isIntro: Bool {
         type.caseInsensitiveCompare("intro") == .orderedSame
@@ -278,7 +278,7 @@ struct PlexScrubPreviewSource: Sendable {
 /// A single media version of a Plex item.
 /// One item can have multiple media entries (e.g. 1080p and 4K versions).
 struct MediaVersion: Codable, Sendable, Identifiable {
-    let id: Int
+    let id: String
 
     let container: String?
     let videoCodec: String?
@@ -314,7 +314,7 @@ struct MediaVersion: Codable, Sendable, Identifiable {
     }
 
     init(
-        id: Int,
+        id: String,
         container: String?,
         videoCodec: String?,
         audioCodec: String?,
@@ -347,7 +347,7 @@ struct MediaVersion: Codable, Sendable, Identifiable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
+        id = try container.decodeID(forKey: .id)
         self.container = try container.decodeIfPresent(String.self, forKey: .container)
         videoCodec = try container.decodeIfPresent(String.self, forKey: .videoCodec)
         audioCodec = try container.decodeIfPresent(String.self, forKey: .audioCodec)
@@ -369,7 +369,7 @@ struct MediaVersion: Codable, Sendable, Identifiable {
 /// A single file part. Most items have exactly one part, but multi-file
 /// items (e.g. split DVDs) can have multiple.
 struct MediaPart: Codable, Sendable, Identifiable {
-    let id: Int
+    let id: String
 
     /// Relative path used to construct the direct play URL:
     /// `{serverURL}{key}?X-Plex-Token={token}`
@@ -404,7 +404,7 @@ struct MediaPart: Codable, Sendable, Identifiable {
     }
 
     init(
-        id: Int,
+        id: String,
         key: String,
         file: String?,
         size: Int?,
@@ -431,7 +431,7 @@ struct MediaPart: Codable, Sendable, Identifiable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
+        id = try container.decodeID(forKey: .id)
         key = try container.decode(String.self, forKey: .key)
         file = try container.decodeIfPresent(String.self, forKey: .file)
         size = try container.decodeIfPresent(Int.self, forKey: .size)
@@ -528,7 +528,7 @@ enum PlexStreamType: Int, Codable, Sendable {
 
 /// A single audio, video, or subtitle track within a media part.
 struct MediaStream: Codable, Sendable, Identifiable {
-    let id: Int
+    let id: String
     let streamType: PlexStreamType
     let codec: String?
     let displayTitle: String?
@@ -598,7 +598,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
     }
 
     init(
-        id: Int,
+        id: String,
         streamType: PlexStreamType,
         codec: String?,
         displayTitle: String?,
@@ -669,7 +669,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(Int.self, forKey: .id)
+        id = try container.decodeID(forKey: .id)
         streamType = try container.decode(PlexStreamType.self, forKey: .streamType)
         codec = try container.decodeIfPresent(String.self, forKey: .codec)
         displayTitle = try container.decodeIfPresent(String.self, forKey: .displayTitle)
@@ -726,5 +726,109 @@ struct MediaStream: Codable, Sendable, Identifiable {
             return intVal != 0
         }
         return nil
+    }
+}
+
+extension Marker {
+    /// Matches the synthesized decoding, except that the id may be a number
+    /// (Plex) or a string.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeID(forKey: .id)
+        type = try container.decode(String.self, forKey: .type)
+        startTimeOffset = try container.decode(Int.self, forKey: .startTimeOffset)
+        endTimeOffset = try container.decode(Int.self, forKey: .endTimeOffset)
+    }
+
+    /// Matches the synthesized encoding; the id is written back as a number
+    /// when it is one (`encodeID`).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeID(id, forKey: .id)
+        try container.encode(type, forKey: .type)
+        try container.encode(startTimeOffset, forKey: .startTimeOffset)
+        try container.encode(endTimeOffset, forKey: .endTimeOffset)
+    }
+}
+
+extension MediaVersion {
+    /// Matches the synthesized encoding; the id is written back as a number
+    /// when it is one (`encodeID`).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeID(id, forKey: .id)
+        try container.encodeIfPresent(self.container, forKey: .container)
+        try container.encodeIfPresent(videoCodec, forKey: .videoCodec)
+        try container.encodeIfPresent(audioCodec, forKey: .audioCodec)
+        try container.encodeIfPresent(videoResolution, forKey: .videoResolution)
+        try container.encodeIfPresent(videoProfile, forKey: .videoProfile)
+        try container.encodeIfPresent(audioProfile, forKey: .audioProfile)
+        try container.encodeIfPresent(audioChannels, forKey: .audioChannels)
+        try container.encodeIfPresent(width, forKey: .width)
+        try container.encodeIfPresent(height, forKey: .height)
+        try container.encodeIfPresent(bitrate, forKey: .bitrate)
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(optimizedForStreaming, forKey: .optimizedForStreaming)
+        try container.encode(parts, forKey: .parts)
+    }
+}
+
+extension MediaPart {
+    /// Matches the synthesized encoding; the id is written back as a number
+    /// when it is one (`encodeID`).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeID(id, forKey: .id)
+        try container.encode(key, forKey: .key)
+        try container.encodeIfPresent(file, forKey: .file)
+        try container.encodeIfPresent(size, forKey: .size)
+        try container.encodeIfPresent(self.container, forKey: .container)
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(videoProfile, forKey: .videoProfile)
+        try container.encodeIfPresent(audioProfile, forKey: .audioProfile)
+        try container.encodeIfPresent(accessible, forKey: .accessible)
+        try container.encodeIfPresent(exists, forKey: .exists)
+        try container.encode(streams, forKey: .streams)
+    }
+}
+
+extension MediaStream {
+    /// Matches the synthesized encoding; the id is written back as a number
+    /// when it is one (`encodeID`).
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeID(id, forKey: .id)
+        try container.encode(streamType, forKey: .streamType)
+        try container.encodeIfPresent(codec, forKey: .codec)
+        try container.encodeIfPresent(displayTitle, forKey: .displayTitle)
+        try container.encodeIfPresent(extendedDisplayTitle, forKey: .extendedDisplayTitle)
+        try container.encodeIfPresent(language, forKey: .language)
+        try container.encodeIfPresent(languageCode, forKey: .languageCode)
+        try container.encodeIfPresent(languageTag, forKey: .languageTag)
+        try container.encodeIfPresent(isSelected, forKey: .isSelected)
+        try container.encodeIfPresent(isDefault, forKey: .isDefault)
+        try container.encodeIfPresent(width, forKey: .width)
+        try container.encodeIfPresent(height, forKey: .height)
+        try container.encodeIfPresent(bitrate, forKey: .bitrate)
+        try container.encodeIfPresent(frameRate, forKey: .frameRate)
+        try container.encodeIfPresent(bitDepth, forKey: .bitDepth)
+        try container.encodeIfPresent(colorSpace, forKey: .colorSpace)
+        try container.encodeIfPresent(colorRange, forKey: .colorRange)
+        try container.encodeIfPresent(colorPrimaries, forKey: .colorPrimaries)
+        try container.encodeIfPresent(colorTrc, forKey: .colorTrc)
+        try container.encodeIfPresent(chromaSubsampling, forKey: .chromaSubsampling)
+        try container.encodeIfPresent(profile, forKey: .profile)
+        try container.encodeIfPresent(level, forKey: .level)
+        try container.encodeIfPresent(codecID, forKey: .codecID)
+        try container.encodeIfPresent(doviPresent, forKey: .doviPresent)
+        try container.encodeIfPresent(doviProfile, forKey: .doviProfile)
+        try container.encodeIfPresent(doviLevel, forKey: .doviLevel)
+        try container.encodeIfPresent(doviBLCompatID, forKey: .doviBLCompatID)
+        try container.encodeIfPresent(channels, forKey: .channels)
+        try container.encodeIfPresent(samplingRate, forKey: .samplingRate)
+        try container.encodeIfPresent(channelLayout, forKey: .channelLayout)
+        try container.encodeIfPresent(isForced, forKey: .isForced)
+        try container.encodeIfPresent(isHearingImpaired, forKey: .isHearingImpaired)
+        try container.encodeIfPresent(key, forKey: .key)
     }
 }

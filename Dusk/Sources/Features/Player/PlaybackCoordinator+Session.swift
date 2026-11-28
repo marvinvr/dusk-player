@@ -45,7 +45,7 @@ extension PlaybackCoordinator {
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
-        selectedMediaID: Int?,
+        selectedMediaID: String?,
         restrictToItemServer: Bool = false,
         prerollFeature: PrerollPlayback.Feature? = nil,
         attemptID: UUID
@@ -168,7 +168,7 @@ extension PlaybackCoordinator {
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
         carriesRequestedOffset: Bool = true,
-        selectedMediaID: Int?,
+        selectedMediaID: String?,
         prerollFeature: PrerollPlayback.Feature? = nil,
         attemptID: UUID,
         suppressLocalDownload: Bool = false,
@@ -177,7 +177,7 @@ extension PlaybackCoordinator {
         prefersMergedMovieProgress: Bool = false,
         fetchDeadline: Duration? = nil
     ) async -> PlaybackSessionOutcome {
-        let ratingKey = id.ratingKey
+        let itemID = id.itemID
         let itemServerID = id.serverID
         let profileSession = plexService.serverSessionToken
         loadError = nil
@@ -213,7 +213,7 @@ extension PlaybackCoordinator {
             } else {
                 do {
                     details = try await fetchPlaybackDetails(
-                        ratingKey: ratingKey,
+                        itemID: itemID,
                         serverID: itemServerID,
                         deadline: fetchDeadline
                     )
@@ -298,7 +298,7 @@ extension PlaybackCoordinator {
             }
             if localURL != nil && localMediaVersion == nil {
                 playbackSessionLogger.error(
-                    "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): local download metadata did not match the downloaded media version"
+                    "Playback attempt failed before engine selection for ratingKey \(itemID, privacy: .public): local download metadata did not match the downloaded media version"
                 )
                 // The file on disk is unusable, but the server it came from can
                 // still stream the item. Retry this same candidate online rather
@@ -326,7 +326,7 @@ extension PlaybackCoordinator {
             guard var media,
                   var part else {
                 playbackSessionLogger.error(
-                    "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): no playable media version was available"
+                    "Playback attempt failed before engine selection for ratingKey \(itemID, privacy: .public): no playable media version was available"
                 )
                 return .hardFailure("No playable media found.")
             }
@@ -406,7 +406,7 @@ extension PlaybackCoordinator {
             var resolverReason = resolverDecision.reason
             var transcodeSessionID: String?
             var hdrRemuxFallback: HDRRemuxFallback?
-            var spatialAudioStreamIDs: (audio: Int?, subtitle: Int?, convertsAudio: Bool, restoresDolbyAtmos: Bool)?
+            var spatialAudioStreamIDs: (audio: String?, subtitle: String?, convertsAudio: Bool, restoresDolbyAtmos: Bool)?
 
             if let localURL {
                 if StreamResolver.containsAV1(media), resolverDecision.requiresServerTranscode {
@@ -423,7 +423,7 @@ extension PlaybackCoordinator {
 
                 guard let directPlayURL = plexService.directPlayURL(for: part, serverID: itemServerID) else {
                     playbackSessionLogger.error(
-                        "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
+                        "Playback attempt failed before engine selection for ratingKey \(itemID, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
                     )
                     return .hardFailure("Could not construct playback URL.")
                 }
@@ -444,7 +444,7 @@ extension PlaybackCoordinator {
                     )
                     let subtitleStreamID = startupSubtitleID
                     let result = try await plexService.airPlayStreamURL(
-                        ratingKey: ratingKey,
+                        itemID: itemID,
                         mediaIndex: mediaIndex,
                         sessionIdentifier: sessionIdentifier,
                         transcodeSessionID: airPlaySessionID,
@@ -479,14 +479,14 @@ extension PlaybackCoordinator {
                     // A bitmap subtitle would force a video re-encode; start
                     // without it rather than lose Dolby Vision.
                     let requestedSubtitleID = StreamResolver.containsAV1(media) ? startupSubtitleID : remuxSubtitleID
-                    let subtitleStreamID = requestedSubtitleID.flatMap { id -> Int? in
+                    let subtitleStreamID = requestedSubtitleID.flatMap { id -> String? in
                         guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
                             return nil
                         }
                         return StreamResolver.containsAV1(media) || StreamResolver.canRideRemux(subtitle: stream) ? id : nil
                     }
                     let dolbyVisionRemux = await requestSpatialAudioRemux(
-                        ratingKey: ratingKey,
+                        itemID: itemID,
                         mediaIndex: mediaIndex,
                         media: media,
                         part: part,
@@ -513,18 +513,18 @@ extension PlaybackCoordinator {
                         // A server stream would copy the hev1 video again and
                         // stay black on AVPlayer; VLCKit decodes the file.
                         playbackSessionLogger.notice(
-                            "No hev1 remux for ratingKey \(ratingKey, privacy: .public); direct play on VLCKit"
+                            "No hev1 remux for ratingKey \(itemID, privacy: .public); direct play on VLCKit"
                         )
                     } else {
                         let serverStreamSessionID = UUID().uuidString
                         do {
                             let result = try await plexService.serverStreamURL(
-                                ratingKey: ratingKey,
+                                itemID: itemID,
                                 mediaIndex: mediaIndex,
                                 sessionIdentifier: sessionIdentifier,
                                 transcodeSessionID: serverStreamSessionID,
                                 audioStreamID: StreamResolver.containsAV1(media) || hasRememberedMatch ? audioStreamID : nil,
-                                subtitleStreamID: StreamResolver.containsAV1(media) || hasRememberedMatch ? (subtitleStreamID ?? 0) : nil,
+                                subtitleStreamID: StreamResolver.containsAV1(media) || hasRememberedMatch ? (subtitleStreamID ?? "0") : nil,
                                 forceVideoTranscode: StreamResolver.containsAV1(media),
                                 serverID: itemServerID
                             )
@@ -545,7 +545,7 @@ extension PlaybackCoordinator {
                                     return .hardFailure("Plex could not prepare a compatible AV1 stream.")
                                 }
                                 playbackSessionLogger.notice(
-                                    "Server stream unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); proceeding with direct play"
+                                    "Server stream unavailable for ratingKey \(itemID, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); proceeding with direct play"
                                 )
                             }
                         } catch {
@@ -555,7 +555,7 @@ extension PlaybackCoordinator {
                             }
                             ErrorReporter.report(.transcodeFailed, reason: .serverStreamRequestFailed, error: error)
                             playbackSessionLogger.error(
-                                "Server stream request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
+                                "Server stream request failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
                             )
                         }
                     }
@@ -575,7 +575,7 @@ extension PlaybackCoordinator {
                     // The request decides conversion before contacting Plex:
                     // HDR/DV + TrueHD/DTS starts on AVPlayer with E-AC-3 audio.
                     let remux = await requestSpatialAudioRemux(
-                        ratingKey: ratingKey,
+                        itemID: itemID,
                         mediaIndex: mediaIndex,
                         media: media,
                         part: part,
@@ -652,7 +652,7 @@ extension PlaybackCoordinator {
             let effectiveViewOffset = usesLocalDownload
                 ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
                     serverID: serverID,
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     fallback: serverViewOffset
                   )
                 : serverViewOffset
@@ -660,7 +660,7 @@ extension PlaybackCoordinator {
             let attemptContext = PlaybackAttemptContext(
                 attemptID: attemptID,
                 title: details.title,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 engine: engineType,
                 resolverReason: resolverReason,
                 mediaID: media.id,
@@ -669,7 +669,7 @@ extension PlaybackCoordinator {
             )
 
             playbackSessionLogger.notice(
-                "Playback attempt \(attemptContext.attemptLabel, privacy: .public) prepared for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
+                "Playback attempt \(attemptContext.attemptLabel, privacy: .public) prepared for ratingKey \(itemID, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
             )
 
             let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
@@ -713,7 +713,7 @@ extension PlaybackCoordinator {
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
-            self.ratingKey = ratingKey
+            self.itemID = itemID
             if let spatialAudioStreamIDs {
                 // The remux is built around exactly these streams; the player
                 // lists and changes them through Plex (server track selection).
@@ -745,7 +745,7 @@ extension PlaybackCoordinator {
                 syncShowStreamsToPlex(
                     partID: part.id,
                     audioStreamID: activeAudioStreamID,
-                    subtitleStreamID: activeSubtitleStreamID ?? 0,
+                    subtitleStreamID: activeSubtitleStreamID ?? "0",
                     serverID: showScope.serverID
                 )
             }
@@ -858,7 +858,7 @@ extension PlaybackCoordinator {
             guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == plexService.serverSessionToken else { return .superseded }
             lastStartFailureError = error
             playbackSessionLogger.error(
-                "Playback attempt failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Playback attempt failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             if didFetchDetails, plexService.isRemotePlaybackRefusal(error, serverID: itemServerID) {
                 return .refusedRemotely
@@ -918,13 +918,13 @@ extension PlaybackCoordinator {
     /// request timeout because `getMediaDetails` may also answer from the
     /// offline cache, which must not be penalized.
     private func fetchPlaybackDetails(
-        ratingKey: String,
+        itemID: String,
         serverID: String?,
         deadline: Duration?
     ) async throws -> MediaDetails {
         guard let deadline else {
             return try await plexService.getMediaDetails(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 checkFiles: true,
                 serverID: serverID
             )
@@ -936,7 +936,7 @@ extension PlaybackCoordinator {
         return try await withThrowingTaskGroup(of: MediaDetails.self) { group in
             group.addTask { [plexService] in
                 try await plexService.getMediaDetails(
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     checkFiles: true,
                     serverID: serverID
                 )
@@ -954,14 +954,14 @@ extension PlaybackCoordinator {
         }
     }
 
-    func switchQuality(to preset: PlaybackQualityPreset, audioStreamID: Int? = nil) async {
+    func switchQuality(to preset: PlaybackQualityPreset, audioStreamID: String? = nil) async {
         guard !isSwitchingQuality else { return }
         guard !isAirPlayPlaybackActive else {
             presentQualitySwitchError("Quality changes are unavailable while AirPlay is active.")
             return
         }
         guard let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               debugInfo.canSelectPlaybackQuality else {
             presentQualitySwitchError("Quality changes are unavailable for this playback.")
@@ -1049,7 +1049,7 @@ extension PlaybackCoordinator {
                 let newTranscodeSessionID = UUID().uuidString
 
                 let result = try await plexService.transcodeURL(
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     mediaIndex: mediaIndex,
                     preset: preset,
                     sessionIdentifier: playbackSessionID,
@@ -1095,7 +1095,7 @@ extension PlaybackCoordinator {
                 transitionLabel: "switching quality",
                 attemptID: attemptID,
                 details: details,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 media: media,
                 part: part,
                 playbackURL: playbackURL,
@@ -1109,7 +1109,7 @@ extension PlaybackCoordinator {
             )
         } catch {
             playbackSessionLogger.error(
-                "Quality switch failed for ratingKey \(ratingKey, privacy: .public), preset \(preset.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Quality switch failed for ratingKey \(itemID, privacy: .public), preset \(preset.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             ErrorReporter.report(.transcodeFailed, reason: .qualitySwitch, error: error)
             presentQualitySwitchError(error.localizedDescription)
@@ -1149,7 +1149,7 @@ extension PlaybackCoordinator {
         }
 
         playbackSessionLogger.notice(
-            "Switching to server transcode for locally undecodable audio (streamID \(streamID.map(String.init) ?? "default", privacy: .public), preset \(preset.displayName, privacy: .public))"
+            "Switching to server transcode for locally undecodable audio (streamID \(streamID ?? "default", privacy: .public), preset \(preset.displayName, privacy: .public))"
         )
         await switchQuality(to: preset, audioStreamID: streamID)
     }
@@ -1186,7 +1186,7 @@ extension PlaybackCoordinator {
     /// AirPlay HLS session is active, a change requires a new server stream so
     /// unsupported subtitle formats can remain burned and audio is deterministic
     /// across third-party receivers.
-    func selectPlexStreamsForPlayback(audioStreamID: Int?, subtitleStreamID: Int?) {
+    func selectPlexStreamsForPlayback(audioStreamID: String?, subtitleStreamID: String?) {
         let didChange = activeAudioStreamID != audioStreamID ||
             activeSubtitleStreamID != subtitleStreamID
         activeAudioStreamID = audioStreamID
@@ -1226,7 +1226,7 @@ extension PlaybackCoordinator {
     func prepareCurrentSessionForAirPlay(isTrackChange: Bool = false) async {
         guard !isPreparingAirPlay, !isSwitchingQuality,
               let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               activeLiveTVContext == nil else {
             if activeLiveTVContext != nil, engine?.supportsExternalPlayback != true {
@@ -1265,7 +1265,7 @@ extension PlaybackCoordinator {
 
         do {
             let result = try await plexService.airPlayStreamURL(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 mediaIndex: mediaIndex,
                 sessionIdentifier: playbackSessionID,
                 transcodeSessionID: newTranscodeSessionID,
@@ -1277,7 +1277,7 @@ extension PlaybackCoordinator {
             guard !Task.isCancelled,
                   !didFinalizeCurrentSession,
                   playerPresentationID == expectedPresentationID,
-                  self.ratingKey == ratingKey else {
+                  self.itemID == itemID else {
                 stopTranscodeSessionInBackground(newTranscodeSessionID, serverID: activePlaybackServerID)
                 return
             }
@@ -1301,7 +1301,7 @@ extension PlaybackCoordinator {
                     : "moving playback to AirPlay",
                 attemptID: UUID(),
                 details: details,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 media: details.media[mediaIndex],
                 part: part,
                 playbackURL: result.url,
@@ -1319,7 +1319,7 @@ extension PlaybackCoordinator {
             stopTranscodeSessionInBackground(newTranscodeSessionID, serverID: activePlaybackServerID)
             guard !Task.isCancelled else { return }
             playbackSessionLogger.error(
-                "AirPlay preparation failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "AirPlay preparation failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             ErrorReporter.report(.transcodeFailed, reason: .airPlay, error: error)
             presentQualitySwitchError("Couldn’t prepare AirPlay: \(error.localizedDescription)")
@@ -1346,7 +1346,7 @@ extension PlaybackCoordinator {
         transitionLabel: String,
         attemptID: UUID,
         details: MediaDetails,
-        ratingKey: String,
+        itemID: String,
         media: MediaVersion,
         part: MediaPart,
         playbackURL: URL,
@@ -1371,7 +1371,7 @@ extension PlaybackCoordinator {
         let attemptContext = PlaybackAttemptContext(
             attemptID: attemptID,
             title: details.title,
-            ratingKey: ratingKey,
+            itemID: itemID,
             engine: engineType,
             resolverReason: resolverReason,
             mediaID: media.id,
@@ -1380,7 +1380,7 @@ extension PlaybackCoordinator {
         )
 
         playbackSessionLogger.notice(
-            "Playback attempt \(attemptContext.attemptLabel, privacy: .public) \(transitionLabel, privacy: .public) for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
+            "Playback attempt \(attemptContext.attemptLabel, privacy: .public) \(transitionLabel, privacy: .public) for ratingKey \(itemID, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
         )
 
         let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
@@ -1514,7 +1514,7 @@ extension PlaybackCoordinator {
     func switchToVLCKitForEnhancedSubtitlesIfNeeded() {
         guard !didFinalizeCurrentSession, !isSwitchingQuality, !isPreparingAirPlay,
               activeLiveTVContext == nil,
-              let details = activeItemDetails, let ratingKey, let debugInfo,
+              let details = activeItemDetails, let itemID, let debugInfo,
               debugInfo.engine == .avPlayer,
               let playbackSource, let currentEngine = engine else { return }
         switch debugInfo.decision {
@@ -1551,7 +1551,7 @@ extension PlaybackCoordinator {
             transitionLabel: "switching to VLCKit for enhanced SDR subtitles",
             attemptID: UUID(),
             details: details,
-            ratingKey: ratingKey,
+            itemID: itemID,
             media: debugInfo.media,
             part: debugInfo.part,
             playbackURL: playbackSource.url,
@@ -1575,9 +1575,9 @@ extension PlaybackCoordinator {
     /// Where a Plex sidecar subtitle mounts from: a local download's saved copy
     /// when there is one (the only copy reachable offline), else the server.
     func externalSubtitleURL(for stream: MediaStream) -> URL? {
-        if activePlaybackUsesLocalDownload, let ratingKey,
+        if activePlaybackUsesLocalDownload, let itemID,
            let localURL = downloadManager?.localSubtitleURL(
-               for: MediaItemID(serverID: activePlaybackServerID, ratingKey: ratingKey),
+               for: MediaItemID(serverID: activePlaybackServerID, itemID: itemID),
                streamID: stream.id
            ) {
             return localURL
@@ -1601,11 +1601,11 @@ extension PlaybackCoordinator {
     /// the sidecar in the downloaded language, which is then re-mounted.
     @discardableResult
     func refreshSubtitleStreamsAfterDownload(
-        selectingStreamID: Int? = nil,
+        selectingStreamID: String? = nil,
         downloaded: SubtitleSearchResult? = nil
-    ) async -> Int? {
+    ) async -> String? {
         guard !didFinalizeCurrentSession,
-              let ratingKey,
+              let itemID,
               let debugInfo else {
             return nil
         }
@@ -1618,21 +1618,21 @@ extension PlaybackCoordinator {
         let details: MediaDetails
         do {
             details = try await fetchDetailsAfterSubtitleDownload(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 partID: debugInfo.part.id,
                 previousStreams: debugInfo.part.streams,
                 downloaded: selectingStreamID == nil ? downloaded : nil
             )
         } catch {
             playbackSessionLogger.error(
-                "Subtitle refresh failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                "Subtitle refresh failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             return nil
         }
 
         // The session may have been torn down or replaced while awaiting Plex.
         guard !didFinalizeCurrentSession,
-              self.ratingKey == ratingKey,
+              self.itemID == itemID,
               playerPresentationID == expectedPresentationID else {
             return nil
         }
@@ -1644,7 +1644,7 @@ extension PlaybackCoordinator {
 
         if activePlaybackUsesLocalDownload,
            let converted = downloadManager?.record(
-               for: MediaItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
+               for: MediaItemID(serverID: activePlaybackServerID, itemID: itemID)
            )?.convertedMediaVersion(sourcePart: part),
            converted.part.id == debugInfo.part.id {
             // The server still describes the original file; only its sidecars
@@ -1678,7 +1678,7 @@ extension PlaybackCoordinator {
         }
 
         playbackSessionLogger.notice(
-            "Subtitle refresh for ratingKey \(ratingKey, privacy: .public) picked up stream \(addedStreamID, privacy: .public)"
+            "Subtitle refresh for ratingKey \(itemID, privacy: .public) picked up stream \(addedStreamID, privacy: .public)"
         )
 
         rememberShowTrackChoice(type: .subtitle, streamID: addedStreamID)
@@ -1726,8 +1726,8 @@ extension PlaybackCoordinator {
     /// downloaded language, or a same-language file whose contents changed;
     /// after ~6 s it settles for the latest refetch (the old behaviour).
     private func fetchDetailsAfterSubtitleDownload(
-        ratingKey: String,
-        partID: Int,
+        itemID: String,
+        partID: String,
         previousStreams: [MediaStream],
         downloaded: SubtitleSearchResult?
     ) async throws -> MediaDetails {
@@ -1742,13 +1742,13 @@ extension PlaybackCoordinator {
                 try? await Task.sleep(for: delay)
             }
             if let latest, Task.isCancelled || didFinalizeCurrentSession
-                || self.ratingKey != ratingKey || playerPresentationID != presentationID {
+                || self.itemID != itemID || playerPresentationID != presentationID {
                 return latest
             }
 
             let details: MediaDetails
             do {
-                details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: activePlaybackServerID)
+                details = try await plexService.getMediaDetails(itemID: itemID, serverID: activePlaybackServerID)
             } catch {
                 guard let latest else { throw error }
                 return latest
@@ -1773,7 +1773,7 @@ extension PlaybackCoordinator {
         }
 
         playbackSessionLogger.notice(
-            "Subtitle refresh for ratingKey \(ratingKey, privacy: .public) saw no applied download; using the latest refetch"
+            "Subtitle refresh for ratingKey \(itemID, privacy: .public) saw no applied download; using the latest refetch"
         )
         // Non-nil: the loop either returned, threw, or stored a refetch.
         return latest!
@@ -1796,7 +1796,7 @@ extension PlaybackCoordinator {
     private func replacedSubtitleStreamID(
         in subtitleStreams: [MediaStream],
         downloaded: SubtitleSearchResult?
-    ) -> Int? {
+    ) -> String? {
         guard let language = PlayerViewModel.normalizedLanguageCode(
             downloaded?.languageCode ?? downloaded?.language
         ) else { return nil }
@@ -1804,21 +1804,21 @@ extension PlaybackCoordinator {
             $0.key != nil && PlayerViewModel.normalizedLanguageCode($0.languageCode ?? $0.language) == language
         }
         return candidates.first(where: { $0.id == activeSubtitleStreamID })?.id
-            ?? candidates.max(by: { $0.id < $1.id })?.id
+            ?? candidates.max(by: { mediaIDPrecedes($0.id, $1.id) })?.id
     }
 
     /// Restarts the live session on VLCKit at the current position so a Plex
     /// sidecar subtitle can be mounted. AVPlayer cannot attach one to an
     /// existing item, so the engine — not the delivery rung — is what changes:
     /// the same URL, media version, and decision are carried over.
-    func switchToVLCKitForExternalSubtitle(streamID: Int) {
+    func switchToVLCKitForExternalSubtitle(streamID: String) {
         guard !didFinalizeCurrentSession,
               !isSwitchingQuality,
               !isPreparingAirPlay,
               !isAirPlaySession,
               activeLiveTVContext == nil,
               let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               let playbackSource,
               engine?.supportsExternalSubtitles != true else {
@@ -1847,7 +1847,7 @@ extension PlaybackCoordinator {
             transitionLabel: "switching to VLCKit to mount an external subtitle",
             attemptID: UUID(),
             details: details,
-            ratingKey: ratingKey,
+            itemID: itemID,
             media: debugInfo.media,
             part: debugInfo.part,
             playbackURL: playbackSource.url,
@@ -1991,7 +1991,7 @@ extension PlaybackCoordinator {
                 return
             }
             playbackSessionLogger.error(
-                "Could not retry the remux without Dolby Vision 7 conversion for ratingKey \(self.ratingKey ?? "unknown", privacy: .public); continuing down the fallback ladder"
+                "Could not retry the remux without Dolby Vision 7 conversion for ratingKey \(self.itemID ?? "unknown", privacy: .public); continuing down the fallback ladder"
             )
         }
 
@@ -2023,7 +2023,7 @@ extension PlaybackCoordinator {
               !activePlaybackUsesLocalDownload,
               !isSwitchingQuality,
               let details = activeItemDetails,
-              let ratingKey,
+              let itemID,
               let debugInfo,
               debugInfo.decision.isDirectPlay,
               let engine else {
@@ -2041,13 +2041,13 @@ extension PlaybackCoordinator {
         )
 
         playbackSessionLogger.error(
-            "Playback attempt \(debugInfo.attemptLabel, privacy: .public) direct play failed for ratingKey \(ratingKey, privacy: .public): \(failureDescription, privacy: .public); attempting server-stream fallback from \(resumePosition, privacy: .public)s"
+            "Playback attempt \(debugInfo.attemptLabel, privacy: .public) direct play failed for ratingKey \(itemID, privacy: .public): \(failureDescription, privacy: .public); attempting server-stream fallback from \(resumePosition, privacy: .public)s"
         )
 
         guard let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
               let part = details.media[mediaIndex].parts.first else {
             playbackSessionLogger.error(
-                "Server-stream fallback aborted for ratingKey \(ratingKey, privacy: .public): could not resolve the active media version"
+                "Server-stream fallback aborted for ratingKey \(itemID, privacy: .public): could not resolve the active media version"
             )
             return
         }
@@ -2060,7 +2060,7 @@ extension PlaybackCoordinator {
 
         do {
             let result = try await plexService.serverStreamURL(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 mediaIndex: mediaIndex,
                 sessionIdentifier: playbackSessionID,
                 transcodeSessionID: transcodeSessionID,
@@ -2073,7 +2073,7 @@ extension PlaybackCoordinator {
             // the server's decision.
             guard !didFinalizeCurrentSession,
                   playerPresentationID == expectedPresentationID,
-                  self.ratingKey == ratingKey else {
+                  self.itemID == itemID else {
                 stopTranscodeSessionInBackground(transcodeSessionID, serverID: activePlaybackServerID)
                 return
             }
@@ -2081,7 +2081,7 @@ extension PlaybackCoordinator {
             guard case .transcodeAvailable = result.outcome else {
                 ErrorReporter.report(.engineFallbackFailed, reason: .serverStreamUnavailable, error: engineError)
                 playbackSessionLogger.error(
-                    "Server-stream fallback unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); leaving the error surface in place"
+                    "Server-stream fallback unavailable for ratingKey \(itemID, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); leaving the error surface in place"
                 )
                 return
             }
@@ -2095,7 +2095,7 @@ extension PlaybackCoordinator {
                 transitionLabel: "falling back to server stream after direct-play failure",
                 attemptID: UUID(),
                 details: details,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 media: media,
                 part: part,
                 playbackURL: result.url,
@@ -2108,13 +2108,13 @@ extension PlaybackCoordinator {
             )
         } catch {
             playbackSessionLogger.error(
-                "Server-stream fallback failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"
+                "Server-stream fallback failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"
             )
             ErrorReporter.report(.engineFallbackFailed, reason: .serverStreamRequestFailed, error: error)
             if plexService.isRemotePlaybackRefusal(error, serverID: activePlaybackServerID) {
                 await recoverFromRemotePlaybackRefusal(
                     details: details,
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     media: media,
                     part: part,
                     debugInfo: debugInfo,
@@ -2131,7 +2131,7 @@ extension PlaybackCoordinator {
     /// explanation instead of a generic engine error.
     private func recoverFromRemotePlaybackRefusal(
         details: MediaDetails,
-        ratingKey: String,
+        itemID: String,
         media: MediaVersion,
         part: MediaPart,
         debugInfo: PlaybackDebugInfo,
@@ -2142,7 +2142,7 @@ extension PlaybackCoordinator {
         let isLocalNow = await plexService.reconnectOverLocalNetwork(serverID: serverID)
         guard !didFinalizeCurrentSession,
               playerPresentationID == expectedPresentationID,
-              self.ratingKey == ratingKey else {
+              self.itemID == itemID else {
             return
         }
 
@@ -2152,7 +2152,7 @@ extension PlaybackCoordinator {
                 transitionLabel: "retrying direct play over the local network after Plex refused remote playback",
                 attemptID: UUID(),
                 details: details,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 media: media,
                 part: part,
                 playbackURL: directPlayURL,
@@ -2248,9 +2248,9 @@ extension PlaybackCoordinator {
         lastReportedDurationMs = snapshot.durationMs
         saveIPTVResumePoint(timeMs: snapshot.timeMs, durationMs: snapshot.durationMs)
 
-        if let ratingKey {
+        if let itemID {
             reportTimelineOrQueueOfflineSync(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 state: .stopped,
                 timeMs: snapshot.timeMs,
                 durationMs: snapshot.durationMs
@@ -2266,7 +2266,7 @@ extension PlaybackCoordinator {
                 if activePlaybackUsesLocalDownload {
                     offlinePlaybackSyncManager?.recordProgress(
                         serverID: activePlaybackServerID,
-                        ratingKey: ratingKey,
+                        itemID: itemID,
                         viewOffsetMs: snapshot.timeMs,
                         durationMs: snapshot.durationMs,
                         state: .stopped
@@ -2277,7 +2277,7 @@ extension PlaybackCoordinator {
                 } else {
                     let serverID = activePlaybackServerID
                     Task {
-                        try? await plexService.scrobble(ratingKey: ratingKey, serverID: serverID)
+                        try? await plexService.scrobble(itemID: itemID, serverID: serverID)
                     }
                 }
             }
@@ -2286,9 +2286,9 @@ extension PlaybackCoordinator {
             // window, so its smart download goes and the next one queues.
             if hasScrobbled, activeLiveTVContext == nil,
                let details = activeItemDetails, details.type == .episode,
-               let showRatingKey = details.grandparentRatingKey {
+               let showRatingKey = details.grandparentID {
                 downloadManager?.smartDownloadsEpisodeWatched(
-                    MediaItemID(serverID: activePlaybackServerID ?? details.serverID, ratingKey: ratingKey),
+                    MediaItemID(serverID: activePlaybackServerID ?? details.serverID, itemID: itemID),
                     showRatingKey: showRatingKey
                 )
             }
@@ -2371,7 +2371,7 @@ extension PlaybackCoordinator {
         pendingExplicitTrackSelection = nil
         debugInfo = nil
         playbackSource = nil
-        ratingKey = nil
+        itemID = nil
         qualitySwitchError = nil
         loadError = nil
         loadingPlaceholder = nil
@@ -2399,7 +2399,7 @@ extension PlaybackCoordinator {
 
     private func resolveMediaVersion(
         in details: MediaDetails,
-        selectedMediaID: Int?
+        selectedMediaID: String?
     ) -> MediaVersion? {
         if let selectedMediaID {
             return details.media.first { media in

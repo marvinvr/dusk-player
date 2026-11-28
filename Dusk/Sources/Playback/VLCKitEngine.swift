@@ -583,7 +583,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         syncRendererPlaybackState()
 
         vlcKitEngineLogger.notice(
-            "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in VLCKit for ratingKey \(source.context.ratingKey, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedPlaybackURL, privacy: .public)"
+            "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in VLCKit for ratingKey \(source.context.itemID, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedPlaybackURL, privacy: .public)"
         )
 
         let attemptID = source.context.attemptID

@@ -24,14 +24,14 @@ struct SmartDownloadRule: Codable, Sendable, Hashable, Identifiable {
     var id: String { globalKey }
 
     var showID: MediaItemID {
-        MediaItemID(serverID: serverID, ratingKey: showRatingKey)
+        MediaItemID(serverID: serverID, itemID: showRatingKey)
     }
 
     var globalKey: String {
         DownloadedMediaRecord.globalKey(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            ratingKey: showRatingKey
+            itemID: showRatingKey
         )
     }
 
@@ -54,7 +54,7 @@ struct SmartDownloadPlan: Equatable, Sendable {
 
 enum SmartDownloadPlanner {
     struct Episode: Equatable, Sendable {
-        let ratingKey: String
+        let itemID: String
         let seasonIndex: Int?
         let index: Int?
         let isWatched: Bool
@@ -62,7 +62,7 @@ enum SmartDownloadPlanner {
 
     struct Download: Equatable, Sendable {
         let globalKey: String
-        let ratingKey: String
+        let itemID: String
         /// Queued by the rule. Manual downloads are never removed by it.
         let isSmart: Bool
     }
@@ -82,17 +82,17 @@ enum SmartDownloadPlanner {
             .map(\.element)
         let start = (ordered.lastIndex { $0.isWatched } ?? -1) + 1
         let upcoming = ordered[start...].filter { !$0.isWatched }
-        return (upcoming.prefix(max(count, 0)).map(\.ratingKey), upcoming.count)
+        return (upcoming.prefix(max(count, 0)).map(\.itemID), upcoming.count)
     }
 
     static func plan(episodes: [Episode], downloads: [Download], count: Int) -> SmartDownloadPlan {
         let (keys, remaining) = window(episodes: episodes, count: count)
         let windowKeys = Set(keys)
-        let downloadedKeys = Set(downloads.map(\.ratingKey))
+        let downloadedKeys = Set(downloads.map(\.itemID))
         return SmartDownloadPlan(
             ratingKeysToQueue: keys.filter { !downloadedKeys.contains($0) },
             globalKeysToRemove: downloads
-                .filter { $0.isSmart && !windowKeys.contains($0.ratingKey) }
+                .filter { $0.isSmart && !windowKeys.contains($0.itemID) }
                 .map(\.globalKey),
             remainingUnwatchedCount: remaining
         )

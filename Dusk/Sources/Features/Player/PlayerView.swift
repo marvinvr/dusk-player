@@ -1035,10 +1035,10 @@ private struct PlayerSessionView: View {
     /// without leaving the session.
     @ViewBuilder
     private var subtitleSearchView: some View {
-        if let ratingKey = playback.ratingKey {
+        if let itemID = playback.itemID {
             SubtitleSearchView(
                 plexService: plexService,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
                 onWillDownload: { result in
@@ -1170,7 +1170,7 @@ private struct PlayerSessionView: View {
             !playback.isAutomaticDirectPlayFallbackPending
     }
 
-    private var scrubPreviewPartID: Int? {
+    private var scrubPreviewPartID: String? {
         guard let debugInfo,
               debugInfo.canLoadScrubPreviews else {
             return nil
@@ -1325,7 +1325,7 @@ private struct PlayerSessionView: View {
     }
 
     @MainActor
-    private func loadScrubPreviewSource(partID: Int?) async {
+    private func loadScrubPreviewSource(partID: String?) async {
         scrubPreviewSource = nil
         guard let partID else { return }
 
@@ -1353,13 +1353,13 @@ private struct PlayerSessionView: View {
         }
 
         let presentationID = playback.playerPresentationID
-        let ratingKey = playback.ratingKey
+        let itemID = playback.itemID
         Task {
             let nothingFollows = await playback.presentUpNextPosterIfPossible(
                 creditsMarkerID: marker.id,
                 isEstimated: marker.isEstimated,
                 presentationID: presentationID,
-                ratingKey: ratingKey
+                itemID: itemID
             )
             // Still in these credits: offer Skip Credits instead of the poster.
             if nothingFollows, viewModel.reachedCreditsMarker?.id == marker.id {

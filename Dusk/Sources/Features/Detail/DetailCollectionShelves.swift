@@ -44,7 +44,7 @@ final class DetailCollectionShelvesModel {
             return
         }
         let serverID = itemID.serverID
-        let context = "\(itemID.serverID ?? "")|\(itemID.ratingKey)|\(tags.map(\.tag).joined(separator: ","))"
+        let context = "\(itemID.serverID ?? "")|\(itemID.itemID)|\(tags.map(\.tag).joined(separator: ","))"
         guard context != loadedContext else { return }
 
         guard await plexService.collectionMode(sectionId: sectionID, serverID: serverID) != .disabled,
@@ -67,7 +67,7 @@ final class DetailCollectionShelvesModel {
         var loaded: [DetailCollectionShelf] = []
         for collection in matched.prefix(Self.maxShelves) {
             guard let items = try? await plexService.getCollectionItems(
-                ratingKey: collection.ratingKey,
+                itemID: collection.itemID,
                 size: Self.itemsPerShelf + 1,
                 serverID: serverID
             ).items else { continue }

@@ -142,7 +142,7 @@ struct SubtitleSelectionPolicyTests {
         #expect(try pick(policy(.auto), audio: "jpn", streams: Self.honorifics, serverSelected: true) == 61)
         #expect(try pick(policy(.always), audio: "eng", streams: Self.honorifics, serverSelected: true) == 61)
         let part = try self.part(Self.honorifics)
-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == 61)
+        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == "61")
     }
 
     @Test func serverSelectionNeverOverridesModeOrLanguage() throws {
@@ -181,15 +181,15 @@ struct SubtitleSelectionPolicyTests {
     @Test func startupPickUsesTheAudioThePreferenceOpensOn() throws {
         let part = try self.part(Self.streams)
         // English audio exists, so the session starts English: forced only.
-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: nil) == 22)
+        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: nil) == "22")
         // Japanese preference: the session starts Japanese, so full English.
-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: "ja"), audioStream: nil) == 20)
+        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: "ja"), audioStream: nil) == "20")
     }
 
     @Test func startupPickFollowsARememberedAudioTrack() throws {
         let part = try self.part(Self.streams)
-        let japanese = try #require(part.streams.first { $0.id == 11 })
-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: japanese) == 20)
+        let japanese = try #require(part.streams.first { $0.id == "11" })
+        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: japanese) == "20")
     }
 
     @Test func startupPickWithOriginalAudioUsesTheDefaultTrack() throws {
@@ -199,7 +199,7 @@ struct SubtitleSelectionPolicyTests {
             {"id":20,"streamType":3,"languageCode":"eng","codec":"srt"},
             {"id":22,"streamType":3,"languageCode":"eng","codec":"srt","forced":true}
             """#)
-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == 20)
+        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == "20")
     }
 
     // MARK: - Settings

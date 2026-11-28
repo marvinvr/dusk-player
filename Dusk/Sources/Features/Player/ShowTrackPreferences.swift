@@ -95,7 +95,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     /// or none, instead of sending the video to VLC without HDR. SDR media
     /// and subtitles that ride the remux are returned unchanged.
     @MainActor
-    static func remuxSubtitleStreamID(_ streamID: Int?, in part: MediaPart) -> Int? {
+    static func remuxSubtitleStreamID(_ streamID: String?, in part: MediaPart) -> String? {
         guard hasHDRVideo(in: part), let streamID,
               let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == streamID }),
               !StreamResolver.canRideRemux(subtitle: stream) else { return streamID }
@@ -127,7 +127,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    func subtitleStreamID(in part: MediaPart, fallback: Int?) -> Int? {
+    func subtitleStreamID(in part: MediaPart, fallback: String?) -> String? {
         switch subtitles {
         case .off: nil
         case let .track(descriptor): descriptor.match(in: part.streams, type: .subtitle)?.id ?? fallback
@@ -159,7 +159,7 @@ struct ShowTrackPreferenceStore {
             guard details.type == .episode,
                   let profileID, !profileID.isEmpty,
                   let serverID, !serverID.isEmpty,
-                  let showRatingKey = details.grandparentRatingKey, !showRatingKey.isEmpty else { return nil }
+                  let showRatingKey = details.grandparentID, !showRatingKey.isEmpty else { return nil }
             self.profileID = profileID
             self.serverID = serverID
             self.showRatingKey = showRatingKey

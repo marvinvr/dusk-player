@@ -14,11 +14,11 @@ struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
         case clip
     }
 
-    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     /// Stamped by `ServerPool.decoder(for:)`, like `MediaItem.serverID`.
     let serverID: String?
-    let ratingKey: String
+    let itemID: String
     let key: String
     /// nil for a type photo libraries never hold; such entries are dropped.
     let kind: Kind?
@@ -43,7 +43,7 @@ struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
     let places: [String]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, title, thumb, composite
+        case itemID = "ratingKey", key, type, title, thumb, composite
         case originallyAvailableAt, addedAt, year, duration
         case media = "Media"
         case places = "Place"
@@ -52,7 +52,7 @@ struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         serverID = decoder.duskServerID
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         key = try container.decode(String.self, forKey: .key)
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
@@ -167,6 +167,6 @@ extension PhotoItem {
 /// library's server is the only server that knows the album's rating key.
 struct PhotoAlbumRoute: Hashable {
     let library: Library
-    let ratingKey: String
+    let itemID: String
     let title: String
 }

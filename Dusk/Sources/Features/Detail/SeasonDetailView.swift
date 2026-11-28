@@ -59,9 +59,9 @@ struct SeasonDetailView: View {
         }
         .onChange(of: playback.playerCoverDismissals) { _, _ in
             guard let advancedEpisode = playback.advancedEpisodeOnClose,
-                  advancedEpisode.parentRatingKey == viewModel.ratingKey,
-                  viewModel.displayEpisodes.contains(where: { $0.ratingKey == advancedEpisode.ratingKey }) else { return }
-            playedEpisodeScrollTarget = advancedEpisode.ratingKey
+                  advancedEpisode.parentID == viewModel.itemID,
+                  viewModel.displayEpisodes.contains(where: { $0.itemID == advancedEpisode.itemID }) else { return }
+            playedEpisodeScrollTarget = advancedEpisode.itemID
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active, viewModel.details != nil else { return }
@@ -123,10 +123,10 @@ struct SeasonDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .scrollIndicators(.hidden)
                 .macHeroUnderToolbar()
-                .onChange(of: playedEpisodeScrollTarget) { _, ratingKey in
-                    guard let ratingKey else { return }
+                .onChange(of: playedEpisodeScrollTarget) { _, itemID in
+                    guard let itemID else { return }
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        proxy.scrollTo(ratingKey, anchor: .center)
+                        proxy.scrollTo(itemID, anchor: .center)
                     }
                     playedEpisodeScrollTarget = nil
                 }
@@ -302,7 +302,7 @@ struct SeasonDetailView: View {
                                 }
                             }
                         )
-                        .id(episode.ratingKey)
+                        .id(episode.itemID)
                         .contextMenu {
                             episodeContextMenu(episode)
                         }

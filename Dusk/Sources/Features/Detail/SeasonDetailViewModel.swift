@@ -11,7 +11,7 @@ final class SeasonDetailViewModel {
     /// server and inherit it automatically when they are decoded.
     let id: MediaItemID
 
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
 
     /// The route's server wins; the download record and the primary server are
     /// only fallbacks for an id that reached us without one (an offline cache).
@@ -61,7 +61,7 @@ final class SeasonDetailViewModel {
         if constrainsPlaybackToOfflineAvailability || isPlayableOffline(episode) {
             offlinePlaybackSyncManager?.recordWatchState(
                 serverID: serverID(for: episode),
-                ratingKey: episode.ratingKey,
+                itemID: episode.itemID,
                 watched: watched
             )
             offlineStateVersion += 1
@@ -73,14 +73,14 @@ final class SeasonDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 watched,
-                id: MediaItemID(serverID: serverID(for: episode), ratingKey: episode.ratingKey)
+                id: MediaItemID(serverID: serverID(for: episode), itemID: episode.itemID)
             )
             await reload()
         } catch {
             if isPlayableOffline(episode) {
                 offlinePlaybackSyncManager?.recordWatchState(
                     serverID: serverID(for: episode),
-                    ratingKey: episode.ratingKey,
+                    itemID: episode.itemID,
                     watched: watched
                 )
                 offlineStateVersion += 1
@@ -111,7 +111,7 @@ final class SeasonDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 target,
-                id: MediaItemID(serverID: serverID, ratingKey: ratingKey)
+                id: MediaItemID(serverID: serverID, itemID: itemID)
             )
             await refresh()
         } catch {
@@ -120,15 +120,15 @@ final class SeasonDetailViewModel {
     }
 
     func focusEpisode(_ episode: Episode) async {
-        let ratingKey = episode.ratingKey
-        if focusedEpisodeRatingKey == ratingKey,
-           focusedEpisodeDetails?.ratingKey == ratingKey {
+        let itemID = episode.itemID
+        if focusedEpisodeRatingKey == itemID,
+           focusedEpisodeDetails?.itemID == itemID {
             return
         }
 
-        focusedEpisodeRatingKey = ratingKey
+        focusedEpisodeRatingKey = itemID
 
-        if let cached = episodeDetailsCache[ratingKey] {
+        if let cached = episodeDetailsCache[itemID] {
             focusedEpisodeDetails = cached
             return
         }
@@ -136,24 +136,24 @@ final class SeasonDetailViewModel {
         // The episode's own id, never the season's: caching the season's
         // details under an episode key poisons the cache for that episode.
         if let cached = downloadManager?.cachedMediaDetails(
-            for: MediaItemID(serverID: serverID(for: episode), ratingKey: ratingKey)
+            for: MediaItemID(serverID: serverID(for: episode), itemID: itemID)
         ) {
-            episodeDetailsCache[ratingKey] = cached
+            episodeDetailsCache[itemID] = cached
             focusedEpisodeDetails = cached
         }
 
         do {
             let details = try await plexService.getMediaDetails(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 serverID: serverID(for: episode)
             )
-            episodeDetailsCache[ratingKey] = details
-            if focusedEpisodeRatingKey == ratingKey {
+            episodeDetailsCache[itemID] = details
+            if focusedEpisodeRatingKey == itemID {
                 focusedEpisodeDetails = details
             }
         } catch {
-            if focusedEpisodeRatingKey == ratingKey {
-                focusedEpisodeDetails = episodeDetailsCache[ratingKey]
+            if focusedEpisodeRatingKey == itemID {
+                focusedEpisodeDetails = episodeDetailsCache[itemID]
             }
         }
     }
@@ -163,8 +163,8 @@ final class SeasonDetailViewModel {
     }
 
     var showID: MediaItemID? {
-        let showKey = details?.parentRatingKey ?? episodes.first?.grandparentRatingKey
-        return showKey.map { MediaItemID(serverID: serverID, ratingKey: $0) }
+        let showKey = details?.parentID ?? episodes.first?.grandparentID
+        return showKey.map { MediaItemID(serverID: serverID, itemID: $0) }
     }
 
     var episodeCountText: String? {
@@ -299,7 +299,7 @@ final class SeasonDetailViewModel {
         _ = offlineStateVersion
         return offlinePlaybackSyncManager?.effectiveWatched(
             serverID: serverID(for: episode),
-            ratingKey: episode.ratingKey,
+            itemID: episode.itemID,
             fallback: episode.isWatched
         ) ?? episode.isWatched
     }
@@ -378,11 +378,11 @@ final class SeasonDetailViewModel {
             // Keeping these requests sequential avoids the async-let runtime abort seen in TestFlight.
             do {
                 let loadedDetails = try await plexService.getMediaDetails(
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     serverID: serverID
                 )
                 let loadedEpisodes = try await plexService.getEpisodes(
-                    seasonKey: ratingKey,
+                    seasonKey: itemID,
                     serverID: serverID
                 )
                 details = loadedDetails
@@ -414,7 +414,7 @@ final class SeasonDetailViewModel {
         showDetails = downloadManager?.cachedMediaDetails(for: showID) ?? showDetails
         guard !isUsingCachedData else { return }
         if let show = try? await plexService.getMediaDetails(
-            ratingKey: showID.ratingKey, serverID: serverID
+            itemID: showID.itemID, serverID: serverID
         ) {
             showDetails = show
         }
@@ -429,16 +429,16 @@ final class SeasonDetailViewModel {
 
         do {
             nextEpisodeDetails = try await plexService.getMediaDetails(
-                ratingKey: nextEpisodeToPlay.ratingKey,
+                itemID: nextEpisodeToPlay.itemID,
                 serverID: serverID(for: nextEpisodeToPlay)
             )
             if let nextEpisodeDetails {
-                episodeDetailsCache[nextEpisodeToPlay.ratingKey] = nextEpisodeDetails
+                episodeDetailsCache[nextEpisodeToPlay.itemID] = nextEpisodeDetails
             }
         } catch {
             nextEpisodeDetails = downloadManager?.cachedMediaDetails(for: nextEpisodeToPlay.id)
             if let nextEpisodeDetails {
-                episodeDetailsCache[nextEpisodeToPlay.ratingKey] = nextEpisodeDetails
+                episodeDetailsCache[nextEpisodeToPlay.itemID] = nextEpisodeDetails
             }
         }
     }
@@ -446,7 +446,7 @@ final class SeasonDetailViewModel {
     private func effectiveViewOffsetMs(for episode: Episode) -> Int? {
         offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID(for: episode),
-            ratingKey: episode.ratingKey,
+            itemID: episode.itemID,
             fallback: episode.viewOffset
         ) ?? episode.viewOffset
     }

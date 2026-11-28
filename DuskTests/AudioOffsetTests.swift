@@ -93,9 +93,9 @@ struct AudioOffsetCoordinatorTests {
         let url = try #require(URL(string: "https://example.invalid/clip.mp4"))
         let attemptID = UUID()
         playback.engine = fake
-        playback.ratingKey = "1"
+        playback.itemID = "1"
         playback.activeItemDetails = details
-        playback.activeAudioStreamID = 4
+        playback.activeAudioStreamID = "4"
         playback.debugInfo = PlaybackDebugInfo(
             title: "Clip", engine: engine, decision: .directPlay,
             media: media, part: media.parts[0], attemptID: attemptID,
@@ -104,8 +104,8 @@ struct AudioOffsetCoordinatorTests {
         playback.playbackSource = PlaybackSource(
             url: url, startPosition: nil,
             context: PlaybackAttemptContext(
-                attemptID: attemptID, title: "Clip", ratingKey: "1", engine: engine,
-                resolverReason: "test", mediaID: 1, partID: 2,
+                attemptID: attemptID, title: "Clip", itemID: "1", engine: engine,
+                resolverReason: "test", mediaID: "1", partID: "2",
                 sanitizedPlaybackURL: url.absoluteString
             )
         )

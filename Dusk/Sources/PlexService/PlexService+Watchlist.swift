@@ -7,12 +7,12 @@ import OSLog
 /// it). Verified against a real account on 2026-10-25:
 /// - `GET /library/sections/watchlist/all?sort=watchlistedAt:desc`, paged with
 ///   `X-Plex-Container-Start/Size`, `totalSize` in the container;
-/// - `PUT /actions/addToWatchlist?ratingKey=` / `removeFromWatchlist`, both
+/// - `PUT /actions/addToWatchlist?itemID=` / `removeFromWatchlist`, both
 ///   idempotent (200 with an empty container either way);
-/// - `GET /library/metadata/{ratingKey}` carries the `Guid` array (tmdb/imdb);
-/// - `GET /library/metadata/{ratingKey}/availabilities` lists services.
+/// - `GET /library/metadata/{itemID}` carries the `Guid` array (tmdb/imdb);
+/// - `GET /library/metadata/{itemID}/availabilities` lists services.
 ///
-/// The ratingKey is the hex id that ends a modern server item's `plex://`
+/// The itemID is the hex id that ends a modern server item's `plex://`
 /// guid, so a server item needs no lookup to be added. Matching the other
 /// way asks each connected server `/library/all?guid=plex://…`.
 ///
@@ -237,7 +237,7 @@ extension PlexService {
             _ = try await discoverRequest(
                 method: "PUT",
                 path: watchlisted ? "/actions/addToWatchlist" : "/actions/removeFromWatchlist",
-                queryItems: [URLQueryItem(name: "ratingKey", value: entry.ratingKey)]
+                queryItems: [URLQueryItem(name: "ratingKey", value: entry.itemID)]
             )
         } catch {
             logWatchlistFailure(watchlisted ? "add" : "remove", error: error)
@@ -261,13 +261,13 @@ extension PlexService {
         let MediaContainer: Container
     }
 
-    func getWatchlistMetadata(ratingKey: String) async throws -> WatchlistEntry? {
-        let data = try await discoverRequest(path: "/library/metadata/\(ratingKey)")
+    func getWatchlistMetadata(itemID: String) async throws -> WatchlistEntry? {
+        let data = try await discoverRequest(path: "/library/metadata/\(itemID)")
         return try decodeJSON(MetadataPage.self, from: data).MediaContainer.Metadata?.first
     }
 
-    func getWatchlistAvailabilities(ratingKey: String) async throws -> [PlexWatchlistAvailability] {
-        let data = try await discoverRequest(path: "/library/metadata/\(ratingKey)/availabilities")
+    func getWatchlistAvailabilities(itemID: String) async throws -> [PlexWatchlistAvailability] {
+        let data = try await discoverRequest(path: "/library/metadata/\(itemID)/availabilities")
         return try decodeJSON(MetadataPage.self, from: data).MediaContainer.Availability ?? []
     }
 

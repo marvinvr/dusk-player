@@ -3,7 +3,7 @@ import Foundation
 /// A playback history entry returned from `GET /status/sessions/history/all`.
 struct PlaybackHistoryEntry: Codable, Sendable, Identifiable {
     var id: String {
-        let base = historyKey ?? "\(ratingKey)-\(viewedAt ?? 0)"
+        let base = historyKey ?? "\(itemID)-\(viewedAt ?? 0)"
         guard let serverID else { return base }
         return "\(serverID)|\(base)"
     }
@@ -13,13 +13,13 @@ struct PlaybackHistoryEntry: Codable, Sendable, Identifiable {
     let serverID: String?
 
     /// Server-scoped identity of the item this entry refers to.
-    var itemID: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+    var mediaItemID: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
     let historyKey: String?
-    let ratingKey: String
-    let librarySectionID: String?
-    let parentRatingKey: String?
-    let grandparentRatingKey: String?
+    let itemID: String
+    let libraryID: String?
+    let parentID: String?
+    let grandparentID: String?
     let type: MediaKind
     let title: String
     let parentTitle: String?
@@ -29,10 +29,10 @@ struct PlaybackHistoryEntry: Codable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case historyKey
-        case ratingKey
-        case librarySectionID
-        case parentRatingKey = "parentKey"
-        case grandparentRatingKey = "grandparentKey"
+        case itemID = "ratingKey"
+        case libraryID = "librarySectionID"
+        case parentID = "parentKey"
+        case grandparentID = "grandparentKey"
         case type
         case title
         case parentTitle
@@ -45,10 +45,10 @@ struct PlaybackHistoryEntry: Codable, Sendable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         serverID = decoder.duskServerID
         historyKey = try container.decodeIfPresent(String.self, forKey: .historyKey)
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
-        librarySectionID = try container.decodeIfPresent(String.self, forKey: .librarySectionID)
-        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
-        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
+        libraryID = try container.decodeIfPresent(String.self, forKey: .libraryID)
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
+        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
         type = try container.decode(MediaKind.self, forKey: .type)
         title = try container.decode(String.self, forKey: .title)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)

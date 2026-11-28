@@ -9,7 +9,7 @@ final class ShowDetailViewModel {
 
         var id: String {
             switch self {
-            case .plex(let season): "plex:\(season.ratingKey)"
+            case .plex(let season): "plex:\(season.itemID)"
             case .seerr(let tvID, let season): "seerr:\(tvID):\(season.seasonNumber)"
             }
         }
@@ -31,7 +31,7 @@ final class ShowDetailViewModel {
     /// come from `id.serverID` — a show's children only exist on its own server.
     let id: MediaItemID
 
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
 
     /// The route's server wins; the download record and the primary server are
     /// only fallbacks for an id that reached us without one (an offline cache).
@@ -94,7 +94,7 @@ final class ShowDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 watched,
-                id: MediaItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey)
+                id: MediaItemID(serverID: season.serverID ?? serverID, itemID: season.itemID)
             )
             try await reload()
         } catch {
@@ -115,7 +115,7 @@ final class ShowDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 target,
-                id: MediaItemID(serverID: serverID, ratingKey: ratingKey)
+                id: MediaItemID(serverID: serverID, itemID: itemID)
             )
             try await reload()
         } catch {
@@ -310,10 +310,10 @@ final class ShowDetailViewModel {
     }
 
     var nextSeasonRoute: AppNavigationRoute? {
-        guard let seasonRatingKey = nextEpisode?.parentRatingKey else { return nil }
+        guard let seasonRatingKey = nextEpisode?.parentID else { return nil }
         return detailRoute(
             type: .season,
-            id: MediaItemID(serverID: nextEpisode?.serverID ?? serverID, ratingKey: seasonRatingKey)
+            id: MediaItemID(serverID: nextEpisode?.serverID ?? serverID, itemID: seasonRatingKey)
         )
     }
 
@@ -367,11 +367,11 @@ final class ShowDetailViewModel {
         // Keeping these requests sequential avoids the async-let runtime abort seen in TestFlight.
         do {
             let loadedDetails = try await plexService.getMediaDetails(
-                ratingKey: ratingKey,
+                itemID: itemID,
                 serverID: serverID
             )
             let loadedSeasons = try await plexService.getSeasons(
-                showKey: ratingKey,
+                showKey: itemID,
                 serverID: serverID
             )
             details = loadedDetails
@@ -436,7 +436,7 @@ final class ShowDetailViewModel {
 
         do {
             let episodes = try await plexService.getEpisodes(
-                seasonKey: season.ratingKey,
+                seasonKey: season.itemID,
                 serverID: season.serverID ?? serverID
             )
             .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
@@ -466,7 +466,7 @@ final class ShowDetailViewModel {
 
         do {
             nextEpisodeDetails = try await plexService.getMediaDetails(
-                ratingKey: nextEpisode.ratingKey,
+                itemID: nextEpisode.itemID,
                 serverID: nextEpisode.serverID ?? serverID
             )
         } catch {
@@ -478,7 +478,7 @@ final class ShowDetailViewModel {
         _ = offlineStateVersion
         return offlinePlaybackSyncManager?.effectiveWatched(
             serverID: serverID(for: episode),
-            ratingKey: episode.ratingKey,
+            itemID: episode.itemID,
             fallback: episode.isWatched
         ) ?? episode.isWatched
     }
@@ -491,7 +491,7 @@ final class ShowDetailViewModel {
     private func effectiveViewOffsetMs(for episode: Episode) -> Int? {
         offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID(for: episode),
-            ratingKey: episode.ratingKey,
+            itemID: episode.itemID,
             fallback: episode.viewOffset
         ) ?? episode.viewOffset
     }

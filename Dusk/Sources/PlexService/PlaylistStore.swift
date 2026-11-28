@@ -56,7 +56,7 @@ final class PlaylistStore {
 
     func playlist(id: MediaItemID) -> Playlist? {
         guard let serverID = id.serverID else { return nil }
-        return playlistsByServer[serverID]?.first { $0.ratingKey == id.ratingKey }
+        return playlistsByServer[serverID]?.first { $0.itemID == id.itemID }
     }
 
     /// True when the playlists are worth asking each server about more than one.
@@ -115,7 +115,7 @@ final class PlaylistStore {
         if let expected, expected != sessionGeneration { return }
         guard let serverID = playlist.serverID else { return }
         var list = playlistsByServer[serverID] ?? []
-        if let index = list.firstIndex(where: { $0.ratingKey == playlist.ratingKey }) {
+        if let index = list.firstIndex(where: { $0.itemID == playlist.itemID }) {
             list[index] = playlist
         } else {
             list.append(playlist)
@@ -129,6 +129,6 @@ final class PlaylistStore {
     func remove(_ id: MediaItemID, sessionGeneration expected: Int? = nil) {
         if let expected, expected != sessionGeneration { return }
         guard let serverID = id.serverID else { return }
-        playlistsByServer[serverID]?.removeAll { $0.ratingKey == id.ratingKey }
+        playlistsByServer[serverID]?.removeAll { $0.itemID == id.itemID }
     }
 }

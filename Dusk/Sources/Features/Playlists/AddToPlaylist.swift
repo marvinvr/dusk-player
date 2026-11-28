@@ -152,7 +152,7 @@ final class AddToPlaylistViewModel {
         await plexService.loadPlaylists()
         if target.expandsToEpisodes, episodeCount == nil {
             episodeCount = try? await plexService.getMediaDetails(
-                ratingKey: target.id.ratingKey,
+                itemID: target.id.itemID,
                 serverID: target.id.serverID
             ).leafCount
         }
@@ -182,7 +182,7 @@ final class AddToPlaylistViewModel {
         do {
             switch add {
             case .existing(let playlist):
-                let result = try await plexService.addToPlaylist(playlist, ratingKeys: [target.id.ratingKey])
+                let result = try await plexService.addToPlaylist(playlist, ratingKeys: [target.id.itemID])
                 await plexService.refreshPlaylist(playlist.id)
                 confirmation = Self.confirmation(for: result, playlistTitle: playlist.title)
             case .new(let title):
@@ -191,7 +191,7 @@ final class AddToPlaylistViewModel {
                 let session = plexService.playlists.sessionGeneration
                 let playlist = try await plexService.createPlaylist(
                     title: trimmed,
-                    ratingKeys: [target.id.ratingKey],
+                    ratingKeys: [target.id.itemID],
                     serverID: serverID
                 )
                 plexService.playlists.upsert(playlist, sessionGeneration: session)

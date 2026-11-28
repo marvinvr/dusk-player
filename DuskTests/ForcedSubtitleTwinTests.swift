@@ -38,7 +38,7 @@ struct ForcedSubtitleTwinTests {
             in: plex,
             after: [SubtitleTrack(stream: plex[0])]
         )
-        #expect(source?.id == 10)
+        #expect(source?.id == "10")
     }
 
     @Test func fullTracksAreNeverTwins() throws {
@@ -81,6 +81,6 @@ struct ForcedSubtitleTwinTests {
             in: plex,
             after: [SubtitleTrack(stream: plex[0]), SubtitleTrack(stream: plex[1])]
         )
-        #expect(source?.id == 21)
+        #expect(source?.id == "21")
     }
 }

@@ -10,7 +10,7 @@ final class EpisodeDetailViewModel {
     /// Server-scoped identity of the episode; every request goes to its server.
     let id: MediaItemID
 
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
 
     private(set) var details: MediaDetails?
     private var seasonDetails: MediaDetails?
@@ -48,7 +48,7 @@ final class EpisodeDetailViewModel {
         if isUsingCachedData || isPlayableOffline {
             offlinePlaybackSyncManager?.recordWatchState(
                 serverID: serverID,
-                ratingKey: details.ratingKey,
+                itemID: details.itemID,
                 watched: targetWatched
             )
             offlineStateVersion += 1
@@ -59,14 +59,14 @@ final class EpisodeDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 targetWatched,
-                id: MediaItemID(serverID: serverID, ratingKey: details.ratingKey)
+                id: MediaItemID(serverID: serverID, itemID: details.itemID)
             )
             await reload()
         } catch {
             if isPlayableOffline {
                 offlinePlaybackSyncManager?.recordWatchState(
                     serverID: serverID,
-                    ratingKey: details.ratingKey,
+                    itemID: details.itemID,
                     watched: targetWatched
                 )
                 offlineStateVersion += 1
@@ -81,7 +81,7 @@ final class EpisodeDetailViewModel {
     }
 
     var seasonID: MediaItemID? {
-        details?.parentRatingKey.map { MediaItemID(serverID: serverID, ratingKey: $0) }
+        details?.parentID.map { MediaItemID(serverID: serverID, itemID: $0) }
     }
 
     var episodeLabel: String? {
@@ -93,7 +93,7 @@ final class EpisodeDetailViewModel {
     }
 
     var showID: MediaItemID? {
-        details?.grandparentRatingKey.map { MediaItemID(serverID: serverID, ratingKey: $0) }
+        details?.grandparentID.map { MediaItemID(serverID: serverID, itemID: $0) }
     }
 
     var formattedDuration: String? {
@@ -106,7 +106,7 @@ final class EpisodeDetailViewModel {
         let fallback = isWatched(details)
         return offlinePlaybackSyncManager?.effectiveWatched(
             serverID: serverID,
-            ratingKey: details.ratingKey,
+            itemID: details.itemID,
             fallback: fallback
         ) ?? fallback
     }
@@ -152,7 +152,7 @@ final class EpisodeDetailViewModel {
         }
 
         do {
-            details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
+            details = try await plexService.getMediaDetails(itemID: itemID, serverID: serverID)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -169,7 +169,7 @@ final class EpisodeDetailViewModel {
         if let seasonID {
             seasonDetails = downloadManager?.cachedMediaDetails(for: seasonID) ?? seasonDetails
             if !isUsingCachedData, let season = try? await plexService.getMediaDetails(
-                ratingKey: seasonID.ratingKey, serverID: serverID
+                itemID: seasonID.itemID, serverID: serverID
             ) {
                 seasonDetails = season
             }
@@ -179,7 +179,7 @@ final class EpisodeDetailViewModel {
         guard seasonDetails?.art?.nilIfEmpty == nil, let showID else { return }
         showDetails = downloadManager?.cachedMediaDetails(for: showID) ?? showDetails
         if !isUsingCachedData, let show = try? await plexService.getMediaDetails(
-            ratingKey: showID.ratingKey, serverID: serverID
+            itemID: showID.itemID, serverID: serverID
         ) {
             showDetails = show
         }
@@ -219,7 +219,7 @@ extension EpisodeDetailViewModel {
     func makeSubtitleSearchViewModel(preferredLanguageCode: String?) -> SubtitleSearchViewModel {
         SubtitleSearchViewModel(
             plexService: plexService,
-            ratingKey: ratingKey,
+            itemID: itemID,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode
         ) { [weak self] _ in

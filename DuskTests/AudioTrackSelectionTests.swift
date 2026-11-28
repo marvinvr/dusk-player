@@ -21,11 +21,11 @@ struct AudioTrackSelectionTests {
         model.configureAutomaticTrackSelection(preferences: preferences, part: part)
         #expect(model.hasAppliedAutomaticAudioSelection == readyAtStartup)
 
-        var saved: [Int?] = []
+        var saved: [String?] = []
         model.userTrackSelectionHandler = { type, streamID in
             if type == .audio { saved.append(streamID) }
         }
-        let italian = try #require(model.audioTracks.first { $0.plexStreamID == 12 })
+        let italian = try #require(model.audioTracks.first { $0.plexStreamID == "12" })
         model.selectAudio(italian)
         engine.isReadyForAutomaticAudioSelection = true
         model.sync()
@@ -36,7 +36,7 @@ struct AudioTrackSelectionTests {
         model.sync()
         #expect(engine.selectedAudioTrackID == italian.id)
         #expect(engine.audioSelections == [italian.id])
-        #expect(saved == [12])
+        #expect(saved == ["12"])
     }
 
     @Test func serverPickerKeepsManualChoiceAcrossSynchronization() throws {
@@ -47,30 +47,30 @@ struct AudioTrackSelectionTests {
         defer { model.cleanup() }
         model.configureAutomaticTrackSelection(
             preferences: preferences, part: part,
-            usesServerTrackSelection: true, selectedAudioStreamID: 11
+            usesServerTrackSelection: true, selectedAudioStreamID: "11"
         )
         let italian = try #require(model.audioTracks.first { $0.id == 12 })
-        var requests: [Int?] = []
+        var requests: [String?] = []
         model.plexTrackSelectionHandler = { audio, _ in requests.append(audio) }
         model.selectAudio(italian)
         for _ in 0..<3 { model.sync() }
         model.configureAutomaticTrackSelection(
             preferences: preferences, part: part,
-            usesServerTrackSelection: true, selectedAudioStreamID: 11
+            usesServerTrackSelection: true, selectedAudioStreamID: "11"
         )
         model.sync()
         #expect(model.selectedAudioTrackID == 12)
-        #expect(requests == [12])
+        #expect(requests == ["12"])
         #expect(engine.audioSelections.isEmpty) // HLS changes go through Plex.
     }
 
     @Test func movieChoiceSurvivesAReplacementPlayerWithoutAShowPreference() throws {
         let playback = PlaybackCoordinator(plexService: PlexService())
-        playback.activeAudioStreamID = 12
-        playback.rememberShowTrackChoice(type: .audio, streamID: 12)
+        playback.activeAudioStreamID = "12"
+        playback.rememberShowTrackChoice(type: .audio, streamID: "12")
         #expect(playback.activeShowTrackScope == nil)
         let selection = try #require(playback.rememberedShowTrackSelection())
-        #expect(selection.audioStreamID == 12)
+        #expect(selection.audioStreamID == "12")
 
         let part = try makePart()
         let engine = AudioSelectionEngine(tracks: part.streams.map(AudioTrack.init(stream:)))

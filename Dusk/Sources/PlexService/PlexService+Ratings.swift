@@ -8,7 +8,7 @@ extension PlexService {
             method: "PUT",
             path: "/:/rate",
             queryItems: [
-                URLQueryItem(name: "key", value: id.ratingKey),
+                URLQueryItem(name: "key", value: id.itemID),
                 URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
                 URLQueryItem(name: "rating", value: String(rating ?? -1)),
             ],

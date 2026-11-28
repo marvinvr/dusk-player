@@ -31,12 +31,12 @@ struct SeasonBackdropTests {
             ServerPool.forget(serverID: serverID)
         }
         let model = SeasonDetailViewModel(
-            id: MediaItemID(serverID: serverID, ratingKey: "season"), plexService: service
+            id: MediaItemID(serverID: serverID, itemID: "season"), plexService: service
         )
         await model.load()
         #expect(model.error == nil)
         #expect(model.episodes.count == 2)
-        let show = try await service.getMediaDetails(ratingKey: "show", serverID: serverID)
+        let show = try await service.getMediaDetails(itemID: "show", serverID: serverID)
         let original = model.backdropURL(width: 1920, height: 540, show: show)
         if expectedPath.isEmpty {
             #expect(original == nil)
@@ -50,7 +50,7 @@ struct SeasonBackdropTests {
         // details must keep the same hero, even when no season/show art exists.
         for episode in model.episodes {
             await model.focusEpisode(episode)
-            #expect(model.focusedEpisodeDetails?.ratingKey == episode.ratingKey)
+            #expect(model.focusedEpisodeDetails?.itemID == episode.itemID)
             #expect(model.backdropURL(width: 1920, height: 540, show: show) == original)
         }
         #if !os(tvOS)

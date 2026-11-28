@@ -1,7 +1,7 @@
 import Foundation
 
 extension PlexService {
-    /// The pre-roll videos the server wants played before `ratingKey`, in
+    /// The pre-roll videos the server wants played before `itemID`, in
     /// order. Empty when the server has none configured.
     ///
     /// This is how official Plex clients get them: create a play queue for the
@@ -16,7 +16,7 @@ extension PlexService {
     /// such setting and sends 0 ("pre-roll only"): it plays exactly what the
     /// server owner set up, and a server without a pre-roll answers with the
     /// movie alone. Leaving the parameter out entirely returns no extras at all.
-    func cinemaPrerolls(forMovieRatingKey ratingKey: String, serverID: String?) async throws -> [MediaDetails] {
+    func cinemaPrerolls(forMovieRatingKey itemID: String, serverID: String?) async throws -> [MediaDetails] {
         let targetID = try resolveServerID(serverID)
         let data = try await rawServerRequest(
             method: "POST",
@@ -25,7 +25,7 @@ extension PlexService {
                 URLQueryItem(name: "type", value: "video"),
                 URLQueryItem(
                     name: "uri",
-                    value: "server://\(targetID)/com.plexapp.plugins.library/library/metadata/\(ratingKey)"
+                    value: "server://\(targetID)/com.plexapp.plugins.library/library/metadata/\(itemID)"
                 ),
                 URLQueryItem(name: "extrasPrefixCount", value: "0"),
                 URLQueryItem(name: "repeat", value: "0"),
@@ -35,13 +35,13 @@ extension PlexService {
         )
         let items = try decodeJSON(MetadataResponse<MediaDetails>.self, from: data, serverID: targetID)
             .MediaContainer.Metadata ?? []
-        return Self.prerollItems(in: items, featureRatingKey: ratingKey)
+        return Self.prerollItems(in: items, featureRatingKey: itemID)
     }
 
     /// Everything the queue puts in front of the movie. Only clips count: a
     /// queue that somehow led with anything else is not a pre-roll queue.
     static func prerollItems(in queue: [MediaDetails], featureRatingKey: String) -> [MediaDetails] {
-        guard let featureIndex = queue.firstIndex(where: { $0.ratingKey == featureRatingKey }) else {
+        guard let featureIndex = queue.firstIndex(where: { $0.itemID == featureRatingKey }) else {
             return []
         }
         return queue[..<featureIndex].filter { $0.type == .clip && !$0.media.isEmpty }

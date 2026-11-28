@@ -61,7 +61,7 @@ struct PlexDownloadDecision: Sendable {
 
     func convertedMedia(sourceMedia: MediaVersion, mediaPath: String, expectedBytes: Int64?) -> MediaVersion {
         let part = MediaPart(
-            id: sourceMedia.firstAvailablePart?.id ?? 0,
+            id: sourceMedia.firstAvailablePart?.id ?? "0",
             key: mediaPath,
             file: nil,
             size: expectedBytes.flatMap(Int.init(exactly:)),
@@ -165,9 +165,9 @@ enum PlexDownloadQueueResponse {
         return value
     }
 
-    static func metadataKey(_ ratingKey: String) throws -> String {
-        guard !ratingKey.isEmpty,
-              let encoded = ratingKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/?#%"))) else {
+    static func metadataKey(_ itemID: String) throws -> String {
+        guard !itemID.isEmpty,
+              let encoded = itemID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/?#%"))) else {
             throw invalidResponse()
         }
         return "/library/metadata/\(encoded)"

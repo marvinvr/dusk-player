@@ -93,17 +93,17 @@ struct Extra: Identifiable, Sendable, Hashable {
 /// The extra-specific fields of an `/extras` row. `MediaItem` decodes the rest;
 /// both read the same payload.
 struct PlexExtraFields: Decodable, Sendable {
-    let ratingKey: String
+    let itemID: String
     let extraType: Int?
     let subtype: String?
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, extraType, subtype
+        case itemID = "ratingKey", extraType, subtype
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         // Plex's XML-to-JSON layer has sent numeric attributes as strings.
         if let value = try? container.decodeIfPresent(Int.self, forKey: .extraType) {
             extraType = value
@@ -120,10 +120,10 @@ extension Extra {
     /// Pairs decoded items with their extra fields by rating key, in Plex's
     /// order. Only clips are extras; anything else in the payload is dropped.
     static func extras(items: [MediaItem], fields: [PlexExtraFields]) -> [Extra] {
-        let fieldsByKey = Dictionary(fields.map { ($0.ratingKey, $0) }, uniquingKeysWith: { first, _ in first })
+        let fieldsByKey = Dictionary(fields.map { ($0.itemID, $0) }, uniquingKeysWith: { first, _ in first })
         return items.compactMap { item in
             guard item.isClip else { return nil }
-            let field = fieldsByKey[item.ratingKey]
+            let field = fieldsByKey[item.itemID]
             return Extra(
                 item: item,
                 kind: PlexExtraType(extraType: field?.extraType, subtype: field?.subtype ?? item.subtype)

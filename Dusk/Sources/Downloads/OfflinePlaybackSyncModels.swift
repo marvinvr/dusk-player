@@ -16,7 +16,7 @@ struct OfflinePlaybackSyncAction: Codable, Sendable, Identifiable, Hashable {
     /// Mutable only so an action written before servers were identified by
     /// machine identifier can be re-keyed (see `OfflinePlaybackSyncManager`).
     var serverID: String
-    let ratingKey: String
+    let itemID: String
     var kind: OfflinePlaybackSyncActionKind
     var viewOffsetMs: Int?
     var durationMs: Int?
@@ -32,12 +32,12 @@ struct OfflinePlaybackSyncAction: Codable, Sendable, Identifiable, Hashable {
         DownloadedMediaRecord.globalKey(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            ratingKey: ratingKey
+            itemID: itemID
         )
     }
 
     enum CodingKeys: String, CodingKey {
-        case accountProfileID, serverID, ratingKey, kind
+        case accountProfileID, serverID, itemID = "ratingKey", kind
         case viewOffsetMs, durationMs, shouldMarkWatched, plexState
         case needsSync, attemptCount, lastAttemptAt, createdAt, updatedAt
     }
@@ -48,7 +48,7 @@ extension OfflinePlaybackSyncAction {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         accountProfileID = try container.decodeIfPresent(String.self, forKey: .accountProfileID)
         serverID = try container.decode(String.self, forKey: .serverID)
-        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        itemID = try container.decode(String.self, forKey: .itemID)
         kind = try container.decode(OfflinePlaybackSyncActionKind.self, forKey: .kind)
         viewOffsetMs = try container.decodeIfPresent(Int.self, forKey: .viewOffsetMs)
         durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)

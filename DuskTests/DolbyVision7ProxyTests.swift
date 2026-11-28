@@ -533,11 +533,11 @@ struct DolbyVision7GatingTests {
         let context = PlaybackAttemptContext(
             attemptID: UUID(),
             title: "Test",
-            ratingKey: "1",
+            itemID: "1",
             engine: .avPlayer,
             resolverReason: "test",
-            mediaID: 10,
-            partID: 20,
+            mediaID: "10",
+            partID: "20",
             sanitizedPlaybackURL: ""
         )
         let url = try #require(URL(string: "http://plex.test/start.m3u8"))

@@ -30,22 +30,22 @@ extension PlexService {
         }
     }
 
-    func getPlaylist(ratingKey: String, serverID: String?) async throws -> Playlist? {
+    func getPlaylist(itemID: String, serverID: String?) async throws -> Playlist? {
         let playlists: [Playlist] = try await fetchMetadata(
-            path: "/playlists/\(ratingKey)",
+            path: "/playlists/\(itemID)",
             serverID: serverID
         )
         return playlists.first
     }
 
     /// Every entry of a playlist, in playlist order, paged through.
-    func getPlaylistEntries(ratingKey: String, serverID: String?) async throws -> [PlaylistEntry] {
+    func getPlaylistEntries(itemID: String, serverID: String?) async throws -> [PlaylistEntry] {
         let targetID = try resolveServerID(serverID)
         let pageSize = 200
         var entries: [PlaylistEntry] = []
         while true {
             let data = try await rawServerRequest(
-                path: "/playlists/\(ratingKey)/items",
+                path: "/playlists/\(itemID)/items",
                 queryItems: [
                     URLQueryItem(name: "X-Plex-Container-Start", value: String(entries.count)),
                     URLQueryItem(name: "X-Plex-Container-Size", value: String(pageSize)),
@@ -89,7 +89,7 @@ extension PlexService {
         let serverID = try resolveServerID(playlist.serverID)
         let data = try await rawServerRequest(
             method: "PUT",
-            path: "/playlists/\(playlist.ratingKey)/items",
+            path: "/playlists/\(playlist.itemID)/items",
             queryItems: [
                 URLQueryItem(name: "uri", value: libraryURI(ratingKeys: ratingKeys, serverID: serverID)),
             ],
@@ -103,7 +103,7 @@ extension PlexService {
     func removeFromPlaylist(_ playlist: Playlist, playlistItemID: Int) async throws {
         _ = try await rawServerRequest(
             method: "DELETE",
-            path: "/playlists/\(playlist.ratingKey)/items/\(playlistItemID)",
+            path: "/playlists/\(playlist.itemID)/items/\(playlistItemID)",
             serverID: playlist.serverID
         )
     }
@@ -112,7 +112,7 @@ extension PlexService {
     func movePlaylistItem(_ playlist: Playlist, playlistItemID: Int, after afterPlaylistItemID: Int?) async throws {
         _ = try await rawServerRequest(
             method: "PUT",
-            path: "/playlists/\(playlist.ratingKey)/items/\(playlistItemID)/move",
+            path: "/playlists/\(playlist.itemID)/items/\(playlistItemID)/move",
             queryItems: afterPlaylistItemID.map { [URLQueryItem(name: "after", value: String($0))] },
             serverID: playlist.serverID
         )
@@ -121,7 +121,7 @@ extension PlexService {
     func renamePlaylist(_ playlist: Playlist, to title: String) async throws {
         _ = try await rawServerRequest(
             method: "PUT",
-            path: "/playlists/\(playlist.ratingKey)",
+            path: "/playlists/\(playlist.itemID)",
             queryItems: [URLQueryItem(name: "title", value: title)],
             serverID: playlist.serverID
         )
@@ -130,7 +130,7 @@ extension PlexService {
     func deletePlaylist(_ playlist: Playlist) async throws {
         _ = try await rawServerRequest(
             method: "DELETE",
-            path: "/playlists/\(playlist.ratingKey)",
+            path: "/playlists/\(playlist.itemID)",
             serverID: playlist.serverID
         )
     }
@@ -175,7 +175,7 @@ extension PlexService {
     /// edit) into the store.
     func refreshPlaylist(_ id: MediaItemID) async {
         let session = playlists.sessionGeneration
-        guard let playlist = try? await getPlaylist(ratingKey: id.ratingKey, serverID: id.serverID) else { return }
+        guard let playlist = try? await getPlaylist(itemID: id.itemID, serverID: id.serverID) else { return }
         playlists.upsert(playlist, sessionGeneration: session)
     }
 }

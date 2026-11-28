@@ -50,7 +50,7 @@ final class PlaylistDetailViewModel {
     func load() async {
         if playlist == nil {
             do {
-                playlist = try await plexService.getPlaylist(ratingKey: id.ratingKey, serverID: id.serverID)
+                playlist = try await plexService.getPlaylist(itemID: id.itemID, serverID: id.serverID)
                 if playlist == nil {
                     error = "This playlist no longer exists."
                     return
@@ -74,7 +74,7 @@ final class PlaylistDetailViewModel {
 
     private func reloadEntries() async {
         do {
-            entries = try await plexService.getPlaylistEntries(ratingKey: id.ratingKey, serverID: id.serverID)
+            entries = try await plexService.getPlaylistEntries(itemID: id.itemID, serverID: id.serverID)
             hasLoadedEntries = true
             error = nil
         } catch {

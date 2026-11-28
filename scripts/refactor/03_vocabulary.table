@@ -1,0 +1,18 @@
+# P0-03 field renames (docs/jellyfin/04-architecture.md §4.2). `Old New`, whole words.
+# CodingKey/String enum cases are pinned to their old raw values first.
+#
+# Done by hand in 03_vocabulary.post.patch, not by this table:
+#   MediaStream.isSelected -> isServerSelected (the word is common UI state)
+#   doviPresent/doviProfile/doviLevel/doviBLCompatID -> dolbyVision: DolbyVisionInfo?
+#   PlexGuid.value(for:) -> ExternalIDs; ContentKey.plex -> .native + contentAliases
+# Deferred (not renames, or owned elsewhere):
+#   part.key / stream.key removal, accessible/exists -> isAvailable (P0-09)
+#   thumb/art/... -> ArtworkSet (P0-04)
+viewOffset          resumeOffsetMs
+viewCount           playCount
+lastViewedAt        lastPlayedAt
+leafCount           episodeCount
+viewedLeafCount     watchedEpisodeCount
+streamType          kind
+colorTrc            colorTransfer
+PlexStreamType      StreamKind

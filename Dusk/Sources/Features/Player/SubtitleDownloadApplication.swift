@@ -10,7 +10,7 @@ enum SubtitleDownloadApplication {
     /// The fields Plex rewrites when it installs a sidecar. A second download
     /// in the same language may keep the id and key, so the rest is compared too.
     struct SidecarSignature: Hashable, Sendable {
-        let id: Int
+        let id: String
         let key: String?
         let codec: String?
         let displayTitle: String?

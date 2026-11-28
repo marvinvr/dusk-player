@@ -43,7 +43,7 @@ extension PlexService {
     /// The Manage Recommendations entries behind one Home row: one per owned
     /// server and library the (possibly merged) row draws from.
     ///
-    /// `GET /hubs` rows usually carry no `librarySectionID`, and the numbers
+    /// `GET /hubs` rows usually carry no `libraryID`, and the numbers
     /// in their identifier are not reliably the section (`movie.curated.2.1`),
     /// so the section comes from the row's titles when they say, else every
     /// library on that server is asked.
@@ -54,8 +54,8 @@ extension PlexService {
             guard let identifier = (source.hubIdentifier ?? (representative ? hub.hubIdentifier : nil))?.nilIfEmpty,
                   !identifier.hasPrefix("home.") else { continue }
 
-            var sectionIDs = Set(hub.items.filter { $0.serverID == source.serverID }.compactMap(\.librarySectionID))
-            if representative, let sectionID = hub.librarySectionID?.nilIfEmpty {
+            var sectionIDs = Set(hub.items.filter { $0.serverID == source.serverID }.compactMap(\.libraryID))
+            if representative, let sectionID = hub.libraryID?.nilIfEmpty {
                 sectionIDs.insert(sectionID)
             }
             let candidates = sectionIDs.isEmpty

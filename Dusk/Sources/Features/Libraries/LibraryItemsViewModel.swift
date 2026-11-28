@@ -522,7 +522,7 @@ final class LibraryItemsViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 watched,
-                id: MediaItemID(serverID: item.serverID ?? serverID, ratingKey: item.ratingKey)
+                id: MediaItemID(serverID: item.serverID ?? serverID, itemID: item.itemID)
             )
             await reloadItems()
         } catch {

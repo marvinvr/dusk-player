@@ -12,14 +12,14 @@ private let plexSubtitlesLogger = Logger(
 /// OpenSubtitles account, API key, or rate-limit handling of its own. The server
 /// searches, downloads the chosen file, writes it as a sidecar next to the media,
 /// and refreshes the item. Afterwards the new track appears in
-/// `getMediaDetails(ratingKey:)` as a `MediaStream` with `streamType == .subtitle`
+/// `getMediaDetails(itemID:)` as a `MediaStream` with `streamType == .subtitle`
 /// and a non-nil `key` (`/library/streams/{id}`), which `externalSubtitleURL(for:)`
 /// turns into a URL the playback engine can attach as a slave.
 extension PlexService {
     /// Asks the server to search its subtitle providers (OpenSubtitles) for the item.
     ///
     /// - Parameters:
-    ///   - ratingKey: Library item to search subtitles for.
+    ///   - itemID: Library item to search subtitles for.
     ///   - languageCode: Language filter. Plex Web sends ISO 639-1 (`en`, `de`);
     ///     current servers also accept ISO 639-2 (`eng`, `ger`). The value is
     ///     trimmed and lowercased and otherwise passed through untouched, so
@@ -30,7 +30,7 @@ extension PlexService {
     ///   empty array when the provider has nothing — some servers answer
     ///   `size: 0` with no `Stream` array at all.
     func searchSubtitles(
-        ratingKey: String,
+        itemID: String,
         languageCode: String,
         hearingImpaired: Bool = false,
         forced: Bool = false,
@@ -48,7 +48,7 @@ extension PlexService {
 
         let targetID = try resolveServerID(serverID)
         let data = try await rawServerRequest(
-            path: "/library/metadata/\(ratingKey)/subtitles",
+            path: "/library/metadata/\(itemID)/subtitles",
             queryItems: queryItems,
             serverID: targetID
         )
@@ -60,7 +60,7 @@ extension PlexService {
         let results = response.MediaContainer.Stream ?? []
 
         plexSubtitlesLogger.debug(
-            "Subtitle search for \(ratingKey, privacy: .public) [\(language, privacy: .public)] returned \(results.count, privacy: .public) result(s)"
+            "Subtitle search for \(itemID, privacy: .public) [\(language, privacy: .public)] returned \(results.count, privacy: .public) result(s)"
         )
         return results
     }
@@ -71,12 +71,12 @@ extension PlexService {
     /// The server does the fetching, so this call blocks for as long as the
     /// provider takes — several seconds is normal. It returns once the server
     /// answers 200 (the body is empty or trivial). The new track is *not* in the
-    /// response: refetch `getMediaDetails(ratingKey:)` afterwards to pick it up.
+    /// response: refetch `getMediaDetails(itemID:)` afterwards to pick it up.
     ///
     /// Optional parameters are only sent when the result carries them, matching
     /// what Plex Web does.
     func downloadSubtitle(
-        ratingKey: String,
+        itemID: String,
         result: SubtitleSearchResult,
         serverID: String? = nil
     ) async throws {
@@ -103,14 +103,14 @@ extension PlexService {
 
         _ = try await rawServerRequest(
             method: "PUT",
-            path: "/library/metadata/\(ratingKey)/subtitles",
+            path: "/library/metadata/\(itemID)/subtitles",
             queryItems: queryItems,
             timeoutInterval: Self.subtitleDownloadTimeout,
             serverID: serverID
         )
 
         plexSubtitlesLogger.notice(
-            "Installed subtitle \(result.id, privacy: .public) on \(ratingKey, privacy: .public)"
+            "Installed subtitle \(result.id, privacy: .public) on \(itemID, privacy: .public)"
         )
     }
 

@@ -50,7 +50,7 @@ struct TrueHDAudioRoutingTests {
     @Test func remuxDecisionKeepsTheCopyableSibling() throws {
         let part = try makePart(audio: bluRayAudio)
         let stream = PlayerViewModel.preferredRemuxAudioStream(inPart: part, preferredLanguage: nil)
-        #expect(stream?.id == 3)
+        #expect(stream?.id == "3")
     }
 
     @Test func remuxDecisionPrefersEAC3AtmosOverTrueHDAtmos() throws {
@@ -59,14 +59,14 @@ struct TrueHDAudioRoutingTests {
             { "id": 3, "streamType": 2, "codec": "eac3", "channels": 8, "languageCode": "eng", "profile": "dolby digital plus + dolby atmos", "displayTitle": "English (EAC3 7.1 Atmos)" }
             """)
         let stream = try #require(PlayerViewModel.preferredRemuxAudioStream(inPart: part, preferredLanguage: nil))
-        #expect(stream.id == 3)
+        #expect(stream.id == "3")
         #expect(StreamResolver.isSpatialAudioCandidate(stream))
     }
 
     @Test func remuxDecisionFallsBackToTrueHDWhenItIsTheOnlyTrack() throws {
         let part = try makePart(audio: trueHDOnlyAudio)
         let stream = PlayerViewModel.preferredRemuxAudioStream(inPart: part, preferredLanguage: nil)
-        #expect(stream?.id == 2)
+        #expect(stream?.id == "2")
         #expect(PlayerViewModel.isTrueHDAudioCodec(stream?.codec))
     }
 
@@ -148,7 +148,7 @@ struct TrueHDAudioRoutingTests {
         // Direct play (no HDR display, setting off) still opens on TrueHD.
         #expect(PlayerViewModel.preferredLocalAudioStream(
             inPart: media.parts[0], preferredLanguage: nil, decodesTrueHD: true
-        )?.id == 2)
+        )?.id == "2")
     }
 
     @Test func hdrGateHonoursDisplayAndSetting() throws {
@@ -168,16 +168,16 @@ struct TrueHDAudioRoutingTests {
             audio: trueHDOnlyAudio,
             subtitleCodec: "pgs"
         )
-        #expect(convertedBlocker(for: media, subtitleID: 9) != nil)
+        #expect(convertedBlocker(for: media, subtitleID: "9") != nil)
     }
 
     @Test func convertedRequestCopiesVideoAndRequiresDDPlus() {
         let service = PlexService()
         let items = service.transcodeQueryItems(
-            ratingKey: "1", mediaIndex: 0, sourcePath: nil,
+            itemID: "1", mediaIndex: 0, sourcePath: nil,
             mode: .spatialAudioRemux(convertsAudio: true),
             sessionIdentifier: "session", transcodeSessionID: "transcode",
-            audioStreamID: 2, subtitleStreamID: 9, token: nil
+            audioStreamID: "2", subtitleStreamID: "9", token: nil
         )
         let query = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
         #expect(query["directPlay"] == "0")
@@ -246,7 +246,7 @@ struct TrueHDAudioRoutingTests {
         )
         let media = try makeMedia(video: dv7Video, audio: trueHDOnlyAudio)
         let playback = PlaybackCoordinator(plexService: PlexService())
-        playback.activeAudioStreamID = 2
+        playback.activeAudioStreamID = "2"
         for (profile, expectsAtmos) in [
             (nil, false), ("dolby digital plus", false),
             ("dolby truehd + dolby atmos", false),
@@ -255,7 +255,7 @@ struct TrueHDAudioRoutingTests {
             decision.audioProfile = profile
             #expect(decision.hasDolbyAtmosAudio == expectsAtmos)
             playback.remuxAudioConversion = RemuxAudioConversion(
-                audioStreamID: 2, restoresDolbyAtmos: decision.hasDolbyAtmosAudio
+                audioStreamID: "2", restoresDolbyAtmos: decision.hasDolbyAtmosAudio
             )
             #expect(playback.activeAudioStreamIsDolbyAtmos(in: media.parts[0]) == expectsAtmos)
         }
@@ -276,7 +276,7 @@ struct TrueHDAudioRoutingTests {
 
     private func convertedBlocker(
         for media: MediaVersion,
-        subtitleID: Int? = nil,
+        subtitleID: String? = nil,
         displaySupportsHDR: Bool = true,
         hdrVideoRemuxEnabled: Bool = true
     ) -> String? {

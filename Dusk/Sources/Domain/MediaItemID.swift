@@ -21,7 +21,7 @@ extension Decoder {
 /// Identity of a library item that is unique across servers.
 ///
 /// Plex rating keys are per-server counters, so two servers routinely hand out
-/// the same `ratingKey` for completely different media. Everything that keys,
+/// the same `itemID` for completely different media. Everything that keys,
 /// compares, or routes to an item must therefore carry the server too.
 ///
 /// `serverID` is optional because items can still arrive from a decoder with no
@@ -29,32 +29,37 @@ extension Decoder {
 /// is only ever equal to another equally unstamped one.
 struct MediaItemID: Hashable, Codable, Sendable {
     let serverID: String?
-    let ratingKey: String
+    let itemID: String
 
-    init(serverID: String?, ratingKey: String) {
+    enum CodingKeys: String, CodingKey {
+        case serverID, itemID = "ratingKey"
+    }
+
+    init(serverID: String?, itemID: String) {
         self.serverID = serverID?.nilIfEmpty
-        self.ratingKey = ratingKey
+        self.itemID = itemID
     }
 }
 
 extension MediaItemID: CustomStringConvertible {
-    /// Round-trippable `"<serverID>|<ratingKey>"` form. Rating keys are numeric
-    /// on every Plex server, so the first `|` is always the separator.
+    /// Round-trippable `"<serverID>|<itemID>"` form. Server ids never contain
+    /// `|` (Plex machine identifiers and Jellyfin server ids are hex), so the
+    /// first `|` is always the separator.
     var storageKey: String {
-        guard let serverID else { return ratingKey }
-        return "\(serverID)|\(ratingKey)"
+        guard let serverID else { return itemID }
+        return "\(serverID)|\(itemID)"
     }
 
     init?(storageKey: String) {
         guard let separator = storageKey.firstIndex(of: "|") else {
             guard !storageKey.isEmpty else { return nil }
-            self.init(serverID: nil, ratingKey: storageKey)
+            self.init(serverID: nil, itemID: storageKey)
             return
         }
         let serverID = String(storageKey[storageKey.startIndex..<separator])
-        let ratingKey = String(storageKey[storageKey.index(after: separator)...])
-        guard !ratingKey.isEmpty else { return nil }
-        self.init(serverID: serverID, ratingKey: ratingKey)
+        let itemID = String(storageKey[storageKey.index(after: separator)...])
+        guard !itemID.isEmpty else { return nil }
+        self.init(serverID: serverID, itemID: itemID)
     }
 
     var description: String { storageKey }

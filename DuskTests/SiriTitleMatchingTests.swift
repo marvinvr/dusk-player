@@ -15,7 +15,7 @@ struct SiriTitleMatchingTests {
         lastViewedAt: Int? = nil
     ) -> SiriTitleCandidate {
         SiriTitleCandidate(
-            id: MediaItemID(serverID: server, ratingKey: key ?? title),
+            id: MediaItemID(serverID: server, itemID: key ?? title),
             kind: kind,
             title: title,
             year: year,
@@ -183,7 +183,7 @@ struct SiriTitleMatchingTests {
         lastViewedAt: Int? = nil
     ) -> SiriNextEpisodePicker.Episode {
         SiriNextEpisodePicker.Episode(
-            id: MediaItemID(serverID: "server-a", ratingKey: "\(season)x\(number)"),
+            id: MediaItemID(serverID: "server-a", itemID: "\(season)x\(number)"),
             season: season,
             index: number,
             isWatched: watched,
@@ -211,13 +211,13 @@ struct SiriTitleMatchingTests {
             episode(2, 2),
             episode(1, 3),
         ]
-        #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.ratingKey == "2x2")
+        #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.itemID == "2x2")
     }
 
     @Test("Specials are skipped when the show has regular episodes")
     func skipsSpecials() {
         let episodes = [episode(0, 1), episode(1, 1), episode(1, 2)]
-        #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.ratingKey == "1x1")
+        #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.itemID == "1x1")
     }
 
     @Test("A fully watched show starts over, an empty one has nothing")
@@ -226,7 +226,7 @@ struct SiriTitleMatchingTests {
             episode(1, 2, watched: true, lastViewedAt: 20),
             episode(1, 1, watched: true, lastViewedAt: 10),
         ]
-        #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.ratingKey == "1x1")
+        #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.itemID == "1x1")
         #expect(SiriNextEpisodePicker.pick(from: []) == nil)
     }
 }

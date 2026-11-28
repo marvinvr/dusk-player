@@ -103,7 +103,7 @@ final class SiriPlaybackService {
         let details: MediaDetails
         do {
             details = try await plexService.getMediaDetails(
-                ratingKey: candidate.id.ratingKey,
+                itemID: candidate.id.itemID,
                 serverID: candidate.id.serverID
             )
         } catch {
@@ -125,7 +125,7 @@ final class SiriPlaybackService {
         let episodes: [Episode]
         do {
             episodes = try await plexService.getAllEpisodes(
-                showKey: show.id.ratingKey,
+                showKey: show.id.itemID,
                 serverID: show.id.serverID
             )
         } catch {
@@ -251,7 +251,7 @@ final class SiriPlaybackService {
         let lists = perServer.map { result in
             var seen: Set<String> = []
             let items = result.value.filter { item in
-                Self.kind(of: item) != nil && seen.insert(item.ratingKey).inserted
+                Self.kind(of: item) != nil && seen.insert(item.itemID).inserted
             }
             return [SearchSection(title: "Siri", type: "siri", items: items)]
         }

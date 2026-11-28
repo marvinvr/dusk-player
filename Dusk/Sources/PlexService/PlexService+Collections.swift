@@ -46,14 +46,14 @@ extension PlexService {
     /// A collection's titles, in the collection's own sort order, or in
     /// `sort` (a Plex sort value such as `titleSort:desc`) when given.
     func getCollectionItems(
-        ratingKey: String,
+        itemID: String,
         start: Int = 0,
         size: Int = 50,
         sort: String? = nil,
         serverID: String? = nil
     ) async throws -> MediaItemPage {
         try await fetchItemPage(
-            path: "/library/metadata/\(ratingKey)/children",
+            path: "/library/metadata/\(itemID)/children",
             start: start,
             size: size,
             extraQueryItems: sort.map { [URLQueryItem(name: "sort", value: $0)] } ?? [],
@@ -62,9 +62,9 @@ extension PlexService {
     }
 
     /// The collection itself (title, summary, artwork, count).
-    func getCollection(ratingKey: String, serverID: String? = nil) async throws -> MediaItem? {
+    func getCollection(itemID: String, serverID: String? = nil) async throws -> MediaItem? {
         let items: [MediaItem] = try await fetchMetadata(
-            path: "/library/metadata/\(ratingKey)",
+            path: "/library/metadata/\(itemID)",
             serverID: serverID
         )
         return items.first

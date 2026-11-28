@@ -50,10 +50,10 @@ struct PlaybackFallbackTests {
         let engine = FailedPlaybackEngine(state: .playing)
         let attemptID = UUID()
         playback.engine = engine
-        playback.ratingKey = "1"
+        playback.itemID = "1"
         playback.activeItemDetails = details
         playback.activeTranscodeSessionID = "working-remux"
-        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: 4, subtitleStreamID: nil)
+        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: "4", subtitleStreamID: nil)
         playback.debugInfo = PlaybackDebugInfo(
             title: "HDR", engine: .avPlayer, decision: .spatialAudio,
             media: media, part: media.parts[0], attemptID: attemptID,
@@ -62,23 +62,23 @@ struct PlaybackFallbackTests {
         playback.playbackSource = PlaybackSource(
             url: url, startPosition: 42,
             context: PlaybackAttemptContext(
-                attemptID: attemptID, title: "HDR", ratingKey: "1", engine: .avPlayer,
-                resolverReason: "HDR remux", mediaID: 1, partID: 2,
+                attemptID: attemptID, title: "HDR", itemID: "1", engine: .avPlayer,
+                resolverReason: "HDR remux", mediaID: "1", partID: "2",
                 sanitizedPlaybackURL: url.absoluteString
             )
         )
         let presentationID = playback.playerPresentationID
         // Exercise repeated refused On/Off changes without opening media or
         // contacting Plex. The loaded session and its confirmed tracks win.
-        for subtitleID: Int? in [5, nil, 5, nil] {
-            playback.activeAudioStreamID = 6
+        for subtitleID: String? in ["5", nil, "5", nil] {
+            playback.activeAudioStreamID = "6"
             playback.activeSubtitleStreamID = subtitleID
             await playback.leaveSpatialAudioRemux(reason: "declined", keepsExplicitTracks: true)
             #expect(playback.engine === engine)
             #expect(playback.playerPresentationID == presentationID)
             #expect(playback.playbackSource?.url == url)
             #expect(playback.activeTranscodeSessionID == "working-remux")
-            #expect(playback.activeAudioStreamID == 4)
+            #expect(playback.activeAudioStreamID == "4")
             #expect(playback.activeSubtitleStreamID == nil)
             #expect(playback.qualitySwitchError != nil)
         }
@@ -135,9 +135,9 @@ struct PlaybackFallbackTests {
         playback.playbackSource = PlaybackSource(
             url: url, startPosition: nil,
             context: PlaybackAttemptContext(
-                attemptID: attemptID, title: "DV7", ratingKey: "1",
-                engine: .avPlayer, resolverReason: "DV7 remux", mediaID: 1,
-                partID: 2, sanitizedPlaybackURL: url.absoluteString
+                attemptID: attemptID, title: "DV7", itemID: "1",
+                engine: .avPlayer, resolverReason: "DV7 remux", mediaID: "1",
+                partID: "2", sanitizedPlaybackURL: url.absoluteString
             ),
             dolbyVision7Conversion: conversion
         )
@@ -182,14 +182,14 @@ struct PlaybackFallbackTests {
         let engine = FailedPlaybackEngine()
         playback.showPlayer = true
         playback.engine = engine
-        playback.ratingKey = "1"
+        playback.itemID = "1"
         playback.activeItemDetails = details
         playback.activePlaybackServerID = "hdr-server"
-        playback.activeAudioStreamID = 4
+        playback.activeAudioStreamID = "4"
         playback.activeTranscodeSessionID = "failed-remux"
         playback.playbackSource = PlaybackSource(url: URL(string: "https://\(host)/remux.m3u8")!, startPosition: 123, context: PlaybackAttemptContext(
-            attemptID: UUID(), title: "HDR", ratingKey: "1", engine: .avPlayer,
-            resolverReason: "HDR remux", mediaID: 1, partID: 2, sanitizedPlaybackURL: "https://plex.invalid/remux.m3u8"
+            attemptID: UUID(), title: "HDR", itemID: "1", engine: .avPlayer,
+            resolverReason: "HDR remux", mediaID: "1", partID: "2", sanitizedPlaybackURL: "https://plex.invalid/remux.m3u8"
         ))
         playback.debugInfo = PlaybackDebugInfo(
             title: "HDR", engine: .avPlayer, decision: .spatialAudio,
@@ -326,10 +326,10 @@ struct PlexServerSubtitleTests {
             """#.utf8))
         let media = try #require(details.media.first)
         playback.activeItemDetails = details
-        playback.ratingKey = "1"
+        playback.itemID = "1"
         playback.activePlaybackServerID = "subtitle-server"
-        playback.activeAudioStreamID = 4
-        playback.activeSubtitleStreamID = 5
+        playback.activeAudioStreamID = "4"
+        playback.activeSubtitleStreamID = "5"
         playback.engine = FailedPlaybackEngine(state: .paused)
         playback.debugInfo = PlaybackDebugInfo(
             title: "PGS", engine: .vlcKit, decision: .directPlay, media: media, part: media.parts[0],
@@ -380,7 +380,7 @@ struct PlexServerSubtitleTests {
         let preferences = UserPreferences()
         let model = PlayerViewModel(engine: playback.engine!)
         defer { model.cleanup() }
-        for subtitleID: Int? in [6, nil, 5] {
+        for subtitleID: String? in ["6", nil, "5"] {
             model.configureAutomaticTrackSelection(
                 preferences: preferences, part: playback.debugInfo?.part,
                 usesServerTrackSelection: playback.usesServerTrackSelection,
@@ -394,10 +394,10 @@ struct PlexServerSubtitleTests {
             let pausedEngine = FailedPlaybackEngine(state: .paused)
             pausedEngine.currentTime = 12
             playback.engine = pausedEngine
-            model.selectSubtitle(subtitleID.flatMap { id in model.subtitleTracks.first { $0.id == id } })
+            model.selectSubtitle(subtitleID.flatMap { id in model.subtitleTracks.first { String($0.id) == id } })
             await playback.spatialAudioTransitionTask?.value
             let query = try query(playback)
-            #expect(query["subtitleStreamID"] == subtitleID.map(String.init))
+            #expect(query["subtitleStreamID"] == subtitleID)
             #expect(query["subtitles"] == (subtitleID == nil ? "none" : "burn"))
             #expect(query["audioStreamID"] == "4")
             #expect(playback.playbackSource?.shouldAutoPlay == false)
@@ -409,12 +409,12 @@ struct PlexServerSubtitleTests {
     @Test func refusedTrackChangeKeepsTheLoadedStreamAndConfirmedSelection() async throws {
         let playback = try playback(refuses: true)
         let engine = playback.engine
-        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: 4, subtitleStreamID: 5)
-        playback.activeSubtitleStreamID = 6
+        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: "4", subtitleStreamID: "5")
+        playback.activeSubtitleStreamID = "6"
         await playback.rebuildServerStreamSession(reason: "refused selection")
         #expect(playback.engine === engine)
-        #expect(playback.activeSubtitleStreamID == 5)
-        #expect(playback.activeAudioStreamID == 4)
+        #expect(playback.activeSubtitleStreamID == "5")
+        #expect(playback.activeAudioStreamID == "4")
         #expect(playback.qualitySwitchError != nil)
     }
 }

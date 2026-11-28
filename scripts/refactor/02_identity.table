@@ -1,0 +1,7 @@
+# P0-02 field renames (docs/jellyfin/04-architecture.md §4.2). `Old New`, whole words.
+# Every CodingKey/String enum case is pinned to its old raw value first
+# (lib/pin_coding_keys.py), so keys on disk and on the wire do not change.
+ratingKey               itemID
+parentRatingKey         parentID
+grandparentRatingKey    grandparentID
+librarySectionID        libraryID

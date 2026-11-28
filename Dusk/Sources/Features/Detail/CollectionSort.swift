@@ -135,6 +135,6 @@ struct CollectionSortStore {
     }
 
     static func key(for id: MediaItemID) -> String {
-        "\(keyPrefix)\(id.serverID ?? "")|\(id.ratingKey)"
+        "\(keyPrefix)\(id.serverID ?? "")|\(id.itemID)"
     }
 }

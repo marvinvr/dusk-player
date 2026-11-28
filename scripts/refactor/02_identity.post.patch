@@ -1,0 +1,3067 @@
+diff --git a/Dusk/Sources/Domain/AudioTrack.swift b/Dusk/Sources/Domain/AudioTrack.swift
+index d3b70b4..96aabf7 100644
+--- a/Dusk/Sources/Domain/AudioTrack.swift
++++ b/Dusk/Sources/Domain/AudioTrack.swift
+@@ -13,7 +13,7 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
+     /// Plex stream id backing this track, when known (from merged part
+     /// metadata). Used to pin a server transcode to this exact audio stream
+     /// when the local engine cannot decode it.
+-    var plexStreamID: Int? = nil
++    var plexStreamID: String? = nil
+     /// Whether the engine that produced this track can actually decode it.
+     /// A stock VLCKit build ships without TrueHD/MLP, and Dusk's own TrueHD
+     /// decoder can still fail on a stream (`failedAudioDecoderTrackID`), so a
+@@ -54,7 +54,9 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
+ extension AudioTrack {
+     /// Create from a Plex audio stream.
+     init(stream: MediaStream) {
+-        self.id = stream.id
++        // The engine track id; a track built from metadata has none, so it
++        // reuses the Plex stream number (0 for an id that is not one).
++        self.id = Int(stream.id) ?? 0
+         self.displayTitle = stream.displayTitle ?? stream.language ?? "Unknown"
+         self.language = stream.language
+         self.languageCode = stream.languageCode
+diff --git a/Dusk/Sources/Domain/LiveTV.swift b/Dusk/Sources/Domain/LiveTV.swift
+index 2e54b7a..aee3ff6 100644
+--- a/Dusk/Sources/Domain/LiveTV.swift
++++ b/Dusk/Sources/Domain/LiveTV.swift
+@@ -954,7 +954,7 @@ struct PlexLiveTuneResponse: Decodable {
+                 part.makePart(id: index, sessionPath: sessionPath)
+             }
+             let fallbackPart = MediaPart(
+-                id: 0,
++                id: "0",
+                 key: sessionPath,
+                 file: nil,
+                 size: nil,
+@@ -968,7 +968,7 @@ struct PlexLiveTuneResponse: Decodable {
+             )
+ 
+             return MediaVersion(
+-                id: id ?? 0,
++                id: String(id ?? 0),
+                 container: container ?? "hls",
+                 videoCodec: videoCodec,
+                 audioCodec: audioCodec,
+@@ -1009,7 +1009,7 @@ struct PlexLiveTuneResponse: Decodable {
+ 
+         func makePart(id fallbackID: Int, sessionPath: String) -> MediaPart {
+             MediaPart(
+-                id: id ?? fallbackID,
++                id: String(id ?? fallbackID),
+                 key: key ?? sessionPath,
+                 file: nil,
+                 size: nil,
+@@ -1073,7 +1073,7 @@ struct PlexLiveTuneResponse: Decodable {
+             }
+ 
+             return MediaStream(
+-                id: id ?? index ?? fallbackID,
++                id: String(id ?? index ?? fallbackID),
+                 streamType: type,
+                 codec: codec,
+                 displayTitle: nil,
+diff --git a/Dusk/Sources/Domain/MediaDetails.swift b/Dusk/Sources/Domain/MediaDetails.swift
+index 5ddad6e..1d3df8f 100644
+--- a/Dusk/Sources/Domain/MediaDetails.swift
++++ b/Dusk/Sources/Domain/MediaDetails.swift
+@@ -174,7 +174,7 @@ extension MediaDetails {
+     /// A copy whose video streams in `partID` of `mediaID` carry
+     /// `sampleEntry` as their `codecID`, so every later engine decision for
+     /// the session sees what the file probe found.
+-    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: Int, partID: Int) -> MediaDetails {
++    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: String, partID: String) -> MediaDetails {
+         var copy = self
+         for mediaIndex in copy.media.indices where copy.media[mediaIndex].id == mediaID {
+             for partIndex in copy.media[mediaIndex].parts.indices
+@@ -201,7 +201,7 @@ private extension KeyedDecodingContainer where Key == MediaDetails.CodingKeys {
+ }
+ 
+ struct Marker: Codable, Sendable, Identifiable, Equatable {
+-    let id: Int
++    let id: String
+     let type: String
+     let startTimeOffset: Int
+     let endTimeOffset: Int
+@@ -216,7 +216,7 @@ struct Marker: Codable, Sendable, Identifiable, Equatable {
+ 
+     /// Sentinel id for the synthesized "estimated credits" marker. Negative so it
+     /// can never collide with a real Plex marker id.
+-    static let estimatedCreditsID = -1
++    static let estimatedCreditsID = "-1"
+ 
+     var isIntro: Bool {
+         type.caseInsensitiveCompare("intro") == .orderedSame
+@@ -278,7 +278,7 @@ struct PlexScrubPreviewSource: Sendable {
+ /// A single media version of a Plex item.
+ /// One item can have multiple media entries (e.g. 1080p and 4K versions).
+ struct MediaVersion: Codable, Sendable, Identifiable {
+-    let id: Int
++    let id: String
+ 
+     let container: String?
+     let videoCodec: String?
+@@ -314,7 +314,7 @@ struct MediaVersion: Codable, Sendable, Identifiable {
+     }
+ 
+     init(
+-        id: Int,
++        id: String,
+         container: String?,
+         videoCodec: String?,
+         audioCodec: String?,
+@@ -347,7 +347,7 @@ struct MediaVersion: Codable, Sendable, Identifiable {
+ 
+     init(from decoder: Decoder) throws {
+         let container = try decoder.container(keyedBy: CodingKeys.self)
+-        id = try container.decode(Int.self, forKey: .id)
++        id = try container.decodeID(forKey: .id)
+         self.container = try container.decodeIfPresent(String.self, forKey: .container)
+         videoCodec = try container.decodeIfPresent(String.self, forKey: .videoCodec)
+         audioCodec = try container.decodeIfPresent(String.self, forKey: .audioCodec)
+@@ -369,7 +369,7 @@ struct MediaVersion: Codable, Sendable, Identifiable {
+ /// A single file part. Most items have exactly one part, but multi-file
+ /// items (e.g. split DVDs) can have multiple.
+ struct MediaPart: Codable, Sendable, Identifiable {
+-    let id: Int
++    let id: String
+ 
+     /// Relative path used to construct the direct play URL:
+     /// `{serverURL}{key}?X-Plex-Token={token}`
+@@ -404,7 +404,7 @@ struct MediaPart: Codable, Sendable, Identifiable {
+     }
+ 
+     init(
+-        id: Int,
++        id: String,
+         key: String,
+         file: String?,
+         size: Int?,
+@@ -431,7 +431,7 @@ struct MediaPart: Codable, Sendable, Identifiable {
+ 
+     init(from decoder: Decoder) throws {
+         let container = try decoder.container(keyedBy: CodingKeys.self)
+-        id = try container.decode(Int.self, forKey: .id)
++        id = try container.decodeID(forKey: .id)
+         key = try container.decode(String.self, forKey: .key)
+         file = try container.decodeIfPresent(String.self, forKey: .file)
+         size = try container.decodeIfPresent(Int.self, forKey: .size)
+@@ -528,7 +528,7 @@ enum PlexStreamType: Int, Codable, Sendable {
+ 
+ /// A single audio, video, or subtitle track within a media part.
+ struct MediaStream: Codable, Sendable, Identifiable {
+-    let id: Int
++    let id: String
+     let streamType: PlexStreamType
+     let codec: String?
+     let displayTitle: String?
+@@ -598,7 +598,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
+     }
+ 
+     init(
+-        id: Int,
++        id: String,
+         streamType: PlexStreamType,
+         codec: String?,
+         displayTitle: String?,
+@@ -669,7 +669,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
+ 
+     init(from decoder: Decoder) throws {
+         let container = try decoder.container(keyedBy: CodingKeys.self)
+-        id = try container.decode(Int.self, forKey: .id)
++        id = try container.decodeID(forKey: .id)
+         streamType = try container.decode(PlexStreamType.self, forKey: .streamType)
+         codec = try container.decodeIfPresent(String.self, forKey: .codec)
+         displayTitle = try container.decodeIfPresent(String.self, forKey: .displayTitle)
+@@ -728,3 +728,107 @@ struct MediaStream: Codable, Sendable, Identifiable {
+         return nil
+     }
+ }
++
++extension Marker {
++    /// Matches the synthesized decoding, except that the id may be a number
++    /// (Plex) or a string.
++    init(from decoder: Decoder) throws {
++        let container = try decoder.container(keyedBy: CodingKeys.self)
++        id = try container.decodeID(forKey: .id)
++        type = try container.decode(String.self, forKey: .type)
++        startTimeOffset = try container.decode(Int.self, forKey: .startTimeOffset)
++        endTimeOffset = try container.decode(Int.self, forKey: .endTimeOffset)
++    }
++
++    /// Matches the synthesized encoding; the id is written back as a number
++    /// when it is one (`encodeID`).
++    func encode(to encoder: Encoder) throws {
++        var container = encoder.container(keyedBy: CodingKeys.self)
++        try container.encodeID(id, forKey: .id)
++        try container.encode(type, forKey: .type)
++        try container.encode(startTimeOffset, forKey: .startTimeOffset)
++        try container.encode(endTimeOffset, forKey: .endTimeOffset)
++    }
++}
++
++extension MediaVersion {
++    /// Matches the synthesized encoding; the id is written back as a number
++    /// when it is one (`encodeID`).
++    func encode(to encoder: Encoder) throws {
++        var container = encoder.container(keyedBy: CodingKeys.self)
++        try container.encodeID(id, forKey: .id)
++        try container.encodeIfPresent(self.container, forKey: .container)
++        try container.encodeIfPresent(videoCodec, forKey: .videoCodec)
++        try container.encodeIfPresent(audioCodec, forKey: .audioCodec)
++        try container.encodeIfPresent(videoResolution, forKey: .videoResolution)
++        try container.encodeIfPresent(videoProfile, forKey: .videoProfile)
++        try container.encodeIfPresent(audioProfile, forKey: .audioProfile)
++        try container.encodeIfPresent(audioChannels, forKey: .audioChannels)
++        try container.encodeIfPresent(width, forKey: .width)
++        try container.encodeIfPresent(height, forKey: .height)
++        try container.encodeIfPresent(bitrate, forKey: .bitrate)
++        try container.encodeIfPresent(duration, forKey: .duration)
++        try container.encodeIfPresent(optimizedForStreaming, forKey: .optimizedForStreaming)
++        try container.encode(parts, forKey: .parts)
++    }
++}
++
++extension MediaPart {
++    /// Matches the synthesized encoding; the id is written back as a number
++    /// when it is one (`encodeID`).
++    func encode(to encoder: Encoder) throws {
++        var container = encoder.container(keyedBy: CodingKeys.self)
++        try container.encodeID(id, forKey: .id)
++        try container.encode(key, forKey: .key)
++        try container.encodeIfPresent(file, forKey: .file)
++        try container.encodeIfPresent(size, forKey: .size)
++        try container.encodeIfPresent(self.container, forKey: .container)
++        try container.encodeIfPresent(duration, forKey: .duration)
++        try container.encodeIfPresent(videoProfile, forKey: .videoProfile)
++        try container.encodeIfPresent(audioProfile, forKey: .audioProfile)
++        try container.encodeIfPresent(accessible, forKey: .accessible)
++        try container.encodeIfPresent(exists, forKey: .exists)
++        try container.encode(streams, forKey: .streams)
++    }
++}
++
++extension MediaStream {
++    /// Matches the synthesized encoding; the id is written back as a number
++    /// when it is one (`encodeID`).
++    func encode(to encoder: Encoder) throws {
++        var container = encoder.container(keyedBy: CodingKeys.self)
++        try container.encodeID(id, forKey: .id)
++        try container.encode(streamType, forKey: .streamType)
++        try container.encodeIfPresent(codec, forKey: .codec)
++        try container.encodeIfPresent(displayTitle, forKey: .displayTitle)
++        try container.encodeIfPresent(extendedDisplayTitle, forKey: .extendedDisplayTitle)
++        try container.encodeIfPresent(language, forKey: .language)
++        try container.encodeIfPresent(languageCode, forKey: .languageCode)
++        try container.encodeIfPresent(languageTag, forKey: .languageTag)
++        try container.encodeIfPresent(isSelected, forKey: .isSelected)
++        try container.encodeIfPresent(isDefault, forKey: .isDefault)
++        try container.encodeIfPresent(width, forKey: .width)
++        try container.encodeIfPresent(height, forKey: .height)
++        try container.encodeIfPresent(bitrate, forKey: .bitrate)
++        try container.encodeIfPresent(frameRate, forKey: .frameRate)
++        try container.encodeIfPresent(bitDepth, forKey: .bitDepth)
++        try container.encodeIfPresent(colorSpace, forKey: .colorSpace)
++        try container.encodeIfPresent(colorRange, forKey: .colorRange)
++        try container.encodeIfPresent(colorPrimaries, forKey: .colorPrimaries)
++        try container.encodeIfPresent(colorTrc, forKey: .colorTrc)
++        try container.encodeIfPresent(chromaSubsampling, forKey: .chromaSubsampling)
++        try container.encodeIfPresent(profile, forKey: .profile)
++        try container.encodeIfPresent(level, forKey: .level)
++        try container.encodeIfPresent(codecID, forKey: .codecID)
++        try container.encodeIfPresent(doviPresent, forKey: .doviPresent)
++        try container.encodeIfPresent(doviProfile, forKey: .doviProfile)
++        try container.encodeIfPresent(doviLevel, forKey: .doviLevel)
++        try container.encodeIfPresent(doviBLCompatID, forKey: .doviBLCompatID)
++        try container.encodeIfPresent(channels, forKey: .channels)
++        try container.encodeIfPresent(samplingRate, forKey: .samplingRate)
++        try container.encodeIfPresent(channelLayout, forKey: .channelLayout)
++        try container.encodeIfPresent(isForced, forKey: .isForced)
++        try container.encodeIfPresent(isHearingImpaired, forKey: .isHearingImpaired)
++        try container.encodeIfPresent(key, forKey: .key)
++    }
++}
+diff --git a/Dusk/Sources/Domain/MediaIDCoding.swift b/Dusk/Sources/Domain/MediaIDCoding.swift
+new file mode 100644
+index 0000000..89b3889
+--- /dev/null
++++ b/Dusk/Sources/Domain/MediaIDCoding.swift
+@@ -0,0 +1,52 @@
++import Foundation
++
++/// Version, part, stream and marker ids are opaque strings in the app
++/// (docs/jellyfin/04-architecture.md §4.2). Plex sends them as JSON numbers
++/// and Dusk has always persisted them as numbers (`downloads.json`, the
++/// converted-media blob), so decoding accepts a number or a string and
++/// encoding writes a canonical integer back as a number. Anything else is
++/// written as a string.
++extension KeyedDecodingContainer {
++    func decodeID(forKey key: Key) throws -> String {
++        do {
++            return String(try decode(Int.self, forKey: key))
++        } catch DecodingError.typeMismatch {
++            return try decode(String.self, forKey: key)
++        }
++    }
++
++    func decodeIDIfPresent(forKey key: Key) throws -> String? {
++        do {
++            return try decodeIfPresent(Int.self, forKey: key).map(String.init)
++        } catch DecodingError.typeMismatch {
++            return try decodeIfPresent(String.self, forKey: key)
++        }
++    }
++}
++
++extension KeyedEncodingContainer {
++    mutating func encodeID(_ id: String, forKey key: Key) throws {
++        if let number = Int(id), String(number) == id {
++            try encode(number, forKey: key)
++        } else {
++            try encode(id, forKey: key)
++        }
++    }
++
++    mutating func encodeIDIfPresent(_ id: String?, forKey key: Key) throws {
++        guard let id else { return }
++        try encodeID(id, forKey: key)
++    }
++}
++
++/// Orders ids the way their integer values did when they were `Int`
++/// (numbers by value, before any non-numeric id); non-numeric ids compare as
++/// strings. Use wherever an id order used to be numeric ("the newest stream").
++func mediaIDPrecedes(_ lhs: String, _ rhs: String) -> Bool {
++    switch (Int(lhs), Int(rhs)) {
++    case let (left?, right?): return left < right
++    case (.some, nil): return true
++    case (nil, .some): return false
++    case (nil, nil): return lhs < rhs
++    }
++}
+diff --git a/Dusk/Sources/Domain/MediaItemID.swift b/Dusk/Sources/Domain/MediaItemID.swift
+index e2124ae..6311d14 100644
+--- a/Dusk/Sources/Domain/MediaItemID.swift
++++ b/Dusk/Sources/Domain/MediaItemID.swift
+@@ -42,8 +42,9 @@ struct MediaItemID: Hashable, Codable, Sendable {
+ }
+ 
+ extension MediaItemID: CustomStringConvertible {
+-    /// Round-trippable `"<serverID>|<itemID>"` form. Rating keys are numeric
+-    /// on every Plex server, so the first `|` is always the separator.
++    /// Round-trippable `"<serverID>|<itemID>"` form. Server ids never contain
++    /// `|` (Plex machine identifiers and Jellyfin server ids are hex), so the
++    /// first `|` is always the separator.
+     var storageKey: String {
+         guard let serverID else { return itemID }
+         return "\(serverID)|\(itemID)"
+diff --git a/Dusk/Sources/Domain/SubtitleTrack.swift b/Dusk/Sources/Domain/SubtitleTrack.swift
+index 3d7dd86..c60a9a6 100644
+--- a/Dusk/Sources/Domain/SubtitleTrack.swift
++++ b/Dusk/Sources/Domain/SubtitleTrack.swift
+@@ -13,7 +13,7 @@ struct SubtitleTrack: Sendable, Identifiable, Hashable {
+     let isExternal: Bool
+     /// Plex stream id backing this engine track, when metadata matching found
+     /// one. AirPlay uses it to rebuild the server-rendered HLS selection.
+-    var plexStreamID: Int? = nil
++    var plexStreamID: String? = nil
+ 
+     /// For external (sidecar) subtitle files, the URL to fetch them.
+     let externalURL: URL?
+@@ -45,7 +45,9 @@ extension SubtitleTrack {
+ extension SubtitleTrack {
+     /// Create from a Plex subtitle stream.
+     init(stream: MediaStream) {
+-        self.id = stream.id
++        // The engine track id; a track built from metadata has none, so it
++        // reuses the Plex stream number (0 for an id that is not one).
++        self.id = Int(stream.id) ?? 0
+         self.displayTitle = stream.displayTitle ?? stream.language ?? "Unknown"
+         self.language = stream.language
+         self.languageCode = stream.languageCode
+diff --git a/Dusk/Sources/Downloads/DownloadFileStore.swift b/Dusk/Sources/Downloads/DownloadFileStore.swift
+index 818edfc..3be6d3c 100644
+--- a/Dusk/Sources/Downloads/DownloadFileStore.swift
++++ b/Dusk/Sources/Downloads/DownloadFileStore.swift
+@@ -203,7 +203,7 @@ struct DownloadFileStore: Sendable {
+     }
+ 
+     /// Writes an already normalized sidecar and returns its relative path.
+-    func saveSubtitle(_ data: Data, globalKey: String, streamID: Int, fileExtension: String) throws -> String {
++    func saveSubtitle(_ data: Data, globalKey: String, streamID: String, fileExtension: String) throws -> String {
+         let directory = subtitleDirectory(globalKey: globalKey)
+         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+         let url = directory.appendingPathComponent("\(streamID).\(fileExtension)")
+diff --git a/Dusk/Sources/Downloads/DownloadManager.swift b/Dusk/Sources/Downloads/DownloadManager.swift
+index 0ca67fa..d8cc3b1 100644
+--- a/Dusk/Sources/Downloads/DownloadManager.swift
++++ b/Dusk/Sources/Downloads/DownloadManager.swift
+@@ -1099,7 +1099,7 @@ final class DownloadManager {
+         deleteRecords(records)
+     }
+ 
+-    func localPlaybackURL(for id: MediaItemID, selectedMediaID: Int? = nil) -> URL? {
++    func localPlaybackURL(for id: MediaItemID, selectedMediaID: String? = nil) -> URL? {
+         guard let record = record(for: id),
+               record.status == .completed,
+               selectedMediaID == nil || selectedMediaID == record.mediaID else {
+@@ -1109,7 +1109,7 @@ final class DownloadManager {
+     }
+ 
+     /// The saved copy of one of the download's external subtitles, if any.
+-    func localSubtitleURL(for id: MediaItemID, streamID: Int) -> URL? {
++    func localSubtitleURL(for id: MediaItemID, streamID: String) -> URL? {
+         guard let record = record(for: id), record.status == .completed else { return nil }
+         return fileStore.existingFileURL(for: record.externalSubtitlePaths?[streamID])
+     }
+@@ -1117,7 +1117,7 @@ final class DownloadManager {
+     func downloadedMediaVersion(
+         for id: MediaItemID,
+         in details: MediaDetails,
+-        selectedMediaID: Int? = nil
++        selectedMediaID: String? = nil
+     ) -> (media: MediaVersion, part: MediaPart)? {
+         guard let record = record(for: id),
+               record.status == .completed,
+diff --git a/Dusk/Sources/Downloads/DownloadModels.swift b/Dusk/Sources/Downloads/DownloadModels.swift
+index 60f3259..53e78d8 100644
+--- a/Dusk/Sources/Downloads/DownloadModels.swift
++++ b/Dusk/Sources/Downloads/DownloadModels.swift
+@@ -185,8 +185,8 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
+     var grandparentTitle: String?
+     var thumbPath: String?
+     var artPath: String?
+-    var mediaID: Int?
+-    var partID: Int?
++    var mediaID: String?
++    var partID: String?
+     var downloadQuality: DownloadQuality = .original
+     /// Queued by the show's Keep Next N Unwatched rule (`SmartDownloadRule`),
+     /// so the rule may remove it once watched. Manual downloads stay false.
+@@ -229,7 +229,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
+     /// next to the download so it mounts offline. Nil until the item's sidecars
+     /// were fetched once (an empty map: it has none), so downloads made before
+     /// subtitles were saved fetch theirs the next time their server is online.
+-    var externalSubtitlePaths: [Int: String]? = nil
++    var externalSubtitlePaths: [String: String]? = nil
+     /// A sidecar could not be fetched; the next backfill retries the missing ones.
+     var hasMissingExternalSubtitles: Bool = false
+     var resumeDataPath: String?
+@@ -307,8 +307,9 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
+ 
+ extension DownloadedMediaRecord {
+     /// Custom decoding (kept in an extension so the memberwise initializer
+-    /// survives) solely so `isClip` can default to false for snapshots written
+-    /// before the flag existed. Encoding stays synthesized.
++    /// survives) so `isClip` can default to false for snapshots written before
++    /// the flag existed, and so `mediaID`/`partID` decode from a number or a
++    /// string.
+     init(from decoder: Decoder) throws {
+         let container = try decoder.container(keyedBy: CodingKeys.self)
+         accountProfileID = try container.decodeIfPresent(String.self, forKey: .accountProfileID)
+@@ -325,8 +326,8 @@ extension DownloadedMediaRecord {
+         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
+         thumbPath = try container.decodeIfPresent(String.self, forKey: .thumbPath)
+         artPath = try container.decodeIfPresent(String.self, forKey: .artPath)
+-        mediaID = try container.decodeIfPresent(Int.self, forKey: .mediaID)
+-        partID = try container.decodeIfPresent(Int.self, forKey: .partID)
++        mediaID = try container.decodeIDIfPresent(forKey: .mediaID)
++        partID = try container.decodeIDIfPresent(forKey: .partID)
+         downloadQuality = try container.decodeIfPresent(DownloadQuality.self, forKey: .downloadQuality) ?? .original
+         isSmartDownload = try container.decodeIfPresent(Bool.self, forKey: .isSmartDownload) ?? false
+         queueClientIdentifier = try container.decodeIfPresent(String.self, forKey: .queueClientIdentifier)
+@@ -336,7 +337,7 @@ extension DownloadedMediaRecord {
+         preparationRetryCount = try container.decodeIfPresent(Int.self, forKey: .preparationRetryCount) ?? 0
+         convertedMediaData = try container.decodeIfPresent(Data.self, forKey: .convertedMediaData)
+         relativeVideoPath = try container.decodeIfPresent(String.self, forKey: .relativeVideoPath)
+-        externalSubtitlePaths = try container.decodeIfPresent([Int: String].self, forKey: .externalSubtitlePaths)
++        externalSubtitlePaths = try container.decodeIfPresent([String: String].self, forKey: .externalSubtitlePaths)
+         hasMissingExternalSubtitles = try container.decodeIfPresent(
+             Bool.self,
+             forKey: .hasMissingExternalSubtitles
+@@ -418,3 +419,48 @@ struct DownloadQueueRemoval: Codable, Sendable, Hashable {
+         case queueItemID = "itemID"
+     }
+ }
++
++extension DownloadedMediaRecord {
++    /// Matches the synthesized encoding; `mediaID`/`partID` are written back as
++    /// numbers when they are numbers, as they always were (`encodeID`).
++    func encode(to encoder: Encoder) throws {
++        var container = encoder.container(keyedBy: CodingKeys.self)
++        try container.encodeIfPresent(accountProfileID, forKey: .accountProfileID)
++        try container.encode(serverID, forKey: .serverID)
++        try container.encodeIfPresent(serverName, forKey: .serverName)
++        try container.encode(itemID, forKey: .itemID)
++        try container.encode(type, forKey: .type)
++        try container.encode(isClip, forKey: .isClip)
++        try container.encode(title, forKey: .title)
++        try container.encodeIfPresent(subtitle, forKey: .subtitle)
++        try container.encodeIfPresent(parentID, forKey: .parentID)
++        try container.encodeIfPresent(parentTitle, forKey: .parentTitle)
++        try container.encodeIfPresent(grandparentID, forKey: .grandparentID)
++        try container.encodeIfPresent(grandparentTitle, forKey: .grandparentTitle)
++        try container.encodeIfPresent(thumbPath, forKey: .thumbPath)
++        try container.encodeIfPresent(artPath, forKey: .artPath)
++        try container.encodeIDIfPresent(mediaID, forKey: .mediaID)
++        try container.encodeIDIfPresent(partID, forKey: .partID)
++        try container.encode(downloadQuality, forKey: .downloadQuality)
++        try container.encode(isSmartDownload, forKey: .isSmartDownload)
++        try container.encodeIfPresent(queueClientIdentifier, forKey: .queueClientIdentifier)
++        try container.encodeIfPresent(plexDownloadQueueID, forKey: .plexDownloadQueueID)
++        try container.encodeIfPresent(plexDownloadItemID, forKey: .plexDownloadItemID)
++        try container.encodeIfPresent(preparationProgress, forKey: .preparationProgress)
++        try container.encode(preparationRetryCount, forKey: .preparationRetryCount)
++        try container.encodeIfPresent(convertedMediaData, forKey: .convertedMediaData)
++        try container.encodeIfPresent(relativeVideoPath, forKey: .relativeVideoPath)
++        try container.encodeIfPresent(externalSubtitlePaths, forKey: .externalSubtitlePaths)
++        try container.encode(hasMissingExternalSubtitles, forKey: .hasMissingExternalSubtitles)
++        try container.encodeIfPresent(resumeDataPath, forKey: .resumeDataPath)
++        try container.encodeIfPresent(downloadTaskIdentifier, forKey: .downloadTaskIdentifier)
++        try container.encode(wasPausedForProfileSwitch, forKey: .wasPausedForProfileSwitch)
++        try container.encode(status, forKey: .status)
++        try container.encode(progress, forKey: .progress)
++        try container.encode(downloadedBytes, forKey: .downloadedBytes)
++        try container.encodeIfPresent(totalBytes, forKey: .totalBytes)
++        try container.encodeIfPresent(errorMessage, forKey: .errorMessage)
++        try container.encode(addedAt, forKey: .addedAt)
++        try container.encode(updatedAt, forKey: .updatedAt)
++    }
++}
+diff --git a/Dusk/Sources/Downloads/PlexDownloadQueue.swift b/Dusk/Sources/Downloads/PlexDownloadQueue.swift
+index a42a24f..6acff3e 100644
+--- a/Dusk/Sources/Downloads/PlexDownloadQueue.swift
++++ b/Dusk/Sources/Downloads/PlexDownloadQueue.swift
+@@ -61,7 +61,7 @@ struct PlexDownloadDecision: Sendable {
+ 
+     func convertedMedia(sourceMedia: MediaVersion, mediaPath: String, expectedBytes: Int64?) -> MediaVersion {
+         let part = MediaPart(
+-            id: sourceMedia.firstAvailablePart?.id ?? 0,
++            id: sourceMedia.firstAvailablePart?.id ?? "0",
+             key: mediaPath,
+             file: nil,
+             size: expectedBytes.flatMap(Int.init(exactly:)),
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift
+index 7cdeec2..59faa39 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift
+@@ -21,7 +21,7 @@ struct PrerollPlayback {
+         let startPositionOverride: TimeInterval?
+         let resumeOffsetMilliseconds: Int?
+         let resumeOffsetDurationMilliseconds: Int?
+-        let selectedMediaID: Int?
++        let selectedMediaID: String?
+         let restrictToItemServer: Bool
+     }
+ 
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+ServerTracks.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+ServerTracks.swift
+index 6ad0cd4..895e0a0 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+ServerTracks.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+ServerTracks.swift
+@@ -37,7 +37,7 @@ extension PlaybackCoordinator {
+         do {
+             try await plexService.selectStreams(
+                 partID: debugInfo.part.id, audioStreamID: activeAudioStreamID,
+-                subtitleStreamID: activeSubtitleStreamID ?? 0, serverID: serverID
++                subtitleStreamID: activeSubtitleStreamID ?? "0", serverID: serverID
+             )
+             let result: (url: URL, outcome: PlexService.TranscodeDecisionOutcome)
+             if case let .transcode(preset) = debugInfo.decision {
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
+index 7d49890..f79ddb4 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
+@@ -45,7 +45,7 @@ extension PlaybackCoordinator {
+         startPositionOverride: TimeInterval?,
+         resumeOffsetMilliseconds: Int?,
+         resumeOffsetDurationMilliseconds: Int? = nil,
+-        selectedMediaID: Int?,
++        selectedMediaID: String?,
+         restrictToItemServer: Bool = false,
+         prerollFeature: PrerollPlayback.Feature? = nil,
+         attemptID: UUID
+@@ -168,7 +168,7 @@ extension PlaybackCoordinator {
+         resumeOffsetMilliseconds: Int?,
+         resumeOffsetDurationMilliseconds: Int? = nil,
+         carriesRequestedOffset: Bool = true,
+-        selectedMediaID: Int?,
++        selectedMediaID: String?,
+         prerollFeature: PrerollPlayback.Feature? = nil,
+         attemptID: UUID,
+         suppressLocalDownload: Bool = false,
+@@ -406,7 +406,7 @@ extension PlaybackCoordinator {
+             var resolverReason = resolverDecision.reason
+             var transcodeSessionID: String?
+             var hdrRemuxFallback: HDRRemuxFallback?
+-            var spatialAudioStreamIDs: (audio: Int?, subtitle: Int?, convertsAudio: Bool, restoresDolbyAtmos: Bool)?
++            var spatialAudioStreamIDs: (audio: String?, subtitle: String?, convertsAudio: Bool, restoresDolbyAtmos: Bool)?
+ 
+             if let localURL {
+                 if StreamResolver.containsAV1(media), resolverDecision.requiresServerTranscode {
+@@ -479,7 +479,7 @@ extension PlaybackCoordinator {
+                     // A bitmap subtitle would force a video re-encode; start
+                     // without it rather than lose Dolby Vision.
+                     let requestedSubtitleID = StreamResolver.containsAV1(media) ? startupSubtitleID : remuxSubtitleID
+-                    let subtitleStreamID = requestedSubtitleID.flatMap { id -> Int? in
++                    let subtitleStreamID = requestedSubtitleID.flatMap { id -> String? in
+                         guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
+                             return nil
+                         }
+@@ -524,7 +524,7 @@ extension PlaybackCoordinator {
+                                 sessionIdentifier: sessionIdentifier,
+                                 transcodeSessionID: serverStreamSessionID,
+                                 audioStreamID: StreamResolver.containsAV1(media) || hasRememberedMatch ? audioStreamID : nil,
+-                                subtitleStreamID: StreamResolver.containsAV1(media) || hasRememberedMatch ? (subtitleStreamID ?? 0) : nil,
++                                subtitleStreamID: StreamResolver.containsAV1(media) || hasRememberedMatch ? (subtitleStreamID ?? "0") : nil,
+                                 forceVideoTranscode: StreamResolver.containsAV1(media),
+                                 serverID: itemServerID
+                             )
+@@ -745,7 +745,7 @@ extension PlaybackCoordinator {
+                 syncShowStreamsToPlex(
+                     partID: part.id,
+                     audioStreamID: activeAudioStreamID,
+-                    subtitleStreamID: activeSubtitleStreamID ?? 0,
++                    subtitleStreamID: activeSubtitleStreamID ?? "0",
+                     serverID: showScope.serverID
+                 )
+             }
+@@ -954,7 +954,7 @@ extension PlaybackCoordinator {
+         }
+     }
+ 
+-    func switchQuality(to preset: PlaybackQualityPreset, audioStreamID: Int? = nil) async {
++    func switchQuality(to preset: PlaybackQualityPreset, audioStreamID: String? = nil) async {
+         guard !isSwitchingQuality else { return }
+         guard !isAirPlayPlaybackActive else {
+             presentQualitySwitchError("Quality changes are unavailable while AirPlay is active.")
+@@ -1149,7 +1149,7 @@ extension PlaybackCoordinator {
+         }
+ 
+         playbackSessionLogger.notice(
+-            "Switching to server transcode for locally undecodable audio (streamID \(streamID.map(String.init) ?? "default", privacy: .public), preset \(preset.displayName, privacy: .public))"
++            "Switching to server transcode for locally undecodable audio (streamID \(streamID ?? "default", privacy: .public), preset \(preset.displayName, privacy: .public))"
+         )
+         await switchQuality(to: preset, audioStreamID: streamID)
+     }
+@@ -1186,7 +1186,7 @@ extension PlaybackCoordinator {
+     /// AirPlay HLS session is active, a change requires a new server stream so
+     /// unsupported subtitle formats can remain burned and audio is deterministic
+     /// across third-party receivers.
+-    func selectPlexStreamsForPlayback(audioStreamID: Int?, subtitleStreamID: Int?) {
++    func selectPlexStreamsForPlayback(audioStreamID: String?, subtitleStreamID: String?) {
+         let didChange = activeAudioStreamID != audioStreamID ||
+             activeSubtitleStreamID != subtitleStreamID
+         activeAudioStreamID = audioStreamID
+@@ -1601,9 +1601,9 @@ extension PlaybackCoordinator {
+     /// the sidecar in the downloaded language, which is then re-mounted.
+     @discardableResult
+     func refreshSubtitleStreamsAfterDownload(
+-        selectingStreamID: Int? = nil,
++        selectingStreamID: String? = nil,
+         downloaded: SubtitleSearchResult? = nil
+-    ) async -> Int? {
++    ) async -> String? {
+         guard !didFinalizeCurrentSession,
+               let itemID,
+               let debugInfo else {
+@@ -1727,7 +1727,7 @@ extension PlaybackCoordinator {
+     /// after ~6 s it settles for the latest refetch (the old behaviour).
+     private func fetchDetailsAfterSubtitleDownload(
+         itemID: String,
+-        partID: Int,
++        partID: String,
+         previousStreams: [MediaStream],
+         downloaded: SubtitleSearchResult?
+     ) async throws -> MediaDetails {
+@@ -1796,7 +1796,7 @@ extension PlaybackCoordinator {
+     private func replacedSubtitleStreamID(
+         in subtitleStreams: [MediaStream],
+         downloaded: SubtitleSearchResult?
+-    ) -> Int? {
++    ) -> String? {
+         guard let language = PlayerViewModel.normalizedLanguageCode(
+             downloaded?.languageCode ?? downloaded?.language
+         ) else { return nil }
+@@ -1804,14 +1804,14 @@ extension PlaybackCoordinator {
+             $0.key != nil && PlayerViewModel.normalizedLanguageCode($0.languageCode ?? $0.language) == language
+         }
+         return candidates.first(where: { $0.id == activeSubtitleStreamID })?.id
+-            ?? candidates.max(by: { $0.id < $1.id })?.id
++            ?? candidates.max(by: { mediaIDPrecedes($0.id, $1.id) })?.id
+     }
+ 
+     /// Restarts the live session on VLCKit at the current position so a Plex
+     /// sidecar subtitle can be mounted. AVPlayer cannot attach one to an
+     /// existing item, so the engine — not the delivery rung — is what changes:
+     /// the same URL, media version, and decision are carried over.
+-    func switchToVLCKitForExternalSubtitle(streamID: Int) {
++    func switchToVLCKitForExternalSubtitle(streamID: String) {
+         guard !didFinalizeCurrentSession,
+               !isSwitchingQuality,
+               !isPreparingAirPlay,
+@@ -2399,7 +2399,7 @@ extension PlaybackCoordinator {
+ 
+     private func resolveMediaVersion(
+         in details: MediaDetails,
+-        selectedMediaID: Int?
++        selectedMediaID: String?
+     ) -> MediaVersion? {
+         if let selectedMediaID {
+             return details.media.first { media in
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+ShowTracks.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+ShowTracks.swift
+index f3f4174..bd95f0a 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+ShowTracks.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+ShowTracks.swift
+@@ -4,7 +4,7 @@ import OSLog
+ extension PlaybackCoordinator {
+     /// Called only by explicit picker/download actions, including selecting Off
+     /// again. Engine discovery, automatic selection and recovery never save.
+-    func rememberShowTrackChoice(type: PlexStreamType, streamID: Int?) {
++    func rememberShowTrackChoice(type: PlexStreamType, streamID: String?) {
+         // A real pick is the viewer's to keep on the server, so the earlier
+         // selection is no longer written back for that half.
+         if type == .audio {
+@@ -41,7 +41,7 @@ extension PlaybackCoordinator {
+         syncShowStreamsToPlex(
+             partID: part.id,
+             audioStreamID: type == .audio ? streamID : nil,
+-            subtitleStreamID: type == .subtitle ? (streamID ?? 0) : nil,
++            subtitleStreamID: type == .subtitle ? (streamID ?? "0") : nil,
+             serverID: scope.serverID
+         )
+     }
+@@ -77,8 +77,8 @@ extension PlaybackCoordinator {
+     /// write for a part holds the original; later ones are rebuilds.
+     func noteAutomaticServerSelectionWrite(
+         part: MediaPart,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         serverID: String?
+     ) {
+         if let pending = automaticServerSelectionRestore, pending.partID != part.id {
+@@ -104,7 +104,7 @@ extension PlaybackCoordinator {
+         )
+     }
+ 
+-    func syncShowStreamsToPlex(partID: Int, audioStreamID: Int?, subtitleStreamID: Int?, serverID: String?) {
++    func syncShowStreamsToPlex(partID: String, audioStreamID: String?, subtitleStreamID: String?, serverID: String?) {
+         let write = plexService.enqueueStreamSelection(
+             partID: partID,
+             audioStreamID: audioStreamID,
+@@ -127,21 +127,21 @@ extension PlaybackCoordinator {
+ /// A part's server-side audio/subtitle selection to write back. Nil halves
+ /// are left alone; a subtitle of 0 clears Plex's subtitle choice.
+ struct ServerStreamSelectionRestore: Equatable, Sendable {
+-    let partID: Int
++    let partID: String
+     let serverID: String?
+-    var audioStreamID: Int?
+-    var subtitleStreamID: Int?
++    var audioStreamID: String?
++    var subtitleStreamID: String?
+ 
+     var isEmpty: Bool { audioStreamID == nil && subtitleStreamID == nil }
+ 
+     @MainActor
+-    init(part: MediaPart, writtenAudioStreamID: Int?, writtenSubtitleStreamID: Int?, serverID: String?) {
++    init(part: MediaPart, writtenAudioStreamID: String?, writtenSubtitleStreamID: String?, serverID: String?) {
+         partID = part.id
+         self.serverID = serverID
+         let originalAudio = PlayerViewModel.serverSelectedStreamID(of: .audio, inPart: part)
+-        let originalSubtitle = PlayerViewModel.serverSelectedStreamID(of: .subtitle, inPart: part) ?? 0
++        let originalSubtitle = PlayerViewModel.serverSelectedStreamID(of: .subtitle, inPart: part) ?? "0"
+         // Audio with no recorded selection has nothing to go back to.
+         audioStreamID = writtenAudioStreamID != nil && originalAudio != writtenAudioStreamID ? originalAudio : nil
+-        subtitleStreamID = originalSubtitle != (writtenSubtitleStreamID ?? 0) ? originalSubtitle : nil
++        subtitleStreamID = originalSubtitle != (writtenSubtitleStreamID ?? "0") ? originalSubtitle : nil
+     }
+ }
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
+index 4c69aaf..5d129b6 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
+@@ -58,8 +58,8 @@ extension PlaybackCoordinator {
+         mediaIndex: Int,
+         media: MediaVersion,
+         part: MediaPart,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         convertsAudio: Bool = false,
+         restoresServerSelection: Bool = false,
+         sessionIdentifier: String,
+@@ -175,7 +175,7 @@ extension PlaybackCoordinator {
+             try await plexService.selectStreams(
+                 partID: part.id,
+                 audioStreamID: audioStreamID,
+-                subtitleStreamID: subtitleStreamID ?? 0,
++                subtitleStreamID: subtitleStreamID ?? "0",
+                 serverID: serverID
+             )
+             if restoresServerSelection {
+@@ -375,7 +375,7 @@ extension PlaybackCoordinator {
+ 
+     private func requestHDRServerRemux(
+         itemID: String, mediaIndex: Int, part: MediaPart,
+-        audioStreamID: Int?, subtitleStreamID: Int?,
++        audioStreamID: String?, subtitleStreamID: String?,
+         sessionIdentifier: String, serverID: String?, stages: [HDRRemuxFallback]
+     ) async -> SpatialAudioRemux? {
+         let audio = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }
+@@ -556,7 +556,7 @@ extension PlaybackCoordinator {
+     /// so the caller can fall back to a full transcode. A bitmap subtitle
+     /// cannot ride the remux and is dropped rather than forcing a video
+     /// re-encode; picking one later moves the session to direct play.
+-    func playConvertedAudioRemux(audioStreamID: Int?) async -> Bool {
++    func playConvertedAudioRemux(audioStreamID: String?) async -> Bool {
+         guard !didFinalizeCurrentSession,
+               !isSwitchingQuality,
+               !isAirPlayPlaybackActive,
+@@ -569,7 +569,7 @@ extension PlaybackCoordinator {
+         }
+ 
+         let media = details.media[mediaIndex]
+-        let subtitleStreamID = activeSubtitleStreamID.flatMap { id -> Int? in
++        let subtitleStreamID = activeSubtitleStreamID.flatMap { id -> String? in
+             guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
+                 return nil
+             }
+@@ -821,7 +821,7 @@ extension PlaybackCoordinator {
+ /// The audio stream a remux session has Plex convert (see
+ /// `PlaybackCoordinator.remuxAudioConversion`).
+ struct RemuxAudioConversion: Sendable, Equatable {
+-    let audioStreamID: Int?
++    let audioStreamID: String?
+     var restoresDolbyAtmos = false
+ }
+ 
+@@ -829,6 +829,6 @@ struct RemuxAudioConversion: Sendable, Equatable {
+ /// so the new engine opens on them instead of re-running automatic selection.
+ /// `subtitleStreamID == nil` means subtitles off.
+ struct ExplicitTrackSelection: Sendable, Equatable {
+-    let audioStreamID: Int?
+-    let subtitleStreamID: Int?
++    let audioStreamID: String?
++    let subtitleStreamID: String?
+ }
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+UpNext.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+UpNext.swift
+index 8c50298..5a22a44 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+UpNext.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+UpNext.swift
+@@ -159,7 +159,7 @@ extension PlaybackCoordinator {
+     ///   episode, the end of a queue), so no poster can ever appear for it.
+     @discardableResult
+     func presentUpNextPosterIfPossible(
+-        creditsMarkerID: Int,
++        creditsMarkerID: String,
+         isEstimated: Bool,
+         presentationID expectedPresentationID: UUID,
+         itemID expectedRatingKey: String?
+@@ -400,7 +400,7 @@ extension PlaybackCoordinator {
+         upNextPosterCountdownTask = nil
+     }
+ 
+-    private func upNextPosterMode(creditsMarkerID: Int, estimated: Bool) -> UpNextPosterPresentation.Mode {
++    private func upNextPosterMode(creditsMarkerID: String, estimated: Bool) -> UpNextPosterPresentation.Mode {
+         // A guessed credits point (no real Plex marker) must never auto-skip or
+         // auto-advance — only ever a manual poster the user can choose to tap.
+         if estimated { return .manual }
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator.swift
+index c24a270..be5d816 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator.swift
+@@ -64,7 +64,7 @@ final class PlaybackCoordinator {
+     /// `PlayerViewModel` so it survives the engine swaps that rebuild the player
+     /// (quality switch, delivery-ladder fallback, Picture in Picture restore);
+     /// cleared when the next item's session commits.
+-    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
++    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<String> = []
+     /// The Dolby Vision 7 → 8.1 conversion failed for the item now playing,
+     /// so its remux is rebuilt (and kept) without it. Reset for each new item.
+     @ObservationIgnored var isDolbyVision7ConversionSuppressed = false
+@@ -99,11 +99,11 @@ final class PlaybackCoordinator {
+     @ObservationIgnored var activeShowTrackScope: ShowTrackPreferenceStore.Scope?
+     /// Plex stream selections that must survive local → AirPlay handoffs. Engine
+     /// ids are implementation-local, so the player maps them back to these ids.
+-    var activeAudioStreamID: Int?
++    var activeAudioStreamID: String?
+     /// A picker choice for this item, including movies. Survives player
+     /// presentation and engine replacements; cleared when a new item commits.
+-    var manuallySelectedAudioStreamID: Int?
+-    var activeSubtitleStreamID: Int?
++    var manuallySelectedAudioStreamID: String?
++    var activeSubtitleStreamID: String?
+     /// Set while a remux session has Plex convert its audio (TrueHD and other
+     /// codecs the fMP4 cannot carry). Rebuilding that remux around the same
+     /// audio stream must keep converting: the stream itself may be locally
+@@ -119,7 +119,7 @@ final class PlaybackCoordinator {
+     /// Plex subtitle stream id to select as soon as the player can mount it.
+     /// Set by the sidecar-download flow and by the AVPlayer → VLCKit switch,
+     /// consumed by `PlayerViewModel.configureAutomaticTrackSelection`.
+-    var pendingExternalSubtitleStreamID: Int?
++    var pendingExternalSubtitleStreamID: String?
+     /// Plex audio/subtitle choice to carry into the next player configuration
+     /// when a remux returns to direct play or enhanced SDR subtitles switch
+     /// tvOS from AVPlayer to VLCKit. Consumed once by `PlayerView`.
+@@ -317,7 +317,7 @@ final class PlaybackCoordinator {
+     /// Hands the pending sidecar selection to the player exactly once. It must
+     /// not survive into a later re-presentation of the same session (returning
+     /// from Picture in Picture), or it would override the viewer's own choice.
+-    func consumePendingExternalSubtitleStreamID() -> Int? {
++    func consumePendingExternalSubtitleStreamID() -> String? {
+         defer { pendingExternalSubtitleStreamID = nil }
+         return pendingExternalSubtitleStreamID
+     }
+@@ -665,8 +665,8 @@ final class PlaybackCoordinator {
+             itemID: sessionID,
+             engine: .avPlayer,
+             resolverReason: isCatchUp ? "IPTV catch-up; always AVPlayer" : "IPTV channel; always AVPlayer",
+-            mediaID: 0,
+-            partID: 0,
++            mediaID: "0",
++            partID: "0",
+             sanitizedPlaybackURL: sanitizedURL
+         )
+         // A catch-up programme has no live context: it plays in the
+@@ -896,7 +896,7 @@ final class PlaybackCoordinator {
+     /// versions, so falling back would silently play something else.
+     func playVersion(
+         id: MediaItemID,
+-        mediaID: Int,
++        mediaID: String,
+         resumeOffsetMilliseconds: Int?,
+         placeholder: PlaybackPlaceholder? = nil
+     ) async {
+@@ -917,7 +917,7 @@ final class PlaybackCoordinator {
+         startPositionOverride: TimeInterval?,
+         resumeOffsetMilliseconds: Int?,
+         resumeOffsetDurationMilliseconds: Int? = nil,
+-        selectedMediaID: Int?,
++        selectedMediaID: String?,
+         restrictToItemServer: Bool = false,
+         placeholder: PlaybackPlaceholder?,
+         queue: PlaybackQueue? = nil
+@@ -1063,7 +1063,7 @@ final class PlaybackCoordinator {
+     /// Records that a marker's one-shot auto-skip has been used up for the
+     /// item now playing. Called by the player when an intro is skipped and by
+     /// the credits poster when its auto-advance is armed or dismissed.
+-    func noteAutoSkipSpent(markerID: Int) {
++    func noteAutoSkipSpent(markerID: String) {
+         spentAutoSkipMarkerIDs.insert(markerID)
+     }
+ 
+diff --git a/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift b/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
+index ab5f801..b977fad 100644
+--- a/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
++++ b/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
+@@ -6,8 +6,8 @@ struct PlaybackAttemptContext: Sendable {
+     let itemID: String
+     let engine: PlaybackEngineType
+     let resolverReason: String
+-    let mediaID: Int
+-    let partID: Int
++    let mediaID: String
++    let partID: String
+     let sanitizedPlaybackURL: String
+ 
+     var attemptLabel: String {
+@@ -760,7 +760,7 @@ struct UpNextPosterPresentation: Sendable {
+     var mode: Mode
+     /// Identifies the credits marker that triggered this poster, so repeat
+     /// notifications for the same marker don't re-resolve the next episode.
+-    let creditsMarkerID: Int
++    let creditsMarkerID: String
+     /// The credits point is Dusk's guess (no Plex credits marker), so the
+     /// poster shows the compact pill rather than the big card (#84).
+     var isEstimatedCredits = false
+diff --git a/Dusk/Sources/Features/Player/PlayerView.swift b/Dusk/Sources/Features/Player/PlayerView.swift
+index c55a005..52da364 100644
+--- a/Dusk/Sources/Features/Player/PlayerView.swift
++++ b/Dusk/Sources/Features/Player/PlayerView.swift
+@@ -1170,7 +1170,7 @@ private struct PlayerSessionView: View {
+             !playback.isAutomaticDirectPlayFallbackPending
+     }
+ 
+-    private var scrubPreviewPartID: Int? {
++    private var scrubPreviewPartID: String? {
+         guard let debugInfo,
+               debugInfo.canLoadScrubPreviews else {
+             return nil
+@@ -1325,7 +1325,7 @@ private struct PlayerSessionView: View {
+     }
+ 
+     @MainActor
+-    private func loadScrubPreviewSource(partID: Int?) async {
++    private func loadScrubPreviewSource(partID: String?) async {
+         scrubPreviewSource = nil
+         guard let partID else { return }
+ 
+diff --git a/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift b/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift
+index 9063518..6068170 100644
+--- a/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift
++++ b/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift
+@@ -26,10 +26,12 @@ extension PlayerViewModel {
+         }
+ 
+         if usesServerTrackSelection {
+-            serverSelectedSubtitleStreamID = track?.id
++            // Server-selected tracks are built from the part's streams, so
++            // their engine id is the Plex stream number.
++            serverSelectedSubtitleStreamID = track.map { String($0.id) }
+             selectedSubtitleTrackID = track?.id
+             showSubtitlePicker = false
+-            plexTrackSelectionHandler?(selectedAudioTrackID, track?.id)
++            plexTrackSelectionHandler?(selectedAudioTrackID.map(String.init), track.map { String($0.id) })
+             return
+         }
+         engine.selectSubtitleTrack(track)
+@@ -60,9 +62,9 @@ extension PlayerViewModel {
+         showAudioPicker = false
+ 
+         if usesServerTrackSelection {
+-            serverSelectedAudioStreamID = track.id
++            serverSelectedAudioStreamID = String(track.id)
+             selectedAudioTrackID = track.id
+-            plexTrackSelectionHandler?(track.plexStreamID ?? track.id, selectedSubtitleTrackID)
++            plexTrackSelectionHandler?(track.plexStreamID ?? String(track.id), selectedSubtitleTrackID.map(String.init))
+             return
+         }
+ 
+@@ -88,12 +90,12 @@ extension PlayerViewModel {
+             subtitleTracks = sourcePart?.streams
+                 .filter { $0.streamType == .subtitle }
+                 .map(SubtitleTrack.init(stream:)) ?? []
+-            selectedAudioTrackID = serverSelectedAudioStreamID
++            selectedAudioTrackID = serverSelectedAudioStreamID.flatMap { Int($0) }
+                 ?? audioTracks.first(where: { track in
+-                    sourcePart?.streams.first(where: { $0.id == track.id })?.isSelected ?? false
++                    sourcePart?.streams.first(where: { $0.id == track.plexStreamID })?.isSelected ?? false
+                 })?.id
+                 ?? audioTracks.first?.id
+-            selectedSubtitleTrackID = serverSelectedSubtitleStreamID
++            selectedSubtitleTrackID = serverSelectedSubtitleStreamID.flatMap { Int($0) }
+             return
+         }
+ 
+@@ -229,7 +231,7 @@ extension PlayerViewModel {
+ 
+     /// Re-reads the active part after Plex installed a sidecar mid-session,
+     /// mounts whatever is new, and selects `streamID` once it is up.
+-    func reloadExternalSubtitleStreams(part: MediaPart?, selecting streamID: Int?) {
++    func reloadExternalSubtitleStreams(part: MediaPart?, selecting streamID: String?) {
+         sourcePart = part
+         if let streamID {
+             pendingExternalSubtitleStreamID = streamID
+@@ -871,7 +873,7 @@ extension PlayerViewModel {
+     static func preferredAudioStreamID(
+         inPart part: MediaPart?,
+         preferredLanguage: String?
+-    ) -> Int? {
++    ) -> String? {
+         guard let part else { return nil }
+         let audioStreams = part.streams.filter { $0.streamType == .audio }
+         if let position = preferredAudioStreamPosition(
+@@ -925,7 +927,7 @@ extension PlayerViewModel {
+         inPart part: MediaPart?,
+         policy: SubtitleSelectionPolicy,
+         audioStream: MediaStream?
+-    ) -> Int? {
++    ) -> String? {
+         guard let part else { return nil }
+         let tracks = part.streams
+             .filter { $0.streamType == .subtitle }
+@@ -936,13 +938,13 @@ extension PlayerViewModel {
+             in: tracks,
+             audioLanguage: startupAudio?.languageCode ?? startupAudio?.languageTag,
+             serverSelectedStreamID: serverSelectedStreamID(of: .subtitle, inPart: part)
+-        )?.id
++        )?.plexStreamID
+     }
+ 
+     /// The stream of `type` the server marks `selected` for this part: a
+     /// choice saved by any Plex client (or a bulk tool such as PASTA), else
+     /// Plex's own pick from the account language settings.
+-    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: MediaPart?) -> Int? {
++    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: MediaPart?) -> String? {
+         part?.streams.first { $0.streamType == type && ($0.isSelected ?? false) }?.id
+     }
+ 
+diff --git a/Dusk/Sources/Features/Player/PlayerViewModel.swift b/Dusk/Sources/Features/Player/PlayerViewModel.swift
+index 59df934..e306700 100644
+--- a/Dusk/Sources/Features/Player/PlayerViewModel.swift
++++ b/Dusk/Sources/Features/Player/PlayerViewModel.swift
+@@ -98,30 +98,30 @@ final class PlayerViewModel {
+     )
+     var autoSkipIntroMode: AutoSkipIntroMode = .alwaysExceptFirstEpisode
+     var isFirstEpisodeInSeason = false
+-    var autoSkipCountdownMarkerID: Int?
++    var autoSkipCountdownMarkerID: String?
+     /// Intro marker whose countdown finished while auto-skip was off. The chip
+     /// stays hidden until the playhead leaves the marker; seeking back in
+     /// shows it again. Never seeks.
+-    var countdownDismissedMarkerID: Int?
++    var countdownDismissedMarkerID: String?
+     var autoSkipHandler: (@MainActor (Marker) -> Void)?
+     /// Markers this episode has already skipped once, seeded from the
+     /// coordinator so the record survives a rebuilt player (quality switch,
+     /// Picture in Picture restore). A marker in here never arms another
+     /// auto-skip countdown: seeking back into the intro shows the button again,
+     /// but the jump forward is the viewer's to make.
+-    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
++    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<String> = []
+     /// Reports a newly spent auto-skip back to the coordinator, which owns the
+     /// per-episode record.
+-    var autoSkipSpentHandler: (@MainActor (Int) -> Void)?
++    var autoSkipSpentHandler: (@MainActor (String) -> Void)?
+     /// Fires when the reached credits marker changes (nil when leaving the
+     /// credits, e.g. a seek back before the marker). The player forwards it to
+     /// the coordinator, which resolves the next episode and shows/hides the
+     /// bottom-right Up Next poster.
+     var upNextPosterHandler: (@MainActor (Marker?) -> Void)?
+-    @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
++    @ObservationIgnored var lastNotifiedCreditsMarkerID: String?
+     /// The reached credits marker when the coordinator found nothing to play
+     /// after this item, so it gets a Skip Credits chip instead of the poster.
+-    var creditsMarkerWithoutUpNextID: Int?
++    var creditsMarkerWithoutUpNextID: String?
+     /// Ends the session for a skip that runs off the end of the item, so it
+     /// does not depend on how each engine treats a seek to the very end.
+     var skipToEndHandler: (@MainActor () -> Void)?
+@@ -143,12 +143,12 @@ final class PlayerViewModel {
+     /// Asks the coordinator to restart this session on VLCKit so a Plex sidecar
+     /// can be mounted. Fired when the viewer picks an external subtitle in an
+     /// AVPlayer session, which cannot attach one to a live item.
+-    var externalSubtitleRestartHandler: (@MainActor (Int) -> Void)?
++    var externalSubtitleRestartHandler: (@MainActor (String) -> Void)?
+     /// Plex subtitle stream id to select as soon as it is mounted: carried
+     /// across the AVPlayer → VLCKit restart and set after a subtitle download.
+-    var pendingExternalSubtitleStreamID: Int?
++    var pendingExternalSubtitleStreamID: String?
+     /// External Plex streams already handed to the engine this session.
+-    @ObservationIgnored var attachedExternalSubtitleStreamIDs: Set<Int> = []
++    @ObservationIgnored var attachedExternalSubtitleStreamIDs: Set<String> = []
+     /// The part's sidecar subtitle streams paired with their resolved URLs.
+     /// Cached because the track lists are rebuilt on every sync tick and
+     /// building a stream URL is not free.
+@@ -156,7 +156,7 @@ final class PlayerViewModel {
+     /// Sidecars Plex overwrote in place this session (same stream id and URL),
+     /// with how often. The count goes into the URL so the engine fetches the
+     /// new file instead of reusing the slave it already mounted.
+-    @ObservationIgnored var externalSubtitleURLRevisions: [Int: Int] = [:]
++    @ObservationIgnored var externalSubtitleURLRevisions: [String: Int] = [:]
+     /// URLs of the slaves those replacements superseded; their engine tracks
+     /// are hidden from the picker.
+     @ObservationIgnored var supersededExternalSubtitleURLs: Set<URL> = []
+@@ -180,10 +180,10 @@ final class PlayerViewModel {
+     /// Plex streams the viewer explicitly chose before an engine swap (Atmos
+     /// remux → direct play). They replace the automatic picks once.
+     @ObservationIgnored var explicitTrackSelection: ExplicitTrackSelection?
+-    var serverSelectedAudioStreamID: Int?
+-    var serverSelectedSubtitleStreamID: Int?
+-    var userTrackSelectionHandler: (@MainActor (PlexStreamType, Int?) -> Void)?
+-    var plexTrackSelectionHandler: (@MainActor (Int?, Int?) -> Void)?
++    var serverSelectedAudioStreamID: String?
++    var serverSelectedSubtitleStreamID: String?
++    var userTrackSelectionHandler: (@MainActor (PlexStreamType, String?) -> Void)?
++    var plexTrackSelectionHandler: (@MainActor (String?, String?) -> Void)?
+     var pendingPlaybackState: PlaybackState?
+     var pendingPlaybackStateExpiration: Date?
+     var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?
+@@ -261,11 +261,11 @@ final class PlayerViewModel {
+         mediaDetails: MediaDetails? = nil,
+         usesServerTrackSelection: Bool = false,
+         rendersServerSubtitleTrack: Bool = false,
+-        selectedAudioStreamID: Int? = nil,
+-        selectedSubtitleStreamID: Int? = nil,
+-        pendingExternalSubtitleStreamID: Int? = nil,
++        selectedAudioStreamID: String? = nil,
++        selectedSubtitleStreamID: String? = nil,
++        pendingExternalSubtitleStreamID: String? = nil,
+         explicitTrackSelection: ExplicitTrackSelection? = nil,
+-        spentAutoSkipMarkerIDs: Set<Int> = []
++        spentAutoSkipMarkerIDs: Set<String> = []
+     ) {
+         userPreferences = preferences
+         // Apply the saved zoom-to-fill choice now that preferences are known.
+@@ -274,7 +274,7 @@ final class PlayerViewModel {
+         applyPersistedAspectFill()
+         sourcePart = part
+         self.usesServerTrackSelection = usesServerTrackSelection
+-        serverSelectedAudioStreamID = userSelectedAudioTrack?.id ?? selectedAudioStreamID
++        serverSelectedAudioStreamID = userSelectedAudioTrack.map { String($0.id) } ?? selectedAudioStreamID
+         serverSelectedSubtitleStreamID = selectedSubtitleStreamID
+         pendingServerSubtitleRenditionSelection = usesServerTrackSelection
+             && rendersServerSubtitleTrack
+diff --git a/Dusk/Sources/Features/Player/ShowTrackPreferences.swift b/Dusk/Sources/Features/Player/ShowTrackPreferences.swift
+index 34d63ac..be61ae4 100644
+--- a/Dusk/Sources/Features/Player/ShowTrackPreferences.swift
++++ b/Dusk/Sources/Features/Player/ShowTrackPreferences.swift
+@@ -95,7 +95,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
+     /// or none, instead of sending the video to VLC without HDR. SDR media
+     /// and subtitles that ride the remux are returned unchanged.
+     @MainActor
+-    static func remuxSubtitleStreamID(_ streamID: Int?, in part: MediaPart) -> Int? {
++    static func remuxSubtitleStreamID(_ streamID: String?, in part: MediaPart) -> String? {
+         guard hasHDRVideo(in: part), let streamID,
+               let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == streamID }),
+               !StreamResolver.canRideRemux(subtitle: stream) else { return streamID }
+@@ -127,7 +127,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
+     }
+ 
+     @MainActor
+-    func subtitleStreamID(in part: MediaPart, fallback: Int?) -> Int? {
++    func subtitleStreamID(in part: MediaPart, fallback: String?) -> String? {
+         switch subtitles {
+         case .off: nil
+         case let .track(descriptor): descriptor.match(in: part.streams, type: .subtitle)?.id ?? fallback
+diff --git a/Dusk/Sources/Features/Player/SubtitleDownloadApplication.swift b/Dusk/Sources/Features/Player/SubtitleDownloadApplication.swift
+index f29db74..b640f5c 100644
+--- a/Dusk/Sources/Features/Player/SubtitleDownloadApplication.swift
++++ b/Dusk/Sources/Features/Player/SubtitleDownloadApplication.swift
+@@ -10,7 +10,7 @@ enum SubtitleDownloadApplication {
+     /// The fields Plex rewrites when it installs a sidecar. A second download
+     /// in the same language may keep the id and key, so the rest is compared too.
+     struct SidecarSignature: Hashable, Sendable {
+-        let id: Int
++        let id: String
+         let key: String?
+         let codec: String?
+         let displayTitle: String?
+diff --git a/Dusk/Sources/Features/Player/SubtitleSelectionPolicy.swift b/Dusk/Sources/Features/Player/SubtitleSelectionPolicy.swift
+index fe4906a..7e4d336 100644
+--- a/Dusk/Sources/Features/Player/SubtitleSelectionPolicy.swift
++++ b/Dusk/Sources/Features/Player/SubtitleSelectionPolicy.swift
+@@ -79,7 +79,7 @@ struct SubtitleSelectionPolicy: Equatable, Sendable {
+     func preferredTrack(
+         in tracks: [SubtitleTrack],
+         audioLanguage rawAudioLanguage: String?,
+-        serverSelectedStreamID: Int? = nil
++        serverSelectedStreamID: String? = nil
+     ) -> SubtitleTrack? {
+         let serverSelected = serverSelectedStreamID.flatMap { id in
+             tracks.first { $0.plexStreamID == id }
+diff --git a/Dusk/Sources/Mac/MacPlayerView.swift b/Dusk/Sources/Mac/MacPlayerView.swift
+index d3eaa16..2c768ed 100644
+--- a/Dusk/Sources/Mac/MacPlayerView.swift
++++ b/Dusk/Sources/Mac/MacPlayerView.swift
+@@ -597,7 +597,7 @@ private struct MacPlayerSessionView: View {
+             !playback.isAutomaticDirectPlayFallbackPending
+     }
+ 
+-    private var scrubPreviewPartID: Int? {
++    private var scrubPreviewPartID: String? {
+         guard let debugInfo, debugInfo.canLoadScrubPreviews else { return nil }
+         return debugInfo.part.id
+     }
+@@ -608,7 +608,7 @@ private struct MacPlayerSessionView: View {
+     }
+ 
+     @MainActor
+-    private func loadScrubPreviewSource(partID: Int?) async {
++    private func loadScrubPreviewSource(partID: String?) async {
+         scrubPreviewSource = nil
+         guard let partID else { return }
+ 
+diff --git a/Dusk/Sources/Playback/StreamResolver.swift b/Dusk/Sources/Playback/StreamResolver.swift
+index b2690f8..e264f9b 100644
+--- a/Dusk/Sources/Playback/StreamResolver.swift
++++ b/Dusk/Sources/Playback/StreamResolver.swift
+@@ -41,7 +41,7 @@ enum StreamResolver {
+         media: MediaVersion,
+         part: MediaPart,
+         enhancementMode: VideoEnhancementMode,
+-        selectedSubtitleStreamID: Int?,
++        selectedSubtitleStreamID: String?,
+         forceAVPlayer: Bool = false,
+         forceVLCKit: Bool = false
+     ) -> Decision {
+diff --git a/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift b/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift
+index 6457a6e..4b0f0d0 100644
+--- a/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift
++++ b/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift
+@@ -4,7 +4,7 @@ import Foundation
+ struct MoviePlaybackVersion: Identifiable, Sendable {
+     struct ID: Hashable {
+         let item: MediaItemID
+-        let mediaID: Int
++        let mediaID: String
+     }
+     let details: MediaDetails
+     let media: MediaVersion
+diff --git a/Dusk/Sources/PlexService/PlexService+Images.swift b/Dusk/Sources/PlexService/PlexService+Images.swift
+index 7b16116..d8854a6 100644
+--- a/Dusk/Sources/PlexService/PlexService+Images.swift
++++ b/Dusk/Sources/PlexService/PlexService+Images.swift
+@@ -74,8 +74,9 @@ extension PlexService {
+         return try await executeBinaryRequest(request)
+     }
+ 
+-    func scrubPreviewSource(forPartID partID: Int, serverID: String? = nil) async -> PlexScrubPreviewSource? {
+-        guard partID > 0 else { return nil }
++    func scrubPreviewSource(forPartID partID: String, serverID: String? = nil) async -> PlexScrubPreviewSource? {
++        // Plex part ids are positive numbers; 0 or below is a placeholder.
++        guard Int(partID).map({ $0 > 0 }) ?? !partID.isEmpty else { return nil }
+ 
+         do {
+             let data = try await rawScrubPreviewRequest(partID: partID, serverID: serverID)
+@@ -140,7 +141,7 @@ extension PlexService {
+         return connection
+     }
+ 
+-    private func rawScrubPreviewRequest(partID: Int, serverID: String?) async throws -> Data {
++    private func rawScrubPreviewRequest(partID: String, serverID: String?) async throws -> Data {
+         let targetID = try resolveServerID(serverID)
+ 
+         if pool.connection(for: targetID) == nil {
+@@ -172,7 +173,7 @@ extension PlexService {
+         return data
+     }
+ 
+-    private func sendScrubPreviewRequest(partID: Int, serverID: String) async throws -> Data {
++    private func sendScrubPreviewRequest(partID: String, serverID: String) async throws -> Data {
+         guard let connection = pool.connection(for: serverID) else {
+             switch pool.state(for: serverID) {
+             case .unauthorized:
+diff --git a/Dusk/Sources/PlexService/PlexService+LiveTV.swift b/Dusk/Sources/PlexService/PlexService+LiveTV.swift
+index 323b77a..71d9ea7 100644
+--- a/Dusk/Sources/PlexService/PlexService+LiveTV.swift
++++ b/Dusk/Sources/PlexService/PlexService+LiveTV.swift
+@@ -359,7 +359,7 @@ extension PlexService {
+ 
+     private func makeFallbackLiveTVMedia(sessionPath: String) -> MediaVersion {
+         let part = MediaPart(
+-            id: 0,
++            id: "0",
+             key: sessionPath,
+             file: nil,
+             size: nil,
+@@ -372,7 +372,7 @@ extension PlexService {
+             streams: []
+         )
+         return MediaVersion(
+-            id: 0,
++            id: "0",
+             container: "hls",
+             videoCodec: nil,
+             audioCodec: nil,
+diff --git a/Dusk/Sources/PlexService/PlexService+Playback.swift b/Dusk/Sources/PlexService/PlexService+Playback.swift
+index f49ad4c..218f05e 100644
+--- a/Dusk/Sources/PlexService/PlexService+Playback.swift
++++ b/Dusk/Sources/PlexService/PlexService+Playback.swift
+@@ -259,8 +259,8 @@ extension PlexService {
+         preset: PlaybackQualityPreset,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int? = nil,
+-        subtitleStreamID: Int? = nil,
++        audioStreamID: String? = nil,
++        subtitleStreamID: String? = nil,
+         serverID: String? = nil
+     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+         guard !preset.isOriginal else {
+@@ -289,8 +289,8 @@ extension PlexService {
+         mediaIndex: Int,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int? = nil,
+-        subtitleStreamID: Int? = nil,
++        audioStreamID: String? = nil,
++        subtitleStreamID: String? = nil,
+         forceVideoTranscode: Bool = false,
+         serverID: String? = nil
+     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+@@ -315,8 +315,8 @@ extension PlexService {
+         mediaIndex: Int,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int? = nil,
+-        subtitleStreamID: Int? = nil,
++        audioStreamID: String? = nil,
++        subtitleStreamID: String? = nil,
+         serverID: String? = nil
+     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+         try await transcodeLadderURL(
+@@ -342,8 +342,8 @@ extension PlexService {
+         mediaIndex: Int,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         convertsAudio: Bool = false,
+         serverID: String? = nil
+     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome, streams: TranscodeStreamDecisions) {
+@@ -365,9 +365,9 @@ extension PlexService {
+     /// `subtitleStreamID` query item alone is ignored for segmented text
+     /// subtitles). `subtitleStreamID: 0` clears the subtitle selection.
+     func selectStreams(
+-        partID: Int,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        partID: String,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         serverID: String? = nil
+     ) async throws {
+         try await enqueueStreamSelection(
+@@ -380,9 +380,9 @@ extension PlexService {
+     /// Enqueue synchronously so quick picker changes and remux rebuilds share
+     /// one write order. A late PUT must never undo a newer subtitle On/Off.
+     func enqueueStreamSelection(
+-        partID: Int,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        partID: String,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         serverID: String?
+     ) -> Task<Void, Error> {
+         let previous = streamSelectionWriteTask
+@@ -568,8 +568,8 @@ private extension PlexService {
+         mode: TranscodeDeliveryMode,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         serverID: String?
+     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+         let session = try await transcodeLadderSession(
+@@ -593,8 +593,8 @@ private extension PlexService {
+         mode: TranscodeDeliveryMode,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         serverID: String?
+     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome, streams: TranscodeStreamDecisions) {
+         let targetID = try resolveServerID(serverID)
+@@ -660,8 +660,8 @@ extension PlexService {
+         mode: TranscodeDeliveryMode,
+         sessionIdentifier: String,
+         transcodeSessionID: String,
+-        audioStreamID: Int?,
+-        subtitleStreamID: Int?,
++        audioStreamID: String?,
++        subtitleStreamID: String?,
+         token: String?,
+         av1Capabilities: AV1PlaybackCapabilities = .current
+     ) -> [URLQueryItem] {
+diff --git a/Dusk/Sources/Providers/Core/ServerRegistry.swift b/Dusk/Sources/Providers/Core/ServerRegistry.swift
+new file mode 100644
+index 0000000..3dca65f
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/ServerRegistry.swift
+@@ -0,0 +1,40 @@
++import Foundation
++
++/// The media-server provider behind a server id (docs/jellyfin/04-architecture.md §6.1).
++enum ProviderKind: String, Codable, Sendable, Hashable {
++    case plex
++    case jellyfin
++}
++
++/// What Dusk knows about a server beyond its id.
++struct ServerRecord: Codable, Sendable, Hashable {
++    let kind: ProviderKind
++    let accountID: String?
++    let name: String?
++}
++
++/// Which provider each `serverID` belongs to. **A server id with no record is
++/// Plex**: that is every id persisted before Jellyfin support, so nothing on
++/// disk needs a record to keep working.
++///
++/// Lookup only for now: nothing registers a server yet and nothing is stored.
++/// Persisting records arrives with the first provider that needs one.
++struct ServerRegistry: Sendable {
++    private var records: [String: ServerRecord] = [:]
++
++    init(records: [String: ServerRecord] = [:]) {
++        self.records = records
++    }
++
++    func record(for serverID: String) -> ServerRecord? {
++        records[serverID]
++    }
++
++    func kind(for serverID: String?) -> ProviderKind {
++        serverID.flatMap { records[$0]?.kind } ?? .plex
++    }
++
++    mutating func register(_ record: ServerRecord, for serverID: String) {
++        records[serverID] = record
++    }
++}
+diff --git a/DuskTests/AV1RoutingTests.swift b/DuskTests/AV1RoutingTests.swift
+index fb24443..3a97096 100644
+--- a/DuskTests/AV1RoutingTests.swift
++++ b/DuskTests/AV1RoutingTests.swift
+@@ -118,7 +118,7 @@ struct AV1RoutingTests {
+         Dictionary(uniqueKeysWithValues: PlexService().transcodeQueryItems(
+             itemID: "1", mediaIndex: 0, sourcePath: nil, mode: mode,
+             sessionIdentifier: "session", transcodeSessionID: "transcode",
+-            audioStreamID: 2, subtitleStreamID: 3, token: nil, av1Capabilities: capabilities
++            audioStreamID: "2", subtitleStreamID: "3", token: nil, av1Capabilities: capabilities
+         ).map { ($0.name, $0.value ?? "") })
+     }
+ 
+diff --git a/DuskTests/AudioOffsetTests.swift b/DuskTests/AudioOffsetTests.swift
+index 5d5e188..cb53bc9 100644
+--- a/DuskTests/AudioOffsetTests.swift
++++ b/DuskTests/AudioOffsetTests.swift
+@@ -95,7 +95,7 @@ struct AudioOffsetCoordinatorTests {
+         playback.engine = fake
+         playback.itemID = "1"
+         playback.activeItemDetails = details
+-        playback.activeAudioStreamID = 4
++        playback.activeAudioStreamID = "4"
+         playback.debugInfo = PlaybackDebugInfo(
+             title: "Clip", engine: engine, decision: .directPlay,
+             media: media, part: media.parts[0], attemptID: attemptID,
+@@ -105,7 +105,7 @@ struct AudioOffsetCoordinatorTests {
+             url: url, startPosition: nil,
+             context: PlaybackAttemptContext(
+                 attemptID: attemptID, title: "Clip", itemID: "1", engine: engine,
+-                resolverReason: "test", mediaID: 1, partID: 2,
++                resolverReason: "test", mediaID: "1", partID: "2",
+                 sanitizedPlaybackURL: url.absoluteString
+             )
+         )
+diff --git a/DuskTests/AudioTrackSelectionTests.swift b/DuskTests/AudioTrackSelectionTests.swift
+index 1ef3ca8..c0bdfa9 100644
+--- a/DuskTests/AudioTrackSelectionTests.swift
++++ b/DuskTests/AudioTrackSelectionTests.swift
+@@ -21,11 +21,11 @@ struct AudioTrackSelectionTests {
+         model.configureAutomaticTrackSelection(preferences: preferences, part: part)
+         #expect(model.hasAppliedAutomaticAudioSelection == readyAtStartup)
+ 
+-        var saved: [Int?] = []
++        var saved: [String?] = []
+         model.userTrackSelectionHandler = { type, streamID in
+             if type == .audio { saved.append(streamID) }
+         }
+-        let italian = try #require(model.audioTracks.first { $0.plexStreamID == 12 })
++        let italian = try #require(model.audioTracks.first { $0.plexStreamID == "12" })
+         model.selectAudio(italian)
+         engine.isReadyForAutomaticAudioSelection = true
+         model.sync()
+@@ -36,7 +36,7 @@ struct AudioTrackSelectionTests {
+         model.sync()
+         #expect(engine.selectedAudioTrackID == italian.id)
+         #expect(engine.audioSelections == [italian.id])
+-        #expect(saved == [12])
++        #expect(saved == ["12"])
+     }
+ 
+     @Test func serverPickerKeepsManualChoiceAcrossSynchronization() throws {
+@@ -47,30 +47,30 @@ struct AudioTrackSelectionTests {
+         defer { model.cleanup() }
+         model.configureAutomaticTrackSelection(
+             preferences: preferences, part: part,
+-            usesServerTrackSelection: true, selectedAudioStreamID: 11
++            usesServerTrackSelection: true, selectedAudioStreamID: "11"
+         )
+         let italian = try #require(model.audioTracks.first { $0.id == 12 })
+-        var requests: [Int?] = []
++        var requests: [String?] = []
+         model.plexTrackSelectionHandler = { audio, _ in requests.append(audio) }
+         model.selectAudio(italian)
+         for _ in 0..<3 { model.sync() }
+         model.configureAutomaticTrackSelection(
+             preferences: preferences, part: part,
+-            usesServerTrackSelection: true, selectedAudioStreamID: 11
++            usesServerTrackSelection: true, selectedAudioStreamID: "11"
+         )
+         model.sync()
+         #expect(model.selectedAudioTrackID == 12)
+-        #expect(requests == [12])
++        #expect(requests == ["12"])
+         #expect(engine.audioSelections.isEmpty) // HLS changes go through Plex.
+     }
+ 
+     @Test func movieChoiceSurvivesAReplacementPlayerWithoutAShowPreference() throws {
+         let playback = PlaybackCoordinator(plexService: PlexService())
+-        playback.activeAudioStreamID = 12
+-        playback.rememberShowTrackChoice(type: .audio, streamID: 12)
++        playback.activeAudioStreamID = "12"
++        playback.rememberShowTrackChoice(type: .audio, streamID: "12")
+         #expect(playback.activeShowTrackScope == nil)
+         let selection = try #require(playback.rememberedShowTrackSelection())
+-        #expect(selection.audioStreamID == 12)
++        #expect(selection.audioStreamID == "12")
+ 
+         let part = try makePart()
+         let engine = AudioSelectionEngine(tracks: part.streams.map(AudioTrack.init(stream:)))
+diff --git a/DuskTests/DolbyVision7ProxyTests.swift b/DuskTests/DolbyVision7ProxyTests.swift
+index 4b96851..df05be8 100644
+--- a/DuskTests/DolbyVision7ProxyTests.swift
++++ b/DuskTests/DolbyVision7ProxyTests.swift
+@@ -536,8 +536,8 @@ struct DolbyVision7GatingTests {
+             itemID: "1",
+             engine: .avPlayer,
+             resolverReason: "test",
+-            mediaID: 10,
+-            partID: 20,
++            mediaID: "10",
++            partID: "20",
+             sanitizedPlaybackURL: ""
+         )
+         let url = try #require(URL(string: "http://plex.test/start.m3u8"))
+diff --git a/DuskTests/ForcedSubtitleTwinTests.swift b/DuskTests/ForcedSubtitleTwinTests.swift
+index c2d40cf..5d9967d 100644
+--- a/DuskTests/ForcedSubtitleTwinTests.swift
++++ b/DuskTests/ForcedSubtitleTwinTests.swift
+@@ -38,7 +38,7 @@ struct ForcedSubtitleTwinTests {
+             in: plex,
+             after: [SubtitleTrack(stream: plex[0])]
+         )
+-        #expect(source?.id == 10)
++        #expect(source?.id == "10")
+     }
+ 
+     @Test func fullTracksAreNeverTwins() throws {
+@@ -81,6 +81,6 @@ struct ForcedSubtitleTwinTests {
+             in: plex,
+             after: [SubtitleTrack(stream: plex[0]), SubtitleTrack(stream: plex[1])]
+         )
+-        #expect(source?.id == 21)
++        #expect(source?.id == "21")
+     }
+ }
+diff --git a/DuskTests/HDRVideoRemuxTests.swift b/DuskTests/HDRVideoRemuxTests.swift
+index 7e118ab..c66d5e8 100644
+--- a/DuskTests/HDRVideoRemuxTests.swift
++++ b/DuskTests/HDRVideoRemuxTests.swift
+@@ -25,7 +25,7 @@ struct HDRVideoRemuxRoutingTests {
+ 
+     @Test func bitmapSubtitleKeepsVLCKit() throws {
+         let media = try makeMedia(video: #""colorTrc": "smpte2084""#, subtitleCodec: "pgs")
+-        #expect(blocker(for: media, subtitleID: 3)?.contains("subtitle") == true)
++        #expect(blocker(for: media, subtitleID: "3")?.contains("subtitle") == true)
+     }
+ 
+     @Test func tenBitSDRIsNotHDR() throws {
+@@ -83,7 +83,7 @@ struct HDRVideoRemuxRoutingTests {
+ 
+     private func blocker(
+         for media: MediaVersion,
+-        subtitleID: Int? = nil,
++        subtitleID: String? = nil,
+         displaySupportsHDR: Bool = true
+     ) -> String? {
+         let streams = media.parts[0].streams
+@@ -175,9 +175,9 @@ struct HDRPictureFirstRoutingTests {
+     func bitmapSubtitleStillVetoesTheRemux(audio: Audio) throws {
+         // Subtitle routing is unchanged: a PGS pick at startup keeps VLCKit.
+         let media = try makeMatrixMedia(video: Video.dv81.json, audio: audio.json, subtitleCodec: "pgs")
+-        #expect(route(for: media, subtitleID: 3) == .vlcKitDirect)
++        #expect(route(for: media, subtitleID: "3") == .vlcKitDirect)
+         let text = try makeMatrixMedia(video: Video.dv81.json, audio: audio.json, subtitleCodec: "srt")
+-        #expect(route(for: text, subtitleID: 3) == .convertedAudioRemux)
++        #expect(route(for: text, subtitleID: "3") == .convertedAudioRemux)
+     }
+ 
+     @Test func mp4HDRWithAACStaysDirectOnAVPlayer() throws {
+@@ -212,7 +212,7 @@ struct HDRPictureFirstRoutingTests {
+ 
+     private func route(
+         for media: MediaVersion,
+-        subtitleID: Int? = nil,
++        subtitleID: String? = nil,
+         displaySupportsHDR: Bool = true,
+         hdrVideoRemuxEnabled: Bool = true
+     ) -> Route {
+@@ -378,14 +378,14 @@ struct RemuxVariantCodecsTests {
+         ] }
+         """.utf8))
+         let playback = PlaybackCoordinator(plexService: PlexService())
+-        playback.activeAudioStreamID = 2
+-        playback.remuxAudioConversion = RemuxAudioConversion(audioStreamID: 2)
++        playback.activeAudioStreamID = "2"
++        playback.remuxAudioConversion = RemuxAudioConversion(audioStreamID: "2")
+         #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ec-3")
+         playback.remuxAudioConversion = nil
+-        playback.activeAudioStreamID = 3
++        playback.activeAudioStreamID = "3"
+         #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ac-3")
+         // A copied TrueHD stream is not a remux Plex accepts; no declaration.
+-        playback.activeAudioStreamID = 2
++        playback.activeAudioStreamID = "2"
+         #expect(playback.remuxVariantCodecs(in: part) == nil)
+     }
+ 
+diff --git a/DuskTests/HEV1RoutingTests.swift b/DuskTests/HEV1RoutingTests.swift
+index 4787da9..538c62d 100644
+--- a/DuskTests/HEV1RoutingTests.swift
++++ b/DuskTests/HEV1RoutingTests.swift
+@@ -70,11 +70,11 @@ struct HEV1RoutingTests {
+     @Test func stampedProbeResultReroutes() throws {
+         let details = try makeDetails()
+         #expect(StreamResolver.evaluate(media: details.media[0]).engine == .avPlayer)
+-        let stamped = details.stampingVideoSampleEntry("hev1", mediaID: 10, partID: 20)
++        let stamped = details.stampingVideoSampleEntry("hev1", mediaID: "10", partID: "20")
+         #expect(stamped.media[0].parts[0].streams[0].codecID == "hev1")
+         #expect(stamped.media[0].parts[0].streams[1].codecID == nil)
+         #expect(StreamResolver.evaluate(media: stamped.media[0]).requiresServerTranscode)
+-        let otherPart = details.stampingVideoSampleEntry("hev1", mediaID: 10, partID: 99)
++        let otherPart = details.stampingVideoSampleEntry("hev1", mediaID: "10", partID: "99")
+         #expect(StreamResolver.evaluate(media: otherPart.media[0]).engine == .avPlayer)
+     }
+ 
+diff --git a/DuskTests/LegacyContainerRecorder.swift b/DuskTests/LegacyContainerRecorder.swift
+index 94f028c..b80626c 100644
+--- a/DuskTests/LegacyContainerRecorder.swift
++++ b/DuskTests/LegacyContainerRecorder.swift
+@@ -36,12 +36,12 @@ struct LegacyContainerRecorder {
+                     subtitle: "2016",
+                     thumbPath: "/library/metadata/1001/thumb/1700000000",
+                     artPath: "/library/metadata/1001/art/1700000000",
+-                    mediaID: 501,
+-                    partID: 601,
++                    mediaID: "501",
++                    partID: "601",
+                     relativeVideoPath: "Profiles/4f2a9c1d7e3b5a60/Movies/Arrival (2016)/Arrival (2016).mkv",
+                     externalSubtitlePaths: [
+-                        7001: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
+-                        7002: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
++                        "7001": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
++                        "7002": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
+                     ],
+                     status: .completed,
+                     progress: 1,
+@@ -65,8 +65,8 @@ struct LegacyContainerRecorder {
+                     grandparentTitle: "Severance",
+                     thumbPath: "/library/metadata/2011/thumb/1700000001",
+                     artPath: nil,
+-                    mediaID: 81,
+-                    partID: 82,
++                    mediaID: "81",
++                    partID: "82",
+                     downloadQuality: .p720,
+                     isSmartDownload: true,
+                     queueClientIdentifier: "C0FFEE00-1111-4222-8333-944445555666",
+diff --git a/DuskTests/LegacyContainerTests.swift b/DuskTests/LegacyContainerTests.swift
+index 43f7223..4963130 100644
+--- a/DuskTests/LegacyContainerTests.swift
++++ b/DuskTests/LegacyContainerTests.swift
+@@ -40,16 +40,16 @@ struct LegacyContainerTests {
+             #expect(movie.grandparentID == nil)
+             #expect(movie.thumbPath == "/library/metadata/1001/thumb/1700000000")
+             #expect(movie.artPath == "/library/metadata/1001/art/1700000000")
+-            #expect(movie.mediaID == 501)
+-            #expect(movie.partID == 601)
++            #expect(movie.mediaID == "501")
++            #expect(movie.partID == "601")
+             #expect(movie.downloadQuality == .original)
+             #expect(movie.isSmartDownload == false)
+             #expect(movie.queueClientIdentifier == nil)
+             #expect(movie.convertedMediaData == nil)
+             #expect(movie.relativeVideoPath == "Profiles/4f2a9c1d7e3b5a60/Movies/Arrival (2016)/Arrival (2016).mkv")
+             #expect(movie.externalSubtitlePaths == [
+-                7001: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
+-                7002: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
++                "7001": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
++                "7002": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
+             ])
+             #expect(movie.hasMissingExternalSubtitles == false)
+             #expect(movie.resumeDataPath == nil)
+@@ -83,8 +83,8 @@ struct LegacyContainerTests {
+             #expect(episode.displayTitle == "Severance - Pilot")
+             #expect(episode.thumbPath == "/library/metadata/2011/thumb/1700000001")
+             #expect(episode.artPath == nil)
+-            #expect(episode.mediaID == 81)
+-            #expect(episode.partID == 82)
++            #expect(episode.mediaID == "81")
++            #expect(episode.partID == "82")
+             #expect(episode.downloadQuality == .p720)
+             #expect(episode.downloadQuality.rawValue == "p720")
+             #expect(episode.isSmartDownload == true)
+@@ -108,7 +108,7 @@ struct LegacyContainerTests {
+             #expect(episode.globalKey == "plex-home-24601:b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5:2011")
+ 
+             let converted = try #require(episode.convertedMedia)
+-            #expect(converted.id == 91)
++            #expect(converted.id == "91")
+             #expect(converted.container == "mkv")
+             #expect(converted.videoCodec == "h264")
+             #expect(converted.audioCodec == "aac")
+@@ -119,13 +119,13 @@ struct LegacyContainerTests {
+             #expect(converted.bitrate == 4000)
+             #expect(converted.duration == 2_520_000)
+             try #require(converted.parts.count == 1)
+-            #expect(converted.parts[0].id == 92)
++            #expect(converted.parts[0].id == "92")
+             #expect(converted.parts[0].key == "/library/parts/92/1700000000/file.mkv")
+             #expect(converted.parts[0].file == "/transcode/92.mkv")
+             #expect(converted.parts[0].size == 1_260_000_000)
+             #expect(converted.parts[0].container == "mkv")
+             try #require(converted.parts[0].streams.count == 1)
+-            #expect(converted.parts[0].streams[0].id == 93)
++            #expect(converted.parts[0].streams[0].id == "93")
+             #expect(converted.parts[0].streams[0].streamType == .audio)
+             #expect(converted.parts[0].streams[0].codec == "aac")
+             #expect(converted.parts[0].streams[0].languageCode == "eng")
+diff --git a/DuskTests/MediaIDCodingTests.swift b/DuskTests/MediaIDCodingTests.swift
+new file mode 100644
+index 0000000..36fc39c
+--- /dev/null
++++ b/DuskTests/MediaIDCodingTests.swift
+@@ -0,0 +1,102 @@
++import Foundation
++import Testing
++@testable import Dusk
++
++/// Version, part, stream and marker ids are strings in the app but numbers
++/// from Plex and in everything Dusk has persisted (P0-02). These pin both
++/// directions with literal JSON.
++@Suite("Media id coding")
++struct MediaIDCodingTests {
++    private func json(_ value: some Encodable) throws -> NSDictionary {
++        let data = try JSONEncoder().encode(value)
++        return try #require(try JSONSerialization.jsonObject(with: data) as? NSDictionary)
++    }
++
++    private func object(_ text: String) throws -> NSDictionary {
++        try #require(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? NSDictionary)
++    }
++
++    @Test func numericIDsDecodeAndStayNumbers() throws {
++        let text = #"{"id":41,"Part":[{"id":17,"key":"/library/parts/17/file.mkv","Stream":[{"id":104,"streamType":3,"codec":"srt"}]}]}"#
++        let media = try JSONDecoder().decode(MediaVersion.self, from: Data(text.utf8))
++        #expect(media.id == "41")
++        #expect(media.parts[0].id == "17")
++        #expect(media.parts[0].streams[0].id == "104")
++        #expect(try json(media).isEqual(try object(text)))
++    }
++
++    @Test func stringIDsDecodeAndStayStrings() throws {
++        let text = #"{"id":"a1b2","Part":[{"id":"a1b2","key":"/Videos/a1b2/stream","Stream":[{"id":"3","streamType":2,"codec":"aac"},{"id":"x","streamType":3,"codec":"srt"}]}]}"#
++        let media = try JSONDecoder().decode(MediaVersion.self, from: Data(text.utf8))
++        #expect(media.id == "a1b2")
++        #expect(media.parts[0].streams.map(\.id) == ["3", "x"])
++        // A canonical integer is written as a number, anything else as a string.
++        let expected = #"{"id":"a1b2","Part":[{"id":"a1b2","key":"/Videos/a1b2/stream","Stream":[{"id":3,"streamType":2,"codec":"aac"},{"id":"x","streamType":3,"codec":"srt"}]}]}"#
++        #expect(try json(media).isEqual(try object(expected)))
++    }
++
++    @Test(arguments: ["007", "-0", "+5", " 5", "12345678901234567890"])
++    func nonCanonicalIntegersStayStrings(id: String) throws {
++        let marker = Marker(id: id, type: "intro", startTimeOffset: 0, endTimeOffset: 1)
++        #expect(try json(marker)["id"] as? String == id)
++    }
++
++    @Test func markersDecodeEitherForm() throws {
++        let number = try JSONDecoder().decode(Marker.self, from: Data(#"{"id":7,"type":"credits","startTimeOffset":1,"endTimeOffset":2}"#.utf8))
++        let string = try JSONDecoder().decode(Marker.self, from: Data(#"{"id":"7","type":"credits","startTimeOffset":1,"endTimeOffset":2}"#.utf8))
++        #expect(number.id == "7")
++        #expect(string.id == "7")
++        #expect(try json(number)["id"] as? Int == 7)
++        #expect(Marker.estimatedCreditsID == "-1")
++        #expect(try json(Marker(id: Marker.estimatedCreditsID, type: "credits", startTimeOffset: 0, endTimeOffset: 1))["id"] as? Int == -1)
++    }
++
++    private let recordJSON = #"""
++        {"serverID":"srv","ratingKey":"1001","type":"movie","isClip":false,"title":"Arrival",
++         "downloadQuality":"original","isSmartDownload":false,"preparationRetryCount":0,
++         "hasMissingExternalSubtitles":false,"wasPausedForProfileSwitch":false,"status":"completed",
++         "progress":1,"downloadedBytes":10,"addedAt":0,"updatedAt":0%@}
++        """#
++
++    private func record(_ extra: String) throws -> (DownloadedMediaRecord, String) {
++        let text = recordJSON.replacingOccurrences(of: "%@", with: extra)
++        return (try JSONDecoder().decode(DownloadedMediaRecord.self, from: Data(text.utf8)), text)
++    }
++
++    @Test func intKeyedDownloadRecordsDecodeAndReEncodeAsWritten() throws {
++        let (record, text) = try record(#","mediaID":501,"partID":601,"externalSubtitlePaths":{"7001":"Subtitles/x/7001.srt"}"#)
++        #expect(record.mediaID == "501")
++        #expect(record.partID == "601")
++        #expect(record.externalSubtitlePaths == ["7001": "Subtitles/x/7001.srt"])
++        #expect(try json(record).isEqual(try object(text)))
++    }
++
++    @Test func absentIDsStayAbsent() throws {
++        let (record, text) = try record("")
++        #expect(record.mediaID == nil)
++        #expect(record.partID == nil)
++        let encoded = try json(record)
++        #expect(encoded["mediaID"] == nil)
++        #expect(encoded["partID"] == nil)
++        #expect(encoded.isEqual(try object(text)))
++    }
++
++    @Test func stringKeyedDownloadRecordsDecode() throws {
++        let (record, _) = try record(#","mediaID":"m1","partID":"p1""#)
++        #expect(record.mediaID == "m1")
++        #expect(try json(record)["partID"] as? String == "p1")
++    }
++
++    @Test func idOrderIsNumericForNumbers() {
++        #expect(["10", "9", "x", "100"].sorted(by: mediaIDPrecedes) == ["9", "10", "100", "x"])
++        #expect(["9", "10"].max(by: mediaIDPrecedes) == "10")
++    }
++
++    @Test func serverWithoutRecordIsPlex() {
++        var registry = ServerRegistry()
++        #expect(registry.kind(for: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9") == .plex)
++        #expect(registry.kind(for: nil) == .plex)
++        registry.register(ServerRecord(kind: .jellyfin, accountID: "acc", name: "Home"), for: "jf")
++        #expect(registry.kind(for: "jf") == .jellyfin)
++    }
++}
+diff --git a/DuskTests/PGSRenderingTests.swift b/DuskTests/PGSRenderingTests.swift
+index 2391d01..bd186e2 100644
+--- a/DuskTests/PGSRenderingTests.swift
++++ b/DuskTests/PGSRenderingTests.swift
+@@ -109,7 +109,7 @@ struct PGSRenderingTests {
+         window.rootViewController = controller
+         window.makeKeyAndVisible()
+         let context = PlaybackAttemptContext(attemptID: UUID(), title: "Subtitle fixture", itemID: "1", engine: .vlcKit,
+-            resolverReason: "Subtitle regression", mediaID: 1, partID: 1, sanitizedPlaybackURL: "local fixture")
++            resolverReason: "Subtitle regression", mediaID: "1", partID: "1", sanitizedPlaybackURL: "local fixture")
+         let source = PlaybackSource(url: url, startPosition: nil, context: context)
+         engine.load(source: source)
+         engine.selectSubtitleTrack(nil)
+diff --git a/DuskTests/PersistedGoldenStringTests.swift b/DuskTests/PersistedGoldenStringTests.swift
+index 3080c99..20105dc 100644
+--- a/DuskTests/PersistedGoldenStringTests.swift
++++ b/DuskTests/PersistedGoldenStringTests.swift
+@@ -151,7 +151,7 @@ struct PersistedGoldenStringTests {
+             #expect(store.artworkURL(for: "") == nil)
+ 
+             let globalKey = "4f2a9c1d7e3b5a60:a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9:1001"
+-            let subtitle = try store.saveSubtitle(Data("1\n".utf8), globalKey: globalKey, streamID: 7001, fileExtension: "srt")
++            let subtitle = try store.saveSubtitle(Data("1\n".utf8), globalKey: globalKey, streamID: "7001", fileExtension: "srt")
+             #expect(subtitle == "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt")
+             let resume = try store.saveResumeData(Data("resume".utf8), globalKey: globalKey)
+             #expect(resume == "ResumeData/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e.resume")
+diff --git a/DuskTests/PlaybackFallbackTests.swift b/DuskTests/PlaybackFallbackTests.swift
+index d226004..c6ad95c 100644
+--- a/DuskTests/PlaybackFallbackTests.swift
++++ b/DuskTests/PlaybackFallbackTests.swift
+@@ -53,7 +53,7 @@ struct PlaybackFallbackTests {
+         playback.itemID = "1"
+         playback.activeItemDetails = details
+         playback.activeTranscodeSessionID = "working-remux"
+-        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: 4, subtitleStreamID: nil)
++        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: "4", subtitleStreamID: nil)
+         playback.debugInfo = PlaybackDebugInfo(
+             title: "HDR", engine: .avPlayer, decision: .spatialAudio,
+             media: media, part: media.parts[0], attemptID: attemptID,
+@@ -63,22 +63,22 @@ struct PlaybackFallbackTests {
+             url: url, startPosition: 42,
+             context: PlaybackAttemptContext(
+                 attemptID: attemptID, title: "HDR", itemID: "1", engine: .avPlayer,
+-                resolverReason: "HDR remux", mediaID: 1, partID: 2,
++                resolverReason: "HDR remux", mediaID: "1", partID: "2",
+                 sanitizedPlaybackURL: url.absoluteString
+             )
+         )
+         let presentationID = playback.playerPresentationID
+         // Exercise repeated refused On/Off changes without opening media or
+         // contacting Plex. The loaded session and its confirmed tracks win.
+-        for subtitleID: Int? in [5, nil, 5, nil] {
+-            playback.activeAudioStreamID = 6
++        for subtitleID: String? in ["5", nil, "5", nil] {
++            playback.activeAudioStreamID = "6"
+             playback.activeSubtitleStreamID = subtitleID
+             await playback.leaveSpatialAudioRemux(reason: "declined", keepsExplicitTracks: true)
+             #expect(playback.engine === engine)
+             #expect(playback.playerPresentationID == presentationID)
+             #expect(playback.playbackSource?.url == url)
+             #expect(playback.activeTranscodeSessionID == "working-remux")
+-            #expect(playback.activeAudioStreamID == 4)
++            #expect(playback.activeAudioStreamID == "4")
+             #expect(playback.activeSubtitleStreamID == nil)
+             #expect(playback.qualitySwitchError != nil)
+         }
+@@ -136,8 +136,8 @@ struct PlaybackFallbackTests {
+             url: url, startPosition: nil,
+             context: PlaybackAttemptContext(
+                 attemptID: attemptID, title: "DV7", itemID: "1",
+-                engine: .avPlayer, resolverReason: "DV7 remux", mediaID: 1,
+-                partID: 2, sanitizedPlaybackURL: url.absoluteString
++                engine: .avPlayer, resolverReason: "DV7 remux", mediaID: "1",
++                partID: "2", sanitizedPlaybackURL: url.absoluteString
+             ),
+             dolbyVision7Conversion: conversion
+         )
+@@ -185,11 +185,11 @@ struct PlaybackFallbackTests {
+         playback.itemID = "1"
+         playback.activeItemDetails = details
+         playback.activePlaybackServerID = "hdr-server"
+-        playback.activeAudioStreamID = 4
++        playback.activeAudioStreamID = "4"
+         playback.activeTranscodeSessionID = "failed-remux"
+         playback.playbackSource = PlaybackSource(url: URL(string: "https://\(host)/remux.m3u8")!, startPosition: 123, context: PlaybackAttemptContext(
+             attemptID: UUID(), title: "HDR", itemID: "1", engine: .avPlayer,
+-            resolverReason: "HDR remux", mediaID: 1, partID: 2, sanitizedPlaybackURL: "https://plex.invalid/remux.m3u8"
++            resolverReason: "HDR remux", mediaID: "1", partID: "2", sanitizedPlaybackURL: "https://plex.invalid/remux.m3u8"
+         ))
+         playback.debugInfo = PlaybackDebugInfo(
+             title: "HDR", engine: .avPlayer, decision: .spatialAudio,
+@@ -328,8 +328,8 @@ struct PlexServerSubtitleTests {
+         playback.activeItemDetails = details
+         playback.itemID = "1"
+         playback.activePlaybackServerID = "subtitle-server"
+-        playback.activeAudioStreamID = 4
+-        playback.activeSubtitleStreamID = 5
++        playback.activeAudioStreamID = "4"
++        playback.activeSubtitleStreamID = "5"
+         playback.engine = FailedPlaybackEngine(state: .paused)
+         playback.debugInfo = PlaybackDebugInfo(
+             title: "PGS", engine: .vlcKit, decision: .directPlay, media: media, part: media.parts[0],
+@@ -380,7 +380,7 @@ struct PlexServerSubtitleTests {
+         let preferences = UserPreferences()
+         let model = PlayerViewModel(engine: playback.engine!)
+         defer { model.cleanup() }
+-        for subtitleID: Int? in [6, nil, 5] {
++        for subtitleID: String? in ["6", nil, "5"] {
+             model.configureAutomaticTrackSelection(
+                 preferences: preferences, part: playback.debugInfo?.part,
+                 usesServerTrackSelection: playback.usesServerTrackSelection,
+@@ -394,10 +394,10 @@ struct PlexServerSubtitleTests {
+             let pausedEngine = FailedPlaybackEngine(state: .paused)
+             pausedEngine.currentTime = 12
+             playback.engine = pausedEngine
+-            model.selectSubtitle(subtitleID.flatMap { id in model.subtitleTracks.first { $0.id == id } })
++            model.selectSubtitle(subtitleID.flatMap { id in model.subtitleTracks.first { String($0.id) == id } })
+             await playback.spatialAudioTransitionTask?.value
+             let query = try query(playback)
+-            #expect(query["subtitleStreamID"] == subtitleID.map(String.init))
++            #expect(query["subtitleStreamID"] == subtitleID)
+             #expect(query["subtitles"] == (subtitleID == nil ? "none" : "burn"))
+             #expect(query["audioStreamID"] == "4")
+             #expect(playback.playbackSource?.shouldAutoPlay == false)
+@@ -409,12 +409,12 @@ struct PlexServerSubtitleTests {
+     @Test func refusedTrackChangeKeepsTheLoadedStreamAndConfirmedSelection() async throws {
+         let playback = try playback(refuses: true)
+         let engine = playback.engine
+-        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: 4, subtitleStreamID: 5)
+-        playback.activeSubtitleStreamID = 6
++        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: "4", subtitleStreamID: "5")
++        playback.activeSubtitleStreamID = "6"
+         await playback.rebuildServerStreamSession(reason: "refused selection")
+         #expect(playback.engine === engine)
+-        #expect(playback.activeSubtitleStreamID == 5)
+-        #expect(playback.activeAudioStreamID == 4)
++        #expect(playback.activeSubtitleStreamID == "5")
++        #expect(playback.activeAudioStreamID == "4")
+         #expect(playback.qualitySwitchError != nil)
+     }
+ }
+diff --git a/DuskTests/PlaybackQueueTests.swift b/DuskTests/PlaybackQueueTests.swift
+index db54083..ff6bacb 100644
+--- a/DuskTests/PlaybackQueueTests.swift
++++ b/DuskTests/PlaybackQueueTests.swift
+@@ -300,7 +300,7 @@ struct UpNextResolutionTests {
+         playback.upNextPoster = UpNextPosterPresentation(
+             item: next,
+             mode: .timedAutoplay(countdown: 30),
+-            creditsMarkerID: 7,
++            creditsMarkerID: "7",
+             secondsRemaining: 30,
+             countdownClock: UpNextCountdownClock(duration: 30)
+         )
+@@ -339,7 +339,7 @@ struct UpNextResolutionTests {
+             isOnlineEpisodeLookup: true
+         )
+         await playback.presentUpNextPosterIfPossible(
+-            creditsMarkerID: 7,
++            creditsMarkerID: "7",
+             isEstimated: estimated,
+             presentationID: playback.playerPresentationID,
+             itemID: details.itemID
+@@ -353,7 +353,7 @@ struct UpNextResolutionTests {
+         let (playback, _) = try makeEpisodeSession()
+         #expect(!playback.haltUpNextPosterCountdown())
+ 
+-        playback.upNextPoster = UpNextPosterPresentation(item: episodeItem("102"), mode: .manual, creditsMarkerID: 7)
++        playback.upNextPoster = UpNextPosterPresentation(item: episodeItem("102"), mode: .manual, creditsMarkerID: "7")
+         #expect(!playback.haltUpNextPosterCountdown())
+         #expect(playback.upNextPoster?.mode == .manual)
+     }
+@@ -369,7 +369,7 @@ struct UpNextResolutionTests {
+             title: "Mix",
+             items: [episodeItem("101"), b, c]
+         )
+-        playback.upNextPoster = UpNextPosterPresentation(item: b, queueIndex: 1, queueTitle: "Mix", mode: .manual, creditsMarkerID: 1)
++        playback.upNextPoster = UpNextPosterPresentation(item: b, queueIndex: 1, queueTitle: "Mix", mode: .manual, creditsMarkerID: "1")
+ 
+         playback.noteQueueItemUnavailable(b.id)
+         #expect(playback.upNextPoster?.item.itemID == "700")
+diff --git a/DuskTests/PlayerIntroAutoSkipTests.swift b/DuskTests/PlayerIntroAutoSkipTests.swift
+index eb371f3..b8e4076 100644
+--- a/DuskTests/PlayerIntroAutoSkipTests.swift
++++ b/DuskTests/PlayerIntroAutoSkipTests.swift
+@@ -14,7 +14,7 @@ struct PlayerIntroAutoSkipTests {
+         defer { preferences.autoSkipIntroMode = previousMode }
+ 
+         let marker = Marker(
+-            id: 42,
++            id: "42",
+             type: "intro",
+             startTimeOffset: 5_000,
+             endTimeOffset: 20_000
+@@ -201,8 +201,8 @@ struct PlayerIntroAutoSkipTests {
+     }
+ 
+     @Test func lastCreditsMarkerDrivesUpNextAndEarlierOnesGetTheChip() {
+-        let early = Marker(id: 1, type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
+-        let final = Marker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
++        let early = Marker(id: "1", type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
++        let final = Marker(id: "2", type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+         let engine = IntroAutoSkipPlaybackEngine(currentTime: 35)
+         let viewModel = PlayerViewModel(engine: engine, markers: [early, final])
+         defer { viewModel.cleanup() }
+@@ -224,7 +224,7 @@ struct PlayerIntroAutoSkipTests {
+     }
+ 
+     @Test func skippingCreditsToTheEndEndsPlaybackInsteadOfSeeking() {
+-        let final = Marker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
++        let final = Marker(id: "2", type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+         let engine = IntroAutoSkipPlaybackEngine(currentTime: 105)
+         let viewModel = PlayerViewModel(engine: engine, markers: [final])
+         defer { viewModel.cleanup() }
+@@ -267,7 +267,7 @@ struct PlayerIntroAutoSkipTests {
+         preferences.autoSkipIntroMode = mode
+ 
+         let marker = Marker(
+-            id: 42,
++            id: "42",
+             type: "intro",
+             startTimeOffset: 5_000,
+             endTimeOffset: 20_000
+diff --git a/DuskTests/PlexDownloadQueueTests.swift b/DuskTests/PlexDownloadQueueTests.swift
+index c973ba1..5ce3ffd 100644
+--- a/DuskTests/PlexDownloadQueueTests.swift
++++ b/DuskTests/PlexDownloadQueueTests.swift
+@@ -103,8 +103,8 @@ struct PlexDownloadQueueTests {
+         let decision = try PlexDownloadQueueResponse.decision(decisionData([decisionMedia()]))
+         let converted = decision.convertedMedia(sourceMedia: source, mediaPath: "/downloadQueue/7/item/23/media", expectedBytes: 1234)
+         let part = try #require(converted.parts.first)
+-        #expect(converted.id == 41)
+-        #expect(part.id == 17)
++        #expect(converted.id == "41")
++        #expect(part.id == "17")
+         #expect(converted.container == "mkv")
+         #expect(converted.videoCodec == "h264")
+         #expect(converted.audioCodec == "aac")
+@@ -134,8 +134,8 @@ struct PlexDownloadQueueTests {
+         record.convertedMediaData = try JSONEncoder().encode(converted)
+         let restored = try JSONDecoder().decode(DownloadedMediaRecord.self, from: JSONEncoder().encode(record))
+         #expect(restored.downloadQuality == .p720)
+-        #expect(restored.mediaID == 41)
+-        #expect(restored.partID == 17)
++        #expect(restored.mediaID == "41")
++        #expect(restored.partID == "17")
+         #expect(restored.convertedMedia?.videoCodec == "h264")
+         #expect(restored.convertedMedia?.parts.first?.streams.isEmpty == true)
+         #expect(restored.relativeVideoPath == "Movies/Example.mkv")
+@@ -151,8 +151,8 @@ struct PlexDownloadQueueTests {
+         let sourcePart = try JSONDecoder().decode(MediaPart.self, from: Data(sourcePartJSON.utf8))
+ 
+         let version = try #require(record.convertedMediaVersion(sourcePart: sourcePart))
+-        #expect(version.part.streams.map(\.id) == [104])
+-        #expect(version.media.parts.first?.streams.map(\.id) == [104])
++        #expect(version.part.streams.map(\.id) == ["104"])
++        #expect(version.media.parts.first?.streams.map(\.id) == ["104"])
+         #expect(version.part.key == "/downloadQueue/7/item/23/media")
+         #expect(version.media.videoCodec == "h264")
+         #expect(record.convertedMediaVersion(sourcePart: nil)?.part.streams.isEmpty == true)
+@@ -164,17 +164,17 @@ struct PlexDownloadQueueTests {
+         #expect(record.externalSubtitlePaths == nil)
+         #expect(record.hasMissingExternalSubtitles == false)
+ 
+-        record.externalSubtitlePaths = [104: "Subtitles/abc/104.srt", 105: "Subtitles/abc/105.ass"]
++        record.externalSubtitlePaths = ["104": "Subtitles/abc/104.srt", "105": "Subtitles/abc/105.ass"]
+         record.hasMissingExternalSubtitles = true
+         let restored = try JSONDecoder().decode(DownloadedMediaRecord.self, from: JSONEncoder().encode(record))
+-        #expect(restored.externalSubtitlePaths == [104: "Subtitles/abc/104.srt", 105: "Subtitles/abc/105.ass"])
++        #expect(restored.externalSubtitlePaths == ["104": "Subtitles/abc/104.srt", "105": "Subtitles/abc/105.ass"])
+         #expect(restored.hasMissingExternalSubtitles)
+     }
+ 
+     @Test func onlyExternalTextSubtitlesAreSavedForOffline() throws {
+         let json = #"{"id":17,"key":"/library/parts/17/file.mp4","Stream":[{"id":101,"streamType":1,"codec":"h264"},{"id":102,"streamType":3,"codec":"mov_text"},{"id":103,"streamType":3,"codec":"srt","key":"/library/streams/103"},{"id":104,"streamType":3,"codec":"ass","key":"/library/streams/104"},{"id":105,"streamType":3,"codec":"ssa","key":"/library/streams/105"},{"id":106,"streamType":3,"codec":"vtt","key":"/library/streams/106"},{"id":107,"streamType":3,"codec":"vobsub","key":"/library/streams/107"},{"id":108,"streamType":3,"codec":"srt","key":""}]}"#
+         let part = try JSONDecoder().decode(MediaPart.self, from: Data(json.utf8))
+-        #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: part).map(\.id) == [103, 104, 105, 106])
++        #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: part).map(\.id) == ["103", "104", "105", "106"])
+         #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: nil).isEmpty)
+     }
+ 
+@@ -184,13 +184,13 @@ struct PlexDownloadQueueTests {
+         let store = DownloadFileStore(rootDirectory: root)
+         let body = try #require(SubtitleTextDecoder.normalizedFileData(Data("1\n00:00:00,000 --> 00:00:01,000\nHi\n".utf8)))
+ 
+-        let path = try store.saveSubtitle(body, globalKey: "profile:server-a:42", streamID: 103, fileExtension: "srt")
++        let path = try store.saveSubtitle(body, globalKey: "profile:server-a:42", streamID: "103", fileExtension: "srt")
+         #expect(path.hasPrefix("Subtitles/"))
+         #expect(path.hasSuffix("/103.srt"))
+         let url = try #require(store.existingFileURL(for: path))
+         #expect(try Data(contentsOf: url) == body)
+         // A sibling record's folder must survive the delete.
+-        let other = try store.saveSubtitle(body, globalKey: "profile:server-a:43", streamID: 1, fileExtension: "srt")
++        let other = try store.saveSubtitle(body, globalKey: "profile:server-a:43", streamID: "1", fileExtension: "srt")
+ 
+         // Re-keyed since the file was written: the stored path still wins.
+         store.deleteSubtitles(relativePaths: [path], globalKey: "profile:server-b:42")
+diff --git a/DuskTests/PlexLiveTuneDecodingTests.swift b/DuskTests/PlexLiveTuneDecodingTests.swift
+index 4e1eada..99b2288 100644
+--- a/DuskTests/PlexLiveTuneDecodingTests.swift
++++ b/DuskTests/PlexLiveTuneDecodingTests.swift
+@@ -48,12 +48,12 @@ struct PlexLiveTuneDecodingTests {
+ 
+         let tuneMedia = try #require(session.media)
+         let media = tuneMedia.makeMedia(sessionPath: session.sessionPath)
+-        #expect(media.id == 222512)
++        #expect(media.id == "222512")
+         #expect(media.videoCodec == "h264")
+         #expect(media.audioCodec == "aac")
+         let part = try #require(media.parts.first)
+-        #expect(part.id == 228619)
+-        #expect(part.streams.map(\.id) == [919191, 919192])
++        #expect(part.id == "228619")
++        #expect(part.streams.map(\.id) == ["919191", "919192"])
+         #expect(part.streams.first?.profile == "constrained baseline")
+     }
+ 
+@@ -65,11 +65,11 @@ struct PlexLiveTuneDecodingTests {
+ 
+     @Test func codecLessLiveMediaIsNotSentToVLCKit() {
+         let part = MediaPart(
+-            id: 0, key: "/livetv/sessions/x", file: nil, size: nil, container: "mpegts",
++            id: "0", key: "/livetv/sessions/x", file: nil, size: nil, container: "mpegts",
+             duration: nil, videoProfile: nil, audioProfile: nil, accessible: true, exists: true, streams: []
+         )
+         let media = MediaVersion(
+-            id: 0, container: "hls", videoCodec: nil, audioCodec: nil, videoResolution: nil,
++            id: "0", container: "hls", videoCodec: nil, audioCodec: nil, videoResolution: nil,
+             videoProfile: nil, audioProfile: nil, audioChannels: nil, width: nil, height: nil,
+             bitrate: nil, duration: nil, optimizedForStreaming: nil, parts: [part]
+         )
+diff --git a/DuskTests/PlexMediaPartDecodingTests.swift b/DuskTests/PlexMediaPartDecodingTests.swift
+index 626e1af..201f16a 100644
+--- a/DuskTests/PlexMediaPartDecodingTests.swift
++++ b/DuskTests/PlexMediaPartDecodingTests.swift
+@@ -39,7 +39,7 @@ struct PlexMediaPartDecodingTests {
+ 
+         let part = try JSONDecoder().decode(MediaPart.self, from: Data(json.utf8))
+ 
+-        #expect(part.streams.map(\.id) == [175569, 175568, 175571])
++        #expect(part.streams.map(\.id) == ["175569", "175568", "175571"])
+         #expect(part.streams.map(\.streamType) == [.video, .audio, .subtitle])
+     }
+ }
+diff --git a/DuskTests/PreferredVersionSelectionTests.swift b/DuskTests/PreferredVersionSelectionTests.swift
+index 7218192..77e7f8d 100644
+--- a/DuskTests/PreferredVersionSelectionTests.swift
++++ b/DuskTests/PreferredVersionSelectionTests.swift
+@@ -9,7 +9,7 @@ struct PreferredVersionSelectionTests {
+     private let fullHD = Self.version(id: 2, resolution: "1080", width: 1920, height: 1080, bitrate: 12_000, size: 12_000_000_000)
+     private let hd = Self.version(id: 3, resolution: "720", width: 1280, height: 720, bitrate: 4_000, size: 3_000_000_000)
+ 
+-    private func pick(_ versions: [MediaVersion], _ preference: PreferredMediaVersion, max: MaxResolution = .tenEightyP) -> Int? {
++    private func pick(_ versions: [MediaVersion], _ preference: PreferredMediaVersion, max: MaxResolution = .tenEightyP) -> String? {
+         StreamResolver.selectMediaVersion(
+             from: versions,
+             preferredMaxResolution: max,
+@@ -18,71 +18,71 @@ struct PreferredVersionSelectionTests {
+     }
+ 
+     @Test func automaticKeepsTheMaxResolutionTarget() {
+-        #expect(pick([uhd, fullHD, hd], .automatic) == 2)
+-        #expect(pick([uhd, fullHD, hd], .automatic, max: .sevenTwentyP) == 3)
+-        #expect(pick([uhd, fullHD, hd], .automatic, max: .fourK) == 1)
++        #expect(pick([uhd, fullHD, hd], .automatic) == "2")
++        #expect(pick([uhd, fullHD, hd], .automatic, max: .sevenTwentyP) == "3")
++        #expect(pick([uhd, fullHD, hd], .automatic, max: .fourK) == "1")
+     }
+ 
+     @Test func highestQualityIgnoresTheTarget() {
+-        #expect(pick([hd, fullHD, uhd], .highestQuality, max: .sevenTwentyP) == 1)
++        #expect(pick([hd, fullHD, uhd], .highestQuality, max: .sevenTwentyP) == "1")
+     }
+ 
+     @Test func highestQualityBreaksHeightTiesOnBitrate() {
+         let remux = Self.version(id: 4, resolution: "1080", width: 1920, height: 1080, bitrate: 30_000, size: nil)
+-        #expect(pick([fullHD, remux], .highestQuality) == 4)
++        #expect(pick([fullHD, remux], .highestQuality) == "4")
+     }
+ 
+     @Test func fullHDPicksTheBest1080pVersion() {
+         let remux = Self.version(id: 4, resolution: "1080", width: 1920, height: 1080, bitrate: 30_000, size: nil)
+-        #expect(pick([uhd, fullHD, remux, hd], .fullHD, max: .fourK) == 4)
++        #expect(pick([uhd, fullHD, remux, hd], .fullHD, max: .fourK) == "4")
+     }
+ 
+     @Test func fullHDCountsCroppedAndUnlabelledFrames() {
+         let scope = Self.version(id: 5, resolution: nil, width: 1920, height: 800, bitrate: 9_000, size: nil)
+-        #expect(pick([uhd, scope], .fullHD, max: .fourK) == 5)
++        #expect(pick([uhd, scope], .fullHD, max: .fourK) == "5")
+         let pillarboxed = Self.version(id: 6, resolution: nil, width: 1440, height: 1080, bitrate: 9_000, size: nil)
+-        #expect(pick([uhd, pillarboxed], .fullHD, max: .fourK) == 6)
++        #expect(pick([uhd, pillarboxed], .fullHD, max: .fourK) == "6")
+     }
+ 
+     @Test func fullHDFallsBackToAutomaticWithoutA1080pVersion() {
+-        #expect(pick([uhd, hd], .fullHD, max: .fourK) == 1)
+-        #expect(pick([uhd, hd], .fullHD, max: .sevenTwentyP) == 3)
++        #expect(pick([uhd, hd], .fullHD, max: .fourK) == "1")
++        #expect(pick([uhd, hd], .fullHD, max: .sevenTwentyP) == "3")
+     }
+ 
+     @Test func smallestFileUsesPartSizes() {
+         // Bitrate alone would pick the 720p version; the sizes say otherwise.
+         let tinyFullHD = Self.version(id: 7, resolution: "1080", width: 1920, height: 1080, bitrate: 5_000, size: 1_000_000_000)
+-        #expect(pick([uhd, hd, tinyFullHD], .smallestFile, max: .fourK) == 7)
++        #expect(pick([uhd, hd, tinyFullHD], .smallestFile, max: .fourK) == "7")
+     }
+ 
+     @Test func smallestFileSumsMultiPartVersions() {
+         let split = MediaVersion(
+-            id: 8, container: "mkv", videoCodec: "h264", audioCodec: "aac", videoResolution: "720",
++            id: "8", container: "mkv", videoCodec: "h264", audioCodec: "aac", videoResolution: "720",
+             videoProfile: nil, audioProfile: nil, audioChannels: 2, width: 1280, height: 720,
+             bitrate: 1_000, duration: nil, optimizedForStreaming: nil,
+             parts: [Self.part(id: 80, size: 2_000_000_000), Self.part(id: 81, size: 2_000_000_000)]
+         )
+-        #expect(pick([split, hd], .smallestFile) == 3)
++        #expect(pick([split, hd], .smallestFile) == "3")
+     }
+ 
+     @Test func smallestFileFallsBackToBitrateThenAutomatic() {
+         let a = Self.version(id: 9, resolution: "1080", width: 1920, height: 1080, bitrate: 8_000, size: nil)
+         let b = Self.version(id: 10, resolution: "1080", width: 1920, height: 1080, bitrate: 6_000, size: nil)
+-        #expect(pick([a, b], .smallestFile) == 10)
++        #expect(pick([a, b], .smallestFile) == "10")
+ 
+         let c = Self.version(id: 11, resolution: "4k", width: 3840, height: 2160, bitrate: nil, size: nil)
+         let d = Self.version(id: 12, resolution: "1080", width: 1920, height: 1080, bitrate: nil, size: nil)
+-        #expect(pick([c, d], .smallestFile) == 12)
++        #expect(pick([c, d], .smallestFile) == "12")
+     }
+ 
+     @Test func preferenceOnlyChoosesAmongAvailableVersions() {
+         let missing = Self.version(id: 13, resolution: "4k", width: 3840, height: 2160, bitrate: 80_000, size: 70_000_000_000, exists: false)
+-        #expect(pick([missing, fullHD, hd], .highestQuality) == 2)
++        #expect(pick([missing, fullHD, hd], .highestQuality) == "2")
+     }
+ 
+     @Test func singleVersionIsAlwaysChosen() {
+         for preference in PreferredMediaVersion.allCases {
+-            #expect(pick([hd], preference, max: .fourK) == 3)
++            #expect(pick([hd], preference, max: .fourK) == "3")
+         }
+     }
+ 
+@@ -98,7 +98,7 @@ struct PreferredVersionSelectionTests {
+         exists: Bool? = nil
+     ) -> MediaVersion {
+         MediaVersion(
+-            id: id, container: "mkv", videoCodec: "hevc", audioCodec: "eac3", videoResolution: resolution,
++            id: String(id), container: "mkv", videoCodec: "hevc", audioCodec: "eac3", videoResolution: resolution,
+             videoProfile: nil, audioProfile: nil, audioChannels: 6, width: width, height: height,
+             bitrate: bitrate, duration: 7_200_000, optimizedForStreaming: nil,
+             parts: [part(id: id * 10, size: size, exists: exists)]
+@@ -107,7 +107,7 @@ struct PreferredVersionSelectionTests {
+ 
+     private static func part(id: Int, size: Int?, exists: Bool? = nil) -> MediaPart {
+         MediaPart(
+-            id: id, key: "/library/parts/\(id)/file.mkv", file: nil, size: size, container: "mkv",
++            id: String(id), key: "/library/parts/\(id)/file.mkv", file: nil, size: size, container: "mkv",
+             duration: nil, videoProfile: nil, audioProfile: nil, accessible: nil, exists: exists, streams: []
+         )
+     }
+diff --git a/DuskTests/RealLegacyContainerTests.swift b/DuskTests/RealLegacyContainerTests.swift
+index a00e7e0..951d277 100644
+--- a/DuskTests/RealLegacyContainerTests.swift
++++ b/DuskTests/RealLegacyContainerTests.swift
+@@ -76,8 +76,8 @@ struct RealLegacyContainerTests {
+             #expect(movie.subtitle == "1977")
+             #expect(movie.thumbPath == "/library/metadata/1004/thumb/1795812082")
+             #expect(movie.artPath == "/library/metadata/1004/art/1795812082")
+-            #expect(movie.mediaID == 1004)
+-            #expect(movie.partID == 1004)
++            #expect(movie.mediaID == "1004")
++            #expect(movie.partID == "1004")
+             #expect(movie.downloadQuality == .original)
+             #expect(movie.relativeVideoPath == "Profiles/bigplexuser/Movies/Winter Stone (1977)/Winter Stone (1977).mp4")
+             #expect(movie.externalSubtitlePaths == nil)
+@@ -95,8 +95,8 @@ struct RealLegacyContainerTests {
+             #expect(episodes.map(\.subtitle) == [
+                 "Season 1 · Episode 1", "Season 1 · Episode 2", "Season 1 · Episode 3", "Season 1 · Episode 4",
+             ])
+-            #expect(episodes.map(\.mediaID) == [750002, 750003, 750004, 750005])
+-            #expect(episodes.map(\.partID) == [750002, 750003, 750004, 750005])
++            #expect(episodes.map(\.mediaID) == ["750002", "750003", "750004", "750005"])
++            #expect(episodes.map(\.partID) == ["750002", "750003", "750004", "750005"])
+             #expect(episodes.map(\.relativeVideoPath) == [
+                 "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E01 - Episode 1.mp4",
+                 "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E02 - Episode 2.mp4",
+@@ -144,8 +144,8 @@ struct RealLegacyContainerTests {
+             #expect(movie.year == 1977)
+             #expect(movie.thumb == "/library/metadata/1004/thumb/1795812082")
+             try #require(movie.media.count == 1)
+-            #expect(movie.media[0].id == 1004)
+-            #expect(movie.media[0].parts.map(\.id) == [1004])
++            #expect(movie.media[0].id == "1004")
++            #expect(movie.media[0].parts.map(\.id) == ["1004"])
+             #expect(movie.media[0].parts[0].key == "/library/parts/1004/1/file.mp4")
+             #expect(movie.media[0].parts[0].size == 4_000_000_000)
+ 
+@@ -171,7 +171,7 @@ struct RealLegacyContainerTests {
+                 #expect(episode.type == .episode)
+                 #expect(episode.grandparentID == "1201")
+                 #expect(episode.parentID == "750001")
+-                #expect(episode.media.first?.parts.first?.id == Int(itemID))
++                #expect(episode.media.first?.parts.first?.id == itemID)
+             }
+ 
+             // Same profile, other server: nothing; other profile: nothing.
+diff --git a/DuskTests/ShowTrackPreferenceTests.swift b/DuskTests/ShowTrackPreferenceTests.swift
+index c086bb9..62f34ba 100644
+--- a/DuskTests/ShowTrackPreferenceTests.swift
++++ b/DuskTests/ShowTrackPreferenceTests.swift
+@@ -17,8 +17,8 @@ struct ShowTrackPreferenceTests {
+             {"id":82,"streamType":3,"languageTag":"en-GB","codec":"webvtt"}
+             """#)
+         let remembered = try preferences(from: first)
+-        #expect(remembered.audioStream(in: next.media[0].parts[0])?.id == 81)
+-        #expect(remembered.subtitleStreamID(in: next.media[0].parts[0], fallback: nil) == 82)
++        #expect(remembered.audioStream(in: next.media[0].parts[0])?.id == "81")
++        #expect(remembered.subtitleStreamID(in: next.media[0].parts[0], fallback: nil) == "82")
+         #expect(scope(first) == scope(next))
+     }
+ 
+@@ -33,8 +33,8 @@ struct ShowTrackPreferenceTests {
+         let part = details.media[0].parts[0]
+         let index = ["normal": 0, "forced": 1, "sdh": 2, "forced-sdh": 3][kind]!
+         let descriptor = try #require(ShowTrackDescriptor(stream: part.streams[index]))
+-        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == index + 1)
+-        #expect(descriptor.match(in: part.streams.filter { $0.id != index + 1 }, type: .subtitle) == nil)
++        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == String(index + 1))
++        #expect(descriptor.match(in: part.streams.filter { $0.id != String(index + 1) }, type: .subtitle) == nil)
+     }
+ 
+     @Test func titleFlagsMatchExplicitFlags() throws {
+@@ -46,7 +46,7 @@ struct ShowTrackPreferenceTests {
+             {"id":3,"streamType":3,"languageCode":"en","forced":true}
+             """#)
+         let descriptor = try #require(ShowTrackDescriptor(stream: source.media[0].parts[0].streams[0]))
+-        #expect(descriptor.match(in: target.media[0].parts[0].streams, type: .subtitle)?.id == 2)
++        #expect(descriptor.match(in: target.media[0].parts[0].streams, type: .subtitle)?.id == "2")
+     }
+ 
+     // Shaped like a Plex OpenSubtitles download: a sidecar key, the provider's
+@@ -64,7 +64,7 @@ struct ShowTrackPreferenceTests {
+         #expect(descriptor.external == true)
+         #expect(!descriptor.hearingImpaired && !descriptor.forced)
+         let next = try episode(season: 1, streams: downloadedSubtitle(id: 9, release: "Show.S01E02.1080p.WEB.H264-SDHQ"))
+-        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == 9)
++        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == "9")
+     }
+ 
+     @Test func downloadedSubtitlePrefersTheNextDownloadInItsLanguage() throws {
+@@ -75,7 +75,7 @@ struct ShowTrackPreferenceTests {
+             {"id":21,"streamType":3,"languageCode":"ger","codec":"srt","key":"/library/streams/21"},
+             """# + downloadedSubtitle(id: 22, release: "Show.S01E02"))
+         // A same-language download wins even when its SDH flag differs.
+-        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == 22)
++        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == "22")
+     }
+ 
+     @Test func downloadedSubtitleFallsBackToAnEmbeddedTrackInItsLanguage() throws {
+@@ -89,12 +89,12 @@ struct ShowTrackPreferenceTests {
+             """#)
+         let part = next.media[0].parts[0]
+         // Same SDH flag first, then any normal track; never the forced one.
+-        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == 33)
+-        #expect(descriptor.match(in: part.streams.filter { $0.id != 33 }, type: .subtitle)?.id == 32)
+-        #expect(descriptor.match(in: part.streams.filter { $0.id == 30 || $0.id == 31 }, type: .subtitle) == nil)
++        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == "33")
++        #expect(descriptor.match(in: part.streams.filter { $0.id != "33" }, type: .subtitle)?.id == "32")
++        #expect(descriptor.match(in: part.streams.filter { $0.id == "30" || $0.id == "31" }, type: .subtitle) == nil)
+         let remembered = ShowTrackPreferences(subtitles: .track(descriptor))
+         #expect(remembered.hasMatch(in: part))
+-        #expect(remembered.subtitleStreamID(in: part, fallback: nil) == 33)
++        #expect(remembered.subtitleStreamID(in: part, fallback: nil) == "33")
+     }
+ 
+     @Test func embeddedSubtitleStillRequiresItsPurposeAndPrefersEmbedded() throws {
+@@ -107,7 +107,7 @@ struct ShowTrackPreferenceTests {
+             {"id":42,"streamType":3,"languageCode":"eng","codec":"srt","hearingImpaired":true}
+             """#)
+         let streams = next.media[0].parts[0].streams
+-        #expect(descriptor.match(in: streams, type: .subtitle)?.id == 41)
++        #expect(descriptor.match(in: streams, type: .subtitle)?.id == "41")
+         #expect(descriptor.match(in: [streams[2]], type: .subtitle) == nil)
+     }
+ 
+@@ -131,9 +131,9 @@ struct ShowTrackPreferenceTests {
+             """#)
+         let streams = details.media[0].parts[0].streams
+         let descriptor = try #require(ShowTrackDescriptor(stream: streams[2]))
+-        #expect(descriptor.match(in: streams, type: .audio)?.id == 3)
+-        #expect(descriptor.match(in: Array(streams.prefix(2)), type: .audio)?.id == 2)
+-        #expect(descriptor.match(in: Array(streams.prefix(1)), type: .audio)?.id == 1)
++        #expect(descriptor.match(in: streams, type: .audio)?.id == "3")
++        #expect(descriptor.match(in: Array(streams.prefix(2)), type: .audio)?.id == "2")
++        #expect(descriptor.match(in: Array(streams.prefix(1)), type: .audio)?.id == "1")
+         #expect(descriptor.match(in: [streams[3]], type: .audio) == nil)
+     }
+ 
+@@ -163,9 +163,9 @@ struct ShowTrackPreferenceTests {
+         let remembered = try preferences(from: first)
+         let part = missing.media[0].parts[0]
+         #expect(remembered.audioStream(in: part) == nil)
+-        #expect(remembered.subtitleStreamID(in: part, fallback: 22) == 22)
++        #expect(remembered.subtitleStreamID(in: part, fallback: "22") == "22")
+         #expect(!remembered.hasMatch(in: part))
+-        #expect(remembered.subtitleStreamID(in: first.media[0].parts[0], fallback: 22) == 12)
++        #expect(remembered.subtitleStreamID(in: first.media[0].parts[0], fallback: "22") == "12")
+     }
+ 
+     @Test func offSurvivesRelaunchAndOverridesSelectedForcedAndGlobalDefaults() throws {
+@@ -178,10 +178,10 @@ struct ShowTrackPreferenceTests {
+             let reopened = ShowTrackPreferenceStore(defaults: defaults)
+             let remembered = try #require(reopened.preferences(for: identity))
+             #expect(remembered.hasMatch(in: details.media[0].parts[0]))
+-            #expect(remembered.subtitleStreamID(in: details.media[0].parts[0], fallback: 12) == nil)
++            #expect(remembered.subtitleStreamID(in: details.media[0].parts[0], fallback: "12") == nil)
+             let resolved = Optional(remembered).map {
+-                $0.subtitleStreamID(in: details.media[0].parts[0], fallback: 12)
+-            } ?? 12
++                $0.subtitleStreamID(in: details.media[0].parts[0], fallback: "12")
++            } ?? "12"
+             #expect(resolved == nil) // Preserve the distinction between missing and Off.
+         }
+     }
+@@ -227,13 +227,13 @@ struct ShowTrackPreferenceTests {
+                 media: media, part: media.parts[0], attemptID: UUID(),
+                 resolverReason: "Fixture", sanitizedPlaybackURL: "/fixture.mp4"
+             )
+-            playback.rememberShowTrackChoice(type: .audio, streamID: 11)
+-            playback.rememberShowTrackChoice(type: .subtitle, streamID: 12)
++            playback.rememberShowTrackChoice(type: .audio, streamID: "11")
++            playback.rememberShowTrackChoice(type: .subtitle, streamID: "12")
+             let identity = try #require(scope(details))
+             let reopened = ShowTrackPreferenceStore(defaults: defaults)
+             let saved = try #require(reopened.preferences(for: identity))
+-            #expect(saved.audioStream(in: media.parts[0])?.id == 11)
+-            #expect(saved.subtitleStreamID(in: media.parts[0], fallback: nil) == 12)
++            #expect(saved.audioStream(in: media.parts[0])?.id == "11")
++            #expect(saved.subtitleStreamID(in: media.parts[0], fallback: nil) == "12")
+             playback.rememberShowTrackChoice(type: .subtitle, streamID: nil)
+             let off = try #require(reopened.preferences(for: identity))
+             #expect(off.subtitles == .off)
+@@ -299,25 +299,25 @@ struct ShowTrackPreferenceTests {
+             {"id":4,"streamType":3,"languageCode":"eng","codec":"srt","forced":true}
+             """#).media[0].parts[0]
+         let unchanged = ServerStreamSelectionRestore(
+-            part: part, writtenAudioStreamID: 1, writtenSubtitleStreamID: 3, serverID: "server"
++            part: part, writtenAudioStreamID: "1", writtenSubtitleStreamID: "3", serverID: "server"
+         )
+         #expect(unchanged.isEmpty)
+         // A remux that drops the bitmap subtitle cleared it on the server.
+         let dropped = ServerStreamSelectionRestore(
+-            part: part, writtenAudioStreamID: 2, writtenSubtitleStreamID: nil, serverID: "server"
++            part: part, writtenAudioStreamID: "2", writtenSubtitleStreamID: nil, serverID: "server"
+         )
+-        #expect(dropped.audioStreamID == 1)
+-        #expect(dropped.subtitleStreamID == 3)
++        #expect(dropped.audioStreamID == "1")
++        #expect(dropped.subtitleStreamID == "3")
+         // Nothing selected before means writing "none" back.
+         let none = try episode(streams: #"""
+             {"id":1,"streamType":2,"languageCode":"eng","codec":"aac"},
+             {"id":4,"streamType":3,"languageCode":"eng","codec":"srt","forced":true}
+             """#).media[0].parts[0]
+         let forced = ServerStreamSelectionRestore(
+-            part: none, writtenAudioStreamID: 1, writtenSubtitleStreamID: 4, serverID: "server"
++            part: none, writtenAudioStreamID: "1", writtenSubtitleStreamID: "4", serverID: "server"
+         )
+         #expect(forced.audioStreamID == nil)
+-        #expect(forced.subtitleStreamID == 0)
++        #expect(forced.subtitleStreamID == "0")
+     }
+ 
+     @Test func manualPickKeepsItsHalfOnTheServer() throws {
+@@ -333,12 +333,12 @@ struct ShowTrackPreferenceTests {
+                 part: details.media[0].parts[0], writtenAudioStreamID: nil,
+                 writtenSubtitleStreamID: nil, serverID: "server"
+             )
+-            playback.automaticServerSelectionRestore?.audioStreamID = 11
+-            #expect(playback.automaticServerSelectionRestore?.subtitleStreamID == 12)
++            playback.automaticServerSelectionRestore?.audioStreamID = "11"
++            #expect(playback.automaticServerSelectionRestore?.subtitleStreamID == "12")
+             playback.rememberShowTrackChoice(type: .subtitle, streamID: nil)
+             #expect(playback.automaticServerSelectionRestore?.subtitleStreamID == nil)
+-            #expect(playback.automaticServerSelectionRestore?.audioStreamID == 11)
+-            playback.rememberShowTrackChoice(type: .audio, streamID: 11)
++            #expect(playback.automaticServerSelectionRestore?.audioStreamID == "11")
++            playback.rememberShowTrackChoice(type: .audio, streamID: "11")
+             #expect(playback.automaticServerSelectionRestore?.isEmpty == true)
+         }
+     }
+@@ -392,8 +392,8 @@ struct ShowTrackPreferenceTests {
+         let media = details.media[0]
+         let part = media.parts[0]
+         // Picture first: the PGS gives way to the English text subtitle.
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 3)
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(3, in: part) == 3)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: part) == "3")
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("3", in: part) == "3")
+         let descriptor = try #require(ShowTrackDescriptor(stream: part.streams[2]))
+         let remembered = ShowTrackPreferences(subtitles: .track(descriptor))
+         let decision = StreamResolver.evaluateForDirectPlayback(
+@@ -423,14 +423,14 @@ struct ShowTrackPreferenceTests {
+             {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng","hearingImpaired":true,"displayTitle":"English SDH"},
+             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English"}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part) == 7)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: part) == "7")
+         for vobsub in ["vobsub", "dvd_subtitle"] {
+             let vob = try episode(streams: """
+                 \(hdr10Video),
+                 {"id":6,"streamType":3,"codec":"\(vobsub)","languageCode":"eng"},
+                 {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
+                 """).media[0].parts[0]
+-            #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: vob) == 7, "\(vobsub)")
++            #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: vob) == "7", "\(vobsub)")
+         }
+     }
+ 
+@@ -440,7 +440,7 @@ struct ShowTrackPreferenceTests {
+             {"id":5,"streamType":3,"codec":"srt","languageCode":"fra"},
+             {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part) == nil)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: part) == nil)
+     }
+ 
+     @Test func forcedStaysForcedAndFullStaysFull() throws {
+@@ -451,15 +451,15 @@ struct ShowTrackPreferenceTests {
+             {"id":6,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English"},
+             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English Forced"}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 7)
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(5, in: part) == 6)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: part) == "7")
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("5", in: part) == "6")
+         // Forced-only text never stands in for full subtitles, nor the reverse.
+         let fullOnly = try episode(streams: """
+             \(hdr10Video),
+             {"id":4,"streamType":3,"codec":"pgs","languageCode":"eng","forced":true},
+             {"id":6,"streamType":3,"codec":"srt","languageCode":"eng"}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: fullOnly) == nil)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: fullOnly) == nil)
+     }
+ 
+     @Test func matchingSDHFlagIsPreferred() throws {
+@@ -469,7 +469,7 @@ struct ShowTrackPreferenceTests {
+             {"id":5,"streamType":3,"codec":"srt","languageCode":"eng"},
+             {"id":6,"streamType":3,"codec":"srt","languageCode":"eng","hearingImpaired":true}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 6)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("4", in: part) == "6")
+     }
+ 
+     @Test func sdrAndTextPicksAreUnchanged() throws {
+@@ -478,12 +478,12 @@ struct ShowTrackPreferenceTests {
+             {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"},
+             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: sdr) == 6)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("6", in: sdr) == "6")
+         let hdr = try episode(streams: """
+             \(hdr10Video),
+             {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
+             """).media[0].parts[0]
+-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(7, in: hdr) == 7)
++        #expect(ShowTrackPreferences.remuxSubtitleStreamID("7", in: hdr) == "7")
+         #expect(ShowTrackPreferences.remuxSubtitleStreamID(nil, in: hdr) == nil)
+     }
+ 
+@@ -498,15 +498,15 @@ struct ShowTrackPreferenceTests {
+         let part = media.parts[0]
+         let decision = StreamResolver.evaluate(media: media)
+         let audio = try #require(part.streams.first { $0.streamType == .audio })
+-        func blocker(_ subtitleID: Int?) -> String? {
++        func blocker(_ subtitleID: String?) -> String? {
+             StreamResolver.hdrAudioConversionRemuxBlocker(
+                 media: media, decision: decision, audioStream: audio,
+                 subtitleStream: subtitleID.flatMap { id in part.streams.first { $0.id == id } },
+                 displaySupportsHDR: true, hdrVideoRemuxEnabled: true
+             )
+         }
+-        #expect(blocker(6) != nil)
+-        #expect(blocker(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part)) == nil)
++        #expect(blocker("6") != nil)
++        #expect(blocker(ShowTrackPreferences.remuxSubtitleStreamID("6", in: part)) == nil)
+     }
+ 
+     private func episode(
+diff --git a/DuskTests/StillWatchingInteractionTests.swift b/DuskTests/StillWatchingInteractionTests.swift
+index 9d78c9e..97631e1 100644
+--- a/DuskTests/StillWatchingInteractionTests.swift
++++ b/DuskTests/StillWatchingInteractionTests.swift
+@@ -15,7 +15,7 @@ struct StillWatchingInteractionTests {
+     func explicitPlaybackActionsResetToZero(action: String) throws {
+         let playback = PlaybackCoordinator(plexService: PlexService())
+         let engine = InteractionPlaybackEngine()
+-        let marker = Marker(id: 42, type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
++        let marker = Marker(id: "42", type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
+         let model = PlayerViewModel(engine: engine, markers: [marker])
+         defer { model.cleanup() }
+         model.userInteractionHandler = { playback.noteUserInteraction() }
+@@ -90,7 +90,7 @@ struct StillWatchingInteractionTests {
+     @Test func automaticSeeksTrackSelectionAndStateUpdatesDoNotReset() {
+         let playback = PlaybackCoordinator(plexService: PlexService())
+         let engine = InteractionPlaybackEngine()
+-        let marker = Marker(id: 42, type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
++        let marker = Marker(id: "42", type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
+         let model = PlayerViewModel(engine: engine, markers: [marker])
+         defer { model.cleanup() }
+         model.userInteractionHandler = { playback.noteUserInteraction() }
+diff --git a/DuskTests/SubtitleSelectionPolicyTests.swift b/DuskTests/SubtitleSelectionPolicyTests.swift
+index 7e18bae..ceddc51 100644
+--- a/DuskTests/SubtitleSelectionPolicyTests.swift
++++ b/DuskTests/SubtitleSelectionPolicyTests.swift
+@@ -142,7 +142,7 @@ struct SubtitleSelectionPolicyTests {
+         #expect(try pick(policy(.auto), audio: "jpn", streams: Self.honorifics, serverSelected: true) == 61)
+         #expect(try pick(policy(.always), audio: "eng", streams: Self.honorifics, serverSelected: true) == 61)
+         let part = try self.part(Self.honorifics)
+-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == 61)
++        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == "61")
+     }
+ 
+     @Test func serverSelectionNeverOverridesModeOrLanguage() throws {
+@@ -181,15 +181,15 @@ struct SubtitleSelectionPolicyTests {
+     @Test func startupPickUsesTheAudioThePreferenceOpensOn() throws {
+         let part = try self.part(Self.streams)
+         // English audio exists, so the session starts English: forced only.
+-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: nil) == 22)
++        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: nil) == "22")
+         // Japanese preference: the session starts Japanese, so full English.
+-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: "ja"), audioStream: nil) == 20)
++        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: "ja"), audioStream: nil) == "20")
+     }
+ 
+     @Test func startupPickFollowsARememberedAudioTrack() throws {
+         let part = try self.part(Self.streams)
+-        let japanese = try #require(part.streams.first { $0.id == 11 })
+-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: japanese) == 20)
++        let japanese = try #require(part.streams.first { $0.id == "11" })
++        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto), audioStream: japanese) == "20")
+     }
+ 
+     @Test func startupPickWithOriginalAudioUsesTheDefaultTrack() throws {
+@@ -199,7 +199,7 @@ struct SubtitleSelectionPolicyTests {
+             {"id":20,"streamType":3,"languageCode":"eng","codec":"srt"},
+             {"id":22,"streamType":3,"languageCode":"eng","codec":"srt","forced":true}
+             """#)
+-        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == 20)
++        #expect(PlayerViewModel.preferredSubtitleStreamID(inPart: part, policy: policy(.auto, audio: ""), audioStream: nil) == "20")
+     }
+ 
+     // MARK: - Settings
+diff --git a/DuskTests/TrueHDAudioRoutingTests.swift b/DuskTests/TrueHDAudioRoutingTests.swift
+index 3139781..5e08d4e 100644
+--- a/DuskTests/TrueHDAudioRoutingTests.swift
++++ b/DuskTests/TrueHDAudioRoutingTests.swift
+@@ -50,7 +50,7 @@ struct TrueHDAudioRoutingTests {
+     @Test func remuxDecisionKeepsTheCopyableSibling() throws {
+         let part = try makePart(audio: bluRayAudio)
+         let stream = PlayerViewModel.preferredRemuxAudioStream(inPart: part, preferredLanguage: nil)
+-        #expect(stream?.id == 3)
++        #expect(stream?.id == "3")
+     }
+ 
+     @Test func remuxDecisionPrefersEAC3AtmosOverTrueHDAtmos() throws {
+@@ -59,14 +59,14 @@ struct TrueHDAudioRoutingTests {
+             { "id": 3, "streamType": 2, "codec": "eac3", "channels": 8, "languageCode": "eng", "profile": "dolby digital plus + dolby atmos", "displayTitle": "English (EAC3 7.1 Atmos)" }
+             """)
+         let stream = try #require(PlayerViewModel.preferredRemuxAudioStream(inPart: part, preferredLanguage: nil))
+-        #expect(stream.id == 3)
++        #expect(stream.id == "3")
+         #expect(StreamResolver.isSpatialAudioCandidate(stream))
+     }
+ 
+     @Test func remuxDecisionFallsBackToTrueHDWhenItIsTheOnlyTrack() throws {
+         let part = try makePart(audio: trueHDOnlyAudio)
+         let stream = PlayerViewModel.preferredRemuxAudioStream(inPart: part, preferredLanguage: nil)
+-        #expect(stream?.id == 2)
++        #expect(stream?.id == "2")
+         #expect(PlayerViewModel.isTrueHDAudioCodec(stream?.codec))
+     }
+ 
+@@ -148,7 +148,7 @@ struct TrueHDAudioRoutingTests {
+         // Direct play (no HDR display, setting off) still opens on TrueHD.
+         #expect(PlayerViewModel.preferredLocalAudioStream(
+             inPart: media.parts[0], preferredLanguage: nil, decodesTrueHD: true
+-        )?.id == 2)
++        )?.id == "2")
+     }
+ 
+     @Test func hdrGateHonoursDisplayAndSetting() throws {
+@@ -168,7 +168,7 @@ struct TrueHDAudioRoutingTests {
+             audio: trueHDOnlyAudio,
+             subtitleCodec: "pgs"
+         )
+-        #expect(convertedBlocker(for: media, subtitleID: 9) != nil)
++        #expect(convertedBlocker(for: media, subtitleID: "9") != nil)
+     }
+ 
+     @Test func convertedRequestCopiesVideoAndRequiresDDPlus() {
+@@ -177,7 +177,7 @@ struct TrueHDAudioRoutingTests {
+             itemID: "1", mediaIndex: 0, sourcePath: nil,
+             mode: .spatialAudioRemux(convertsAudio: true),
+             sessionIdentifier: "session", transcodeSessionID: "transcode",
+-            audioStreamID: 2, subtitleStreamID: 9, token: nil
++            audioStreamID: "2", subtitleStreamID: "9", token: nil
+         )
+         let query = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
+         #expect(query["directPlay"] == "0")
+@@ -246,7 +246,7 @@ struct TrueHDAudioRoutingTests {
+         )
+         let media = try makeMedia(video: dv7Video, audio: trueHDOnlyAudio)
+         let playback = PlaybackCoordinator(plexService: PlexService())
+-        playback.activeAudioStreamID = 2
++        playback.activeAudioStreamID = "2"
+         for (profile, expectsAtmos) in [
+             (nil, false), ("dolby digital plus", false),
+             ("dolby truehd + dolby atmos", false),
+@@ -255,7 +255,7 @@ struct TrueHDAudioRoutingTests {
+             decision.audioProfile = profile
+             #expect(decision.hasDolbyAtmosAudio == expectsAtmos)
+             playback.remuxAudioConversion = RemuxAudioConversion(
+-                audioStreamID: 2, restoresDolbyAtmos: decision.hasDolbyAtmosAudio
++                audioStreamID: "2", restoresDolbyAtmos: decision.hasDolbyAtmosAudio
+             )
+             #expect(playback.activeAudioStreamIsDolbyAtmos(in: media.parts[0]) == expectsAtmos)
+         }
+@@ -276,7 +276,7 @@ struct TrueHDAudioRoutingTests {
+ 
+     private func convertedBlocker(
+         for media: MediaVersion,
+-        subtitleID: Int? = nil,
++        subtitleID: String? = nil,
+         displaySupportsHDR: Bool = true,
+         hdrVideoRemuxEnabled: Bool = true
+     ) -> String? {
+diff --git a/DuskTests/VideoEnhancementSubtitleTests.swift b/DuskTests/VideoEnhancementSubtitleTests.swift
+index a087a8d..0058080 100644
+--- a/DuskTests/VideoEnhancementSubtitleTests.swift
++++ b/DuskTests/VideoEnhancementSubtitleTests.swift
+@@ -82,7 +82,7 @@ struct VideoEnhancementSubtitleTests {
+     @Test(arguments: [VideoEnhancementMode.automatic, .enabled])
+     func sdrEmbeddedSubtitleEngineChoiceIsTVOnly(mode: VideoEnhancementMode) throws {
+         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
+-        let decision = directDecision(media, mode: mode, subtitleID: 3)
++        let decision = directDecision(media, mode: mode, subtitleID: "3")
+         #if os(tvOS)
+         #expect(decision.engine == .vlcKit)
+         #expect(decision.usesEnhancedSubtitleRenderer)
+@@ -95,12 +95,12 @@ struct VideoEnhancementSubtitleTests {
+     @Test func subtitleOffSidecarsAndDisabledEnhancementKeepTheNormalEngine() throws {
+         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
+         // Metadata says selected/default/forced, but an actual Off choice wins.
+-        for subtitleID: Int? in [nil, 4, 999] {
++        for subtitleID: String? in [nil, "4", "999"] {
+             let decision = directDecision(media, mode: .enabled, subtitleID: subtitleID)
+             #expect(decision.engine == .avPlayer)
+             #expect(!decision.usesEnhancedSubtitleRenderer)
+         }
+-        #expect(directDecision(media, mode: .disabled, subtitleID: 3).engine == .avPlayer)
++        #expect(directDecision(media, mode: .disabled, subtitleID: "3").engine == .avPlayer)
+     }
+ 
+     /// 10-bit H.264 is Hi10P: AVPlayer has no hardware decoder, so the
+@@ -109,7 +109,7 @@ struct VideoEnhancementSubtitleTests {
+     @Test(arguments: [VideoEnhancementMode.automatic, .enabled])
+     func tenBitH264GoesToVLCKitWithoutTheEnhancementOverride(mode: VideoEnhancementMode) throws {
+         let media = try engineSelectionMedia(videoFields: #","bitDepth":10"#)
+-        let decision = directDecision(media, mode: mode, subtitleID: 3)
++        let decision = directDecision(media, mode: mode, subtitleID: "3")
+         #expect(decision.engine == .vlcKit)
+         #expect(decision.reason.contains("10-bit H.264"))
+         #expect(!decision.usesEnhancedSubtitleRenderer)
+@@ -132,7 +132,7 @@ struct VideoEnhancementSubtitleTests {
+     func hdrDolbyVisionAndUnknownRangeNeverGetTheOverride(videoFields: String) throws {
+         let media = try engineSelectionMedia(videoFields: videoFields)
+         for mode: VideoEnhancementMode in [.automatic, .enabled] {
+-            let decision = directDecision(media, mode: mode, subtitleID: 3)
++            let decision = directDecision(media, mode: mode, subtitleID: "3")
+             #expect(decision.engine == .avPlayer)
+             #expect(!decision.usesEnhancedSubtitleRenderer)
+         }
+@@ -140,7 +140,7 @@ struct VideoEnhancementSubtitleTests {
+ 
+     @Test func sdrTransferCanEstablishRangeWithoutBitDepth() throws {
+         let media = try engineSelectionMedia(videoFields: #","colorTrc":"bt709""#)
+-        let decision = directDecision(media, mode: .enabled, subtitleID: 3)
++        let decision = directDecision(media, mode: .enabled, subtitleID: "3")
+         #if os(tvOS)
+         #expect(decision.usesEnhancedSubtitleRenderer)
+         #else
+@@ -150,7 +150,7 @@ struct VideoEnhancementSubtitleTests {
+ 
+     @Test func sdrContainersThatNeedVLCCanAlsoPreferEnhancementOverTheAtmosRemux() throws {
+         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#, container: "mkv")
+-        let decision = directDecision(media, mode: .enabled, subtitleID: 3)
++        let decision = directDecision(media, mode: .enabled, subtitleID: "3")
+         #expect(decision.engine == .vlcKit)
+         #if os(tvOS)
+         #expect(decision.usesEnhancedSubtitleRenderer)
+@@ -158,18 +158,18 @@ struct VideoEnhancementSubtitleTests {
+         #expect(!decision.usesEnhancedSubtitleRenderer)
+         #endif
+         let hdr = try engineSelectionMedia(videoFields: #","colorTrc":"smpte2084""#, container: "mkv")
+-        #expect(!directDecision(hdr, mode: .enabled, subtitleID: 3).usesEnhancedSubtitleRenderer)
++        #expect(!directDecision(hdr, mode: .enabled, subtitleID: "3").usesEnhancedSubtitleRenderer)
+     }
+ 
+     @Test func frameRateLimitsAndExplicitEngineOverridesStillWin() throws {
+         let media = try engineSelectionMedia(videoFields: #","bitDepth":8,"frameRate":120"#)
+-        #expect(directDecision(media, mode: .enabled, subtitleID: 3).engine == .avPlayer)
++        #expect(directDecision(media, mode: .enabled, subtitleID: "3").engine == .avPlayer)
+         let autoSkipped = try engineSelectionMedia(videoFields: #","bitDepth":8,"frameRate":60"#)
+-        #expect(directDecision(autoSkipped, mode: .automatic, subtitleID: 3).engine == .avPlayer)
++        #expect(directDecision(autoSkipped, mode: .automatic, subtitleID: "3").engine == .avPlayer)
+         let sdr = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
+         let forcedAV = StreamResolver.evaluateForDirectPlayback(
+             media: sdr, part: sdr.parts[0], enhancementMode: .enabled,
+-            selectedSubtitleStreamID: 3, forceAVPlayer: true
++            selectedSubtitleStreamID: "3", forceAVPlayer: true
+         )
+         #expect(forcedAV.engine == .avPlayer)
+         #expect(!forcedAV.usesEnhancedSubtitleRenderer)
+@@ -182,7 +182,7 @@ struct VideoEnhancementSubtitleTests {
+     }
+ 
+     private func directDecision(
+-        _ media: MediaVersion, mode: VideoEnhancementMode, subtitleID: Int?
++        _ media: MediaVersion, mode: VideoEnhancementMode, subtitleID: String?
+     ) -> StreamResolver.Decision {
+         StreamResolver.evaluateForDirectPlayback(
+             media: media, part: media.parts[0], enhancementMode: mode,
+@@ -215,15 +215,15 @@ struct VideoEnhancementSubtitleTests {
+         player.subtitlePolicy = SubtitleSelectionPolicy(
+             mode: .off, subtitleLanguage: nil, audioLanguage: nil, forcedSubtitlesEnabled: true
+         )
+-        player.subtitleTracks = media.parts[0].streams.filter { $0.id == 3 }.map(SubtitleTrack.init(stream:))
+-        player.audioTracks = media.parts[0].streams.filter { $0.id == 11 }.map(AudioTrack.init(stream:))
++        player.subtitleTracks = media.parts[0].streams.filter { $0.id == "3" }.map(SubtitleTrack.init(stream:))
++        player.audioTracks = media.parts[0].streams.filter { $0.id == "11" }.map(AudioTrack.init(stream:))
+         player.selectedAudioTrackID = 11
+         var reported: ExplicitTrackSelection?
+         player.plexTrackSelectionHandler = { audioID, subtitleID in
+             reported = ExplicitTrackSelection(audioStreamID: audioID, subtitleStreamID: subtitleID)
+         }
+         player.applyAutomaticTrackSelectionIfNeeded()
+-        #expect(reported == ExplicitTrackSelection(audioStreamID: 11, subtitleStreamID: 3))
++        #expect(reported == ExplicitTrackSelection(audioStreamID: "11", subtitleStreamID: "3"))
+     }
+ 
+     @Test @MainActor
+@@ -257,11 +257,11 @@ struct VideoEnhancementSubtitleTests {
+                 playback.activePlaybackSessionIdentifier = "existing-session"
+                 playback.activePlaybackUsesLocalDownload = isDownload
+                 playback.hasScrobbled = true
+-                playback.activeAudioStreamID = 11
++                playback.activeAudioStreamID = "11"
+                 let url = try #require(URL(string: isDownload ? "file:///tmp/clip.mp4" : "https://example.invalid/clip.mp4"))
+                 let context = PlaybackAttemptContext(
+                     attemptID: UUID(), title: "SDR", itemID: "1", engine: .avPlayer,
+-                    resolverReason: "MP4", mediaID: 1, partID: 1, sanitizedPlaybackURL: url.absoluteString
++                    resolverReason: "MP4", mediaID: "1", partID: "1", sanitizedPlaybackURL: url.absoluteString
+                 )
+                 playback.debugInfo = PlaybackDebugInfo(
+                     title: "SDR", engine: .avPlayer, decision: isDownload ? .localDownload : .directPlay,
+@@ -274,7 +274,7 @@ struct VideoEnhancementSubtitleTests {
+                     url: url, startPosition: 100, shouldAutoPlay: initialState == .paused, context: context
+                 )
+                 let presentationID = playback.playerPresentationID
+-                playback.selectPlexStreamsForPlayback(audioStreamID: 11, subtitleStreamID: 3)
++                playback.selectPlexStreamsForPlayback(audioStreamID: "11", subtitleStreamID: "3")
+                 #expect(oldEngine.didStop)
+                 #expect(playback.engine is VLCKitEngine)
+                 #expect(playback.debugInfo?.engine == .vlcKit)
+@@ -287,11 +287,11 @@ struct VideoEnhancementSubtitleTests {
+                 #expect(playback.activePlaybackSessionIdentifier == "existing-session")
+                 #expect(playback.hasScrobbled)
+                 #expect(playback.playerPresentationID != presentationID)
+-                #expect(playback.consumePendingExplicitTrackSelection() == ExplicitTrackSelection(audioStreamID: 11, subtitleStreamID: 3))
++                #expect(playback.consumePendingExplicitTrackSelection() == ExplicitTrackSelection(audioStreamID: "11", subtitleStreamID: "3"))
+                 #expect(playback.consumePendingExplicitTrackSelection() == nil)
+                 let vlcPresentationID = playback.playerPresentationID
+-                for subtitleID: Int? in [nil, 3, nil, 3, nil] {
+-                    playback.selectPlexStreamsForPlayback(audioStreamID: 11, subtitleStreamID: subtitleID)
++                for subtitleID: String? in [nil, "3", nil, "3", nil] {
++                    playback.selectPlexStreamsForPlayback(audioStreamID: "11", subtitleStreamID: subtitleID)
+                     #expect(playback.playerPresentationID == vlcPresentationID)
+                     #expect(playback.debugInfo?.engine == .vlcKit)
+                     #expect(playback.playbackSource?.url == url)
+diff --git a/docs/data-and-plex.md b/docs/data-and-plex.md
+index 489be96..05079f3 100644
+--- a/docs/data-and-plex.md
++++ b/docs/data-and-plex.md
+@@ -424,7 +424,7 @@ Extras (`PlexService+Extras.swift`, `Domain/Extra.swift`):
+ 
+ Hubs and search:
+ - `getHubs()` -> `/hubs`.
+-- `HomeRow.librarySectionID` decodes int-or-string; `resolvedLibrarySectionID`
++- `HomeRow.libraryID` decodes int-or-string; `resolvedLibrarySectionID`
+   falls back to the numeric suffix of `hubIdentifier`
+   ("movie.recentlyadded.3" -> "3") because not every server sends the field.
+   That id is what lets Home group a library's rows together.
+@@ -818,7 +818,8 @@ servers hand out the same `ratingKey` for different titles. Identity therefore
+ always carries the server.
+ 
+ - `Domain/MediaItemID.swift` defines `CodingUserInfoKey.duskServerID`,
+-  `Decoder.duskServerID`, and `MediaItemID { serverID, ratingKey }`. Each model's
++  `Decoder.duskServerID`, and `MediaItemID { serverID, itemID }` (Codable key
++  `ratingKey`). Each model's
+   `init(from:)` reads `decoder.duskServerID` and stamps it, so nested items are
+   stamped automatically. Do not add post-decode copy helpers or wrappers.
+ - `MediaItem.id`, `MediaDetails.id`, `Episode.id`, and `Season.id` are
+@@ -826,6 +827,15 @@ always carries the server.
+   `"<serverID>|<key>"`. `AppNavigationRoute` carries a `MediaItemID`.
+ - `serverID` is `String?`: nil means "not stamped" (a model built locally or
+   decoded outside the pool), not "the primary server".
++- Swift field names are neutral (`itemID`, `parentID`, `grandparentID`,
++  `libraryID`); every `CodingKeys` case keeps the Plex/persisted key
++  (`ratingKey`, …). Version, part, stream and marker ids are `String`:
++  decoded from a number or a string, written back as a number when they are
++  one (`Domain/MediaIDCoding.swift`), so `downloads.json` and the
++  converted-media blob are unchanged. Order ids with `mediaIDPrecedes`, never
++  `<` on the strings.
++- `Providers/Core/ServerRegistry.swift`: which provider a `serverID` belongs
++  to; a server with no record is Plex. Lookup only, nothing stored yet.
+ - `Domain/ContentKey.swift` is the *cross-server* identity used for merging:
+   the scalar `guid` when it starts with `plex://`, else tmdb > imdb > tvdb from
+   the `guids` array namespaced by type, else `type|normalizedTitle|year`
+diff --git a/docs/playback.md b/docs/playback.md
+index fb191a4..1cf2f60 100644
+--- a/docs/playback.md
++++ b/docs/playback.md
+@@ -1079,7 +1079,7 @@ so the whole live HUD is derived from one instant.
+   height at/below target, then closest above target, then unknown-height
+   candidates by bitrate.
+ - Tie-breakers are higher bitrate, `optimizedForStreaming`, then Plex order.
+-- `playVersion(ratingKey:mediaID:)` bypasses automatic version choice but still
++- `playVersion(id:mediaID:)` bypasses automatic version choice but still
+   requires that media version to have at least one part.
+ - `StreamResolver.evaluate` only decides engine type, reason, and the
+   `requiresServerTranscode` flag. It does not build URLs, validate network

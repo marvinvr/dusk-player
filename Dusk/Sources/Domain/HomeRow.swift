@@ -46,18 +46,18 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
     let more: Bool?
     /// Section this row belongs to. Present on `GET /hubs` rows that come from a
     /// library; absent on global rows such as Continue Watching.
-    let librarySectionID: String?
+    let libraryID: String?
     let librarySectionTitle: String?
     let items: [MediaItem]
 
     enum CodingKeys: String, CodingKey {
         case key, title, type, hubIdentifier, size, more
-        case librarySectionID, librarySectionTitle
+        case libraryID = "librarySectionID", librarySectionTitle
         case metadata = "Metadata"
         case directories = "Directory"
     }
 
-    /// `librarySectionID` and `librarySectionTitle` are required parameters on
+    /// `libraryID` and `librarySectionTitle` are required parameters on
     /// purpose: every call site has to decide what it means by them. Prefer
     /// `replacingItems(_:)` over calling this directly.
     init(
@@ -67,7 +67,7 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
         hubIdentifier: String?,
         size: Int?,
         more: Bool?,
-        librarySectionID: String?,
+        libraryID: String?,
         librarySectionTitle: String?,
         items: [MediaItem],
         serverID: String? = nil,
@@ -83,7 +83,7 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
         self.hubIdentifier = hubIdentifier
         self.size = size
         self.more = more
-        self.librarySectionID = librarySectionID
+        self.libraryID = libraryID
         self.librarySectionTitle = librarySectionTitle
         self.items = items
     }
@@ -92,11 +92,11 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
     ///
     /// Falls back to a section in the paging URL or the numeric suffix Plex appends to per-library hub
     /// identifiers (`movie.recentlyadded.3` -> `"3"`), which older servers send
-    /// even when `librarySectionID` is missing from the payload. Global rows
+    /// even when `libraryID` is missing from the payload. Global rows
     /// (`home.continue`, `home.ondeck`) have neither and resolve to nil.
     var resolvedLibrarySectionID: String? {
-        if let librarySectionID = librarySectionID?.nilIfEmpty {
-            return librarySectionID
+        if let libraryID = libraryID?.nilIfEmpty {
+            return libraryID
         }
         // Some PMS versions only identify the section in the paging URL.
         if let key, let url = URLComponents(string: key) {
@@ -128,7 +128,7 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
             hubIdentifier: hubIdentifier,
             size: size,
             more: more,
-            librarySectionID: librarySectionID,
+            libraryID: libraryID,
             librarySectionTitle: librarySectionTitle,
             items: items,
             serverID: serverID,
@@ -153,7 +153,7 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
             hubIdentifier: hubIdentifier,
             size: size,
             more: more,
-            librarySectionID: librarySectionID,
+            libraryID: libraryID,
             librarySectionTitle: librarySectionTitle,
             items: items,
             serverID: sources.count == 1 ? sources[0].serverID : nil,
@@ -174,11 +174,11 @@ struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
         size = try container.decodeIfPresent(Int.self, forKey: .size)
         more = try container.decodeIfPresent(Bool.self, forKey: .more) ??
             (try container.decodeIfPresent(Int.self, forKey: .more).map { $0 != 0 })
-        // Plex serializes librarySectionID as a number; tolerate strings too.
-        if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .librarySectionID) {
-            librarySectionID = String(numericSectionID)
+        // Plex serializes libraryID as a number; tolerate strings too.
+        if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .libraryID) {
+            libraryID = String(numericSectionID)
         } else {
-            librarySectionID = (try? container.decodeIfPresent(String.self, forKey: .librarySectionID)) ?? nil
+            libraryID = (try? container.decodeIfPresent(String.self, forKey: .libraryID)) ?? nil
         }
         librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
 

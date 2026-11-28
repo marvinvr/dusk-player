@@ -10,7 +10,7 @@ final class MovieDetailViewModel {
     /// to `id.serverID`, never to whichever server happens to be primary.
     let id: MediaItemID
 
-    var ratingKey: String { id.ratingKey }
+    var itemID: String { id.itemID }
 
     private(set) var details: MediaDetails?
     private(set) var copies: [MediaDetails] = []
@@ -55,7 +55,7 @@ final class MovieDetailViewModel {
         }
 
         do {
-            let fetched = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
+            let fetched = try await plexService.getMediaDetails(itemID: itemID, serverID: serverID)
             details = fetched
             copies = await plexService.movieCopies(for: fetched)
             isUsingCachedData = false
@@ -74,7 +74,7 @@ final class MovieDetailViewModel {
         if isUsingCachedData || isPlayableOffline {
             offlinePlaybackSyncManager?.recordWatchState(
                 serverID: serverID,
-                ratingKey: ratingKey,
+                itemID: itemID,
                 watched: targetWatched
             )
             offlineStateVersion += 1
@@ -85,14 +85,14 @@ final class MovieDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 targetWatched,
-                id: MediaItemID(serverID: serverID, ratingKey: ratingKey)
+                id: MediaItemID(serverID: serverID, itemID: itemID)
             )
             await refreshDetails()
         } catch {
             if isPlayableOffline {
                 offlinePlaybackSyncManager?.recordWatchState(
                     serverID: serverID,
-                    ratingKey: ratingKey,
+                    itemID: itemID,
                     watched: targetWatched
                 )
                 offlineStateVersion += 1
@@ -109,7 +109,7 @@ final class MovieDetailViewModel {
         let fallback = (resumeDetails?.viewCount ?? 0) > 0
         return offlinePlaybackSyncManager?.effectiveWatched(
             serverID: serverID,
-            ratingKey: ratingKey,
+            itemID: itemID,
             fallback: fallback
         ) ?? fallback
     }
@@ -129,7 +129,7 @@ final class MovieDetailViewModel {
         _ = offlineStateVersion
         guard let offset = offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID,
-            ratingKey: ratingKey,
+            itemID: itemID,
             fallback: resumeDetails?.viewOffset
         ) ?? resumeDetails?.viewOffset, offset > 0 else { return nil }
         return TimeInterval(offset) / 1000.0
@@ -202,7 +202,7 @@ extension MovieDetailViewModel {
     func makeSubtitleSearchViewModel(preferredLanguageCode: String?) -> SubtitleSearchViewModel {
         SubtitleSearchViewModel(
             plexService: plexService,
-            ratingKey: ratingKey,
+            itemID: itemID,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode
         ) { [weak self] _ in

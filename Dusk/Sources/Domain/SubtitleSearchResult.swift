@@ -1,7 +1,7 @@
 import Foundation
 
 /// One OpenSubtitles candidate returned by Plex's server-side subtitle search
-/// (`GET /library/metadata/{ratingKey}/subtitles`).
+/// (`GET /library/metadata/{itemID}/subtitles`).
 ///
 /// Plex proxies OpenSubtitles itself, so Dusk needs no OpenSubtitles account or
 /// API key. Every field except `key` is optional: the shape varies by server

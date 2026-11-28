@@ -64,7 +64,7 @@ final class PlaybackCoordinator {
     /// `PlayerViewModel` so it survives the engine swaps that rebuild the player
     /// (quality switch, delivery-ladder fallback, Picture in Picture restore);
     /// cleared when the next item's session commits.
-    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
+    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<String> = []
     /// The Dolby Vision 7 → 8.1 conversion failed for the item now playing,
     /// so its remux is rebuilt (and kept) without it. Reset for each new item.
     @ObservationIgnored var isDolbyVision7ConversionSuppressed = false
@@ -99,11 +99,11 @@ final class PlaybackCoordinator {
     @ObservationIgnored var activeShowTrackScope: ShowTrackPreferenceStore.Scope?
     /// Plex stream selections that must survive local → AirPlay handoffs. Engine
     /// ids are implementation-local, so the player maps them back to these ids.
-    var activeAudioStreamID: Int?
+    var activeAudioStreamID: String?
     /// A picker choice for this item, including movies. Survives player
     /// presentation and engine replacements; cleared when a new item commits.
-    var manuallySelectedAudioStreamID: Int?
-    var activeSubtitleStreamID: Int?
+    var manuallySelectedAudioStreamID: String?
+    var activeSubtitleStreamID: String?
     /// Set while a remux session has Plex convert its audio (TrueHD and other
     /// codecs the fMP4 cannot carry). Rebuilding that remux around the same
     /// audio stream must keep converting: the stream itself may be locally
@@ -119,7 +119,7 @@ final class PlaybackCoordinator {
     /// Plex subtitle stream id to select as soon as the player can mount it.
     /// Set by the sidecar-download flow and by the AVPlayer → VLCKit switch,
     /// consumed by `PlayerViewModel.configureAutomaticTrackSelection`.
-    var pendingExternalSubtitleStreamID: Int?
+    var pendingExternalSubtitleStreamID: String?
     /// Plex audio/subtitle choice to carry into the next player configuration
     /// when a remux returns to direct play or enhanced SDR subtitles switch
     /// tvOS from AVPlayer to VLCKit. Consumed once by `PlayerView`.
@@ -160,7 +160,7 @@ final class PlaybackCoordinator {
     /// Set once by `DuskApp`; receives each scrobbled movie/episode.
     @ObservationIgnored var traktService: TraktService?
     @ObservationIgnored let nowPlayingController = PlaybackNowPlayingController()
-    var ratingKey: String?
+    var itemID: String?
     /// The server the live session is actually playing from. Authoritative for
     /// timeline, scrobble, transcode ping/stop, subtitles, scrub previews and
     /// Up Next: a rating key means something different on every other server,
@@ -266,7 +266,7 @@ final class PlaybackCoordinator {
         sharePlayController.playbackCoordinator = self
         sharePlayController.startListening()
         queueItemLookup = { [plexService] item in
-            try await plexService.getMediaDetails(ratingKey: item.ratingKey, serverID: item.serverID)
+            try await plexService.getMediaDetails(itemID: item.itemID, serverID: item.serverID)
         }
     }
 
@@ -317,7 +317,7 @@ final class PlaybackCoordinator {
     /// Hands the pending sidecar selection to the player exactly once. It must
     /// not survive into a later re-presentation of the same session (returning
     /// from Picture in Picture), or it would override the viewer's own choice.
-    func consumePendingExternalSubtitleStreamID() -> Int? {
+    func consumePendingExternalSubtitleStreamID() -> String? {
         defer { pendingExternalSubtitleStreamID = nil }
         return pendingExternalSubtitleStreamID
     }
@@ -349,8 +349,8 @@ final class PlaybackCoordinator {
     /// Server-scoped identity of what is playing, for call sites that route by
     /// item rather than by rating key.
     var activeItemID: MediaItemID? {
-        guard let ratingKey else { return nil }
-        return MediaItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
+        guard let itemID else { return nil }
+        return MediaItemID(serverID: activePlaybackServerID, itemID: itemID)
     }
 
     var canSharePlayCurrentPlayback: Bool {
@@ -364,7 +364,7 @@ final class PlaybackCoordinator {
         let placeholder = PlaybackPlaceholder(details: details)
         return DuskWatchTogetherActivity(
             serverIdentifier: serverIdentifier,
-            ratingKey: details.ratingKey,
+            itemID: details.itemID,
             title: placeholder.title,
             subtitle: placeholder.subtitle
         )
@@ -514,7 +514,7 @@ final class PlaybackCoordinator {
             let context = PlaybackAttemptContext(
                 attemptID: attemptID,
                 title: title,
-                ratingKey: program?.ratingKey ?? tune.sessionID,
+                itemID: program?.itemID ?? tune.sessionID,
                 engine: engineType,
                 resolverReason: resolverReason,
                 mediaID: tune.media.id,
@@ -532,7 +532,7 @@ final class PlaybackCoordinator {
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
-            ratingKey = program?.ratingKey ?? tune.sessionID
+            itemID = program?.itemID ?? tune.sessionID
             // Every follow-up call (timeline, transcode ping/stop) has to reach
             // the server that actually holds the tuner session.
             activePlaybackServerID = tune.serverID
@@ -662,11 +662,11 @@ final class PlaybackCoordinator {
         let context = PlaybackAttemptContext(
             attemptID: attemptID,
             title: title,
-            ratingKey: sessionID,
+            itemID: sessionID,
             engine: .avPlayer,
             resolverReason: isCatchUp ? "IPTV catch-up; always AVPlayer" : "IPTV channel; always AVPlayer",
-            mediaID: 0,
-            partID: 0,
+            mediaID: "0",
+            partID: "0",
             sanitizedPlaybackURL: sanitizedURL
         )
         // A catch-up programme has no live context: it plays in the
@@ -686,7 +686,7 @@ final class PlaybackCoordinator {
         lastReportedDurationMs = 0
         // Only keys the session locally (Now Playing, timeline ticks);
         // `reportTimelineOrQueueOfflineSync` never sends IPTV to Plex.
-        ratingKey = sessionID
+        itemID = sessionID
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false
         activePlaybackSessionIdentifier = nil
@@ -896,7 +896,7 @@ final class PlaybackCoordinator {
     /// versions, so falling back would silently play something else.
     func playVersion(
         id: MediaItemID,
-        mediaID: Int,
+        mediaID: String,
         resumeOffsetMilliseconds: Int?,
         placeholder: PlaybackPlaceholder? = nil
     ) async {
@@ -917,7 +917,7 @@ final class PlaybackCoordinator {
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
-        selectedMediaID: Int?,
+        selectedMediaID: String?,
         restrictToItemServer: Bool = false,
         placeholder: PlaybackPlaceholder?,
         queue: PlaybackQueue? = nil
@@ -997,7 +997,7 @@ final class PlaybackCoordinator {
         cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
         isPlayingIPTVCatchUp = false
-        ratingKey = nil
+        itemID = nil
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil
 
@@ -1063,7 +1063,7 @@ final class PlaybackCoordinator {
     /// Records that a marker's one-shot auto-skip has been used up for the
     /// item now playing. Called by the player when an intro is skipped and by
     /// the credits poster when its auto-advance is armed or dismissed.
-    func noteAutoSkipSpent(markerID: Int) {
+    func noteAutoSkipSpent(markerID: String) {
         spentAutoSkipMarkerIDs.insert(markerID)
     }
 
@@ -1127,7 +1127,7 @@ final class PlaybackCoordinator {
 
         guard !Task.isCancelled else { return .cancelled }
 
-        if ratingKey == activity.ratingKey,
+        if itemID == activity.itemID,
            activePlaybackServerID == activity.serverIdentifier,
            engine != nil {
             return .ready
@@ -1139,7 +1139,7 @@ final class PlaybackCoordinator {
         await playFromStart(
             id: MediaItemID(
                 serverID: activity.serverIdentifier,
-                ratingKey: activity.ratingKey
+                itemID: activity.itemID
             ),
             restrictToItemServer: true,
             placeholder: PlaybackPlaceholder(
@@ -1152,7 +1152,7 @@ final class PlaybackCoordinator {
         )
 
         guard !Task.isCancelled else { return .cancelled }
-        guard ratingKey == activity.ratingKey,
+        guard itemID == activity.itemID,
               activePlaybackServerID == activity.serverIdentifier,
               engine != nil else {
             return .failed(loadError ?? "Couldn’t prepare \(activity.title) for SharePlay.")

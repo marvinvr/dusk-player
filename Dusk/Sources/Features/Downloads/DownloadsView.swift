@@ -534,7 +534,7 @@ private struct MacDownloadsList: View {
                     onResume: { downloadManager.resumeDownload(scope: scope) },
                     onCancel: { downloadManager.cancelDownload(scope: scope) },
                     onDelete: { downloadManager.deleteDownload(scope: scope) },
-                    onRetry: { downloadManager.retryDownload(id: record.itemID) }
+                    onRetry: { downloadManager.retryDownload(id: record.mediaItemID) }
                 )
             }
         } else if tags.count > 1 {
@@ -614,11 +614,11 @@ private struct MacDownloadsList: View {
     private func play(_ record: DownloadedMediaRecord) {
         let offset = offlinePlaybackSyncManager.effectiveViewOffsetMs(
             serverID: record.serverID,
-            ratingKey: record.ratingKey,
+            itemID: record.itemID,
             fallback: nil
         )
         Task {
-            await playback.play(id: record.itemID, resumeOffsetMilliseconds: offset)
+            await playback.play(id: record.mediaItemID, resumeOffsetMilliseconds: offset)
         }
     }
 
@@ -652,11 +652,11 @@ private struct MacDownloadsList: View {
     }
 
     fileprivate static func scope(_ record: DownloadedMediaRecord) -> DownloadScope {
-        DownloadScope(id: record.itemID, type: record.type)
+        DownloadScope(id: record.mediaItemID, type: record.type)
     }
 
     private static func route(_ record: DownloadedMediaRecord) -> AppNavigationRoute {
-        record.isClip ? .downloadedVideo(id: record.itemID) : .downloadedMedia(type: record.type, id: record.itemID)
+        record.isClip ? .downloadedVideo(id: record.mediaItemID) : .downloadedMedia(type: record.type, id: record.mediaItemID)
     }
 
     // MARK: Sizes
@@ -668,13 +668,13 @@ private struct MacDownloadsList: View {
         case .show(let show):
             return downloadManager.downloadedEpisodes.filter {
                 $0.serverID == show.serverID
-                    && ($0.grandparentRatingKey ?? $0.parentRatingKey ?? $0.ratingKey) == show.ratingKey
+                    && ($0.grandparentID ?? $0.parentID ?? $0.itemID) == show.itemID
             }
         }
     }
 
     private func fileURLs(for item: DownloadedLibraryItem) -> [URL] {
-        records(for: item).compactMap { downloadManager.localPlaybackURL(for: $0.itemID) }
+        records(for: item).compactMap { downloadManager.localPlaybackURL(for: $0.mediaItemID) }
     }
 
     private func bytes(for item: DownloadedLibraryItem) -> Int64 {
@@ -817,7 +817,7 @@ private struct MacDownloadQueueRow: View {
                     }
                     .help("Resume Download")
                 } else if state.status == .failed {
-                    Button { downloadManager.retryDownload(id: record.itemID) } label: {
+                    Button { downloadManager.retryDownload(id: record.mediaItemID) } label: {
                         Image(systemName: "arrow.clockwise.circle")
                     }
                     .help("Retry Download")
@@ -907,14 +907,14 @@ private enum DownloadedLibraryItem: Identifiable {
     var route: AppNavigationRoute {
         switch self {
         case .movie(let record):
-            let id = record.itemID
+            let id = record.mediaItemID
             return record.isClip
                 ? .downloadedVideo(id: id)
                 : .downloadedMedia(type: .movie, id: id)
         case .show(let show):
             return .downloadedMedia(
                 type: .show,
-                id: show.itemID
+                id: show.mediaItemID
             )
         }
     }
@@ -932,9 +932,9 @@ private enum DownloadedLibraryItem: Identifiable {
     var scope: DownloadScope {
         switch self {
         case .movie(let record):
-            return DownloadScope(id: record.itemID, type: record.type)
+            return DownloadScope(id: record.mediaItemID, type: record.type)
         case .show(let show):
-            return DownloadScope(id: show.itemID, type: .show)
+            return DownloadScope(id: show.mediaItemID, type: .show)
         }
     }
 
@@ -1046,7 +1046,7 @@ private struct DownloadQueueRow: View {
     let onOpen: (AppNavigationRoute) -> Void
 
     private var scope: DownloadScope {
-        DownloadScope(id: record.itemID, type: record.type)
+        DownloadScope(id: record.mediaItemID, type: record.type)
     }
 
     private var state: DownloadControlState {
@@ -1055,7 +1055,7 @@ private struct DownloadQueueRow: View {
 
     var body: some View {
         Button {
-            let id = MediaItemID(serverID: record.serverID, ratingKey: record.ratingKey)
+            let id = MediaItemID(serverID: record.serverID, itemID: record.itemID)
             onOpen(
                 record.isClip
                     ? .downloadedVideo(id: id)
@@ -1114,7 +1114,7 @@ private struct DownloadQueueRow: View {
                 onResume: { downloadManager.resumeDownload(scope: scope) },
                 onCancel: { downloadManager.cancelDownload(scope: scope) },
                 onDelete: { downloadManager.deleteDownload(scope: scope) },
-                onRetry: { downloadManager.retryDownload(id: record.itemID) }
+                onRetry: { downloadManager.retryDownload(id: record.mediaItemID) }
             )
         }
     }

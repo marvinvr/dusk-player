@@ -4,7 +4,7 @@ import OSLog
 extension PlaybackCoordinator {
     /// Called only by explicit picker/download actions, including selecting Off
     /// again. Engine discovery, automatic selection and recovery never save.
-    func rememberShowTrackChoice(type: PlexStreamType, streamID: Int?) {
+    func rememberShowTrackChoice(type: PlexStreamType, streamID: String?) {
         // A real pick is the viewer's to keep on the server, so the earlier
         // selection is no longer written back for that half.
         if type == .audio {
@@ -41,7 +41,7 @@ extension PlaybackCoordinator {
         syncShowStreamsToPlex(
             partID: part.id,
             audioStreamID: type == .audio ? streamID : nil,
-            subtitleStreamID: type == .subtitle ? (streamID ?? 0) : nil,
+            subtitleStreamID: type == .subtitle ? (streamID ?? "0") : nil,
             serverID: scope.serverID
         )
     }
@@ -77,8 +77,8 @@ extension PlaybackCoordinator {
     /// write for a part holds the original; later ones are rebuilds.
     func noteAutomaticServerSelectionWrite(
         part: MediaPart,
-        audioStreamID: Int?,
-        subtitleStreamID: Int?,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
         serverID: String?
     ) {
         if let pending = automaticServerSelectionRestore, pending.partID != part.id {
@@ -104,7 +104,7 @@ extension PlaybackCoordinator {
         )
     }
 
-    func syncShowStreamsToPlex(partID: Int, audioStreamID: Int?, subtitleStreamID: Int?, serverID: String?) {
+    func syncShowStreamsToPlex(partID: String, audioStreamID: String?, subtitleStreamID: String?, serverID: String?) {
         let write = plexService.enqueueStreamSelection(
             partID: partID,
             audioStreamID: audioStreamID,
@@ -127,21 +127,21 @@ extension PlaybackCoordinator {
 /// A part's server-side audio/subtitle selection to write back. Nil halves
 /// are left alone; a subtitle of 0 clears Plex's subtitle choice.
 struct ServerStreamSelectionRestore: Equatable, Sendable {
-    let partID: Int
+    let partID: String
     let serverID: String?
-    var audioStreamID: Int?
-    var subtitleStreamID: Int?
+    var audioStreamID: String?
+    var subtitleStreamID: String?
 
     var isEmpty: Bool { audioStreamID == nil && subtitleStreamID == nil }
 
     @MainActor
-    init(part: MediaPart, writtenAudioStreamID: Int?, writtenSubtitleStreamID: Int?, serverID: String?) {
+    init(part: MediaPart, writtenAudioStreamID: String?, writtenSubtitleStreamID: String?, serverID: String?) {
         partID = part.id
         self.serverID = serverID
         let originalAudio = PlayerViewModel.serverSelectedStreamID(of: .audio, inPart: part)
-        let originalSubtitle = PlayerViewModel.serverSelectedStreamID(of: .subtitle, inPart: part) ?? 0
+        let originalSubtitle = PlayerViewModel.serverSelectedStreamID(of: .subtitle, inPart: part) ?? "0"
         // Audio with no recorded selection has nothing to go back to.
         audioStreamID = writtenAudioStreamID != nil && originalAudio != writtenAudioStreamID ? originalAudio : nil
-        subtitleStreamID = originalSubtitle != (writtenSubtitleStreamID ?? 0) ? originalSubtitle : nil
+        subtitleStreamID = originalSubtitle != (writtenSubtitleStreamID ?? "0") ? originalSubtitle : nil
     }
 }

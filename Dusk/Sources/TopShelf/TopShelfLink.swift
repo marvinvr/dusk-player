@@ -36,13 +36,13 @@ struct TopShelfLink: Equatable {
         }
 
         guard let serverID = value("server"),
-              let ratingKey = value("item"),
+              let itemID = value("item"),
               let type = value("type").flatMap(MediaKind.init(rawValue:)) else {
             return nil
         }
 
         self.action = action
-        self.id = MediaItemID(serverID: serverID, ratingKey: ratingKey)
+        self.id = MediaItemID(serverID: serverID, itemID: itemID)
         self.type = type
         self.isClip = value("clip") == "1"
         self.receivedAt = receivedAt
@@ -56,7 +56,7 @@ struct TopShelfLink: Equatable {
         components.host = action.rawValue
         components.queryItems = [
             URLQueryItem(name: "server", value: serverID),
-            URLQueryItem(name: "item", value: item.ratingKey),
+            URLQueryItem(name: "item", value: item.itemID),
             URLQueryItem(name: "type", value: item.type.rawValue),
         ] + (item.isClip ? [URLQueryItem(name: "clip", value: "1")] : [])
         return components.url

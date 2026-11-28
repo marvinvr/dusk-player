@@ -1,0 +1,378 @@
+diff --git a/Dusk/Sources/Domain/MediaItemID.swift b/Dusk/Sources/Domain/MediaItemID.swift
+index d29ea6d..c4ad706 100644
+--- a/Dusk/Sources/Domain/MediaItemID.swift
++++ b/Dusk/Sources/Domain/MediaItemID.swift
+@@ -31,6 +31,10 @@ struct MediaItemID: Hashable, Codable, Sendable {
+     let serverID: String?
+     let ratingKey: String
+ 
++    enum CodingKeys: String, CodingKey {
++        case serverID, ratingKey
++    }
++
+     init(serverID: String?, ratingKey: String) {
+         self.serverID = serverID?.nilIfEmpty
+         self.ratingKey = ratingKey
+diff --git a/Dusk/Sources/Domain/PlaybackHistoryEntry.swift b/Dusk/Sources/Domain/PlaybackHistoryEntry.swift
+index 2d39a82..cde027c 100644
+--- a/Dusk/Sources/Domain/PlaybackHistoryEntry.swift
++++ b/Dusk/Sources/Domain/PlaybackHistoryEntry.swift
+@@ -13,7 +13,7 @@ struct PlaybackHistoryEntry: Codable, Sendable, Identifiable {
+     let serverID: String?
+ 
+     /// Server-scoped identity of the item this entry refers to.
+-    var itemID: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
++    var mediaItemID: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
+ 
+     let historyKey: String?
+     let ratingKey: String
+diff --git a/Dusk/Sources/Domain/SeerrModels.swift b/Dusk/Sources/Domain/SeerrModels.swift
+index 15cca34..8d1557b 100644
+--- a/Dusk/Sources/Domain/SeerrModels.swift
++++ b/Dusk/Sources/Domain/SeerrModels.swift
+@@ -153,6 +153,10 @@ struct SeerrMediaInfo: Decodable, Sendable, Hashable {
+     let requests: [SeerrMediaRequest]?
+     let seasons: [SeerrMediaSeason]?
+     let ratingKey: String?
++
++    enum CodingKeys: String, CodingKey {
++        case id, tmdbId, tvdbId, status, status4k, requests, seasons, ratingKey
++    }
+ }
+ 
+ struct SeerrMediaRequest: Decodable, Sendable, Hashable, Identifiable {
+diff --git a/Dusk/Sources/Downloads/DownloadManager.swift b/Dusk/Sources/Downloads/DownloadManager.swift
+index 9fad34a..28e73b8 100644
+--- a/Dusk/Sources/Downloads/DownloadManager.swift
++++ b/Dusk/Sources/Downloads/DownloadManager.swift
+@@ -344,7 +344,7 @@ final class DownloadManager {
+         // A smart show stays listed while its next episodes are still on the
+         // way or it is fully watched, so the rule can always be found and
+         // turned off.
+-        for rule in rules where !summaries.contains(where: { $0.itemID == rule.showID }) {
++        for rule in rules where !summaries.contains(where: { $0.mediaItemID == rule.showID }) {
+             let cachedShow = metadataCache.mediaDetails(
+                 accountProfileID: rule.accountProfileID,
+                 serverID: rule.serverID,
+@@ -1684,11 +1684,11 @@ final class DownloadManager {
+                 try checkPreparation(record)
+             }
+             try fileStore.saveSnapshot(currentSnapshot)
+-            let itemID: String
++            let queueItemID: String
+             if let existing = latest.plexDownloadItemID {
+-                itemID = existing
++                queueItemID = existing
+             } else {
+-                itemID = try await plexService.addDownloadQueueItem(
++                queueItemID = try await plexService.addDownloadQueueItem(
+                     context: context, queueID: queueID, ratingKey: record.ratingKey,
+                     mediaIndex: mediaIndex, quality: record.downloadQuality
+                 )
+@@ -1696,9 +1696,9 @@ final class DownloadManager {
+                 // cleanup independently of the deleted download record.
+                 if self.record(globalKey: record.globalKey) == nil || deletingDownloadIDs.contains(record.globalKey) {
+                     enqueueQueueRemoval(DownloadQueueRemoval(profileID: profileID, serverID: record.serverID,
+-                        clientIdentifier: latest.queueClientIdentifier!, ratingKey: record.ratingKey, queueID: queueID, itemID: itemID))
++                        clientIdentifier: latest.queueClientIdentifier!, ratingKey: record.ratingKey, queueID: queueID, queueItemID: queueItemID))
+                 } else {
+-                    update(globalKey: record.globalKey) { $0.plexDownloadItemID = itemID }
++                    update(globalKey: record.globalKey) { $0.plexDownloadItemID = queueItemID }
+                 }
+                 try checkPreparation(record)
+             }
+@@ -1713,7 +1713,7 @@ final class DownloadManager {
+                 )
+                 let item: PlexDownloadQueueItem
+                 do {
+-                    item = try await plexService.downloadQueueItem(context: pollContext, queueID: queueID, itemID: itemID)
++                    item = try await plexService.downloadQueueItem(context: pollContext, queueID: queueID, queueItemID: queueItemID)
+                     failedPolls = 0
+                 } catch PlexServiceError.networkError where failedPolls < 10 {
+                     // A poll dropped by a network blip or app suspension must not
+@@ -1736,7 +1736,7 @@ final class DownloadManager {
+                     // regenerates it here.
+                     if DownloadQueuePolicy.Counts(records: records).handedOff < DownloadQueuePolicy.maximumHandedOffTransfers {
+                         let prepared = try await plexService.preparedDownload(
+-                            context: pollContext, queueID: queueID, itemID: itemID, sourceMedia: sourceMedia
++                            context: pollContext, queueID: queueID, queueItemID: queueItemID, sourceMedia: sourceMedia
+                         )
+                         try checkPreparation(record)
+                         return prepared
+@@ -1788,7 +1788,7 @@ final class DownloadManager {
+         guard let profileID = record.accountProfileID, let clientID = record.queueClientIdentifier else { return }
+         enqueueQueueRemoval(DownloadQueueRemoval(profileID: profileID, serverID: record.serverID,
+             clientIdentifier: clientID, ratingKey: record.ratingKey,
+-            queueID: record.plexDownloadQueueID, itemID: record.plexDownloadItemID))
++            queueID: record.plexDownloadQueueID, queueItemID: record.plexDownloadItemID))
+     }
+ 
+     private func enqueueQueueRemoval(_ removal: DownloadQueueRemoval) {
+@@ -1823,14 +1823,14 @@ final class DownloadManager {
+                     let queueID: String
+                     if let existing = removal.queueID { queueID = existing }
+                     else { queueID = try await self.plexService.createDownloadQueue(context: context) }
+-                    if let itemID = removal.itemID {
+-                        try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, itemID: itemID)
++                    if let queueItemID = removal.queueItemID {
++                        try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, queueItemID: queueItemID)
+                     } else {
+                         // Covers cancellation/termination after PMS accepted add
+                         // but before its response could be persisted.
+                         let items = try await self.plexService.downloadQueueItems(context: context, queueID: queueID)
+                         for item in items where item.key == "/library/metadata/\(removal.ratingKey)" {
+-                            try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, itemID: item.id)
++                            try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, queueItemID: item.id)
+                         }
+                     }
+                     self.pendingQueueRemovals.removeAll { $0 == removal }
+diff --git a/Dusk/Sources/Downloads/DownloadModels.swift b/Dusk/Sources/Downloads/DownloadModels.swift
+index 346daab..d8d6d59 100644
+--- a/Dusk/Sources/Downloads/DownloadModels.swift
++++ b/Dusk/Sources/Downloads/DownloadModels.swift
+@@ -268,7 +268,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
+     }
+ 
+     /// Server-scoped identity of the downloaded item, for playback and lookups.
+-    var itemID: MediaItemID {
++    var mediaItemID: MediaItemID {
+         MediaItemID(serverID: serverID, ratingKey: ratingKey)
+     }
+ 
+@@ -374,7 +374,7 @@ struct DownloadedShowSummary: Identifiable, Hashable {
+         DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
+     }
+ 
+-    var itemID: MediaItemID {
++    var mediaItemID: MediaItemID {
+         MediaItemID(serverID: serverID, ratingKey: ratingKey)
+     }
+ 
+@@ -411,5 +411,10 @@ struct DownloadQueueRemoval: Codable, Sendable, Hashable {
+     let clientIdentifier: String
+     let ratingKey: String
+     let queueID: String?
+-    let itemID: String?
++    let queueItemID: String?
++
++    enum CodingKeys: String, CodingKey {
++        case profileID, serverID, clientIdentifier, ratingKey, queueID
++        case queueItemID = "itemID"
++    }
+ }
+diff --git a/Dusk/Sources/Features/Downloads/DownloadActionButton.swift b/Dusk/Sources/Features/Downloads/DownloadActionButton.swift
+index faf9113..bcf8842 100644
+--- a/Dusk/Sources/Features/Downloads/DownloadActionButton.swift
++++ b/Dusk/Sources/Features/Downloads/DownloadActionButton.swift
+@@ -321,7 +321,7 @@ struct DownloadActionButton: View {
+         if smartRule != nil {
+             // Re-queuing the whole show would download every episode.
+             for record in state.records where record.status == .failed {
+-                downloadManager.retryDownload(id: record.itemID)
++                downloadManager.retryDownload(id: record.mediaItemID)
+             }
+         } else if type == .season || type == .show {
+             startDownload()
+diff --git a/Dusk/Sources/Features/Downloads/DownloadsView.swift b/Dusk/Sources/Features/Downloads/DownloadsView.swift
+index 7abdc77..85c3d4a 100644
+--- a/Dusk/Sources/Features/Downloads/DownloadsView.swift
++++ b/Dusk/Sources/Features/Downloads/DownloadsView.swift
+@@ -534,7 +534,7 @@ private struct MacDownloadsList: View {
+                     onResume: { downloadManager.resumeDownload(scope: scope) },
+                     onCancel: { downloadManager.cancelDownload(scope: scope) },
+                     onDelete: { downloadManager.deleteDownload(scope: scope) },
+-                    onRetry: { downloadManager.retryDownload(id: record.itemID) }
++                    onRetry: { downloadManager.retryDownload(id: record.mediaItemID) }
+                 )
+             }
+         } else if tags.count > 1 {
+@@ -618,7 +618,7 @@ private struct MacDownloadsList: View {
+             fallback: nil
+         )
+         Task {
+-            await playback.play(id: record.itemID, resumeOffsetMilliseconds: offset)
++            await playback.play(id: record.mediaItemID, resumeOffsetMilliseconds: offset)
+         }
+     }
+ 
+@@ -652,11 +652,11 @@ private struct MacDownloadsList: View {
+     }
+ 
+     fileprivate static func scope(_ record: DownloadedMediaRecord) -> DownloadScope {
+-        DownloadScope(id: record.itemID, type: record.type)
++        DownloadScope(id: record.mediaItemID, type: record.type)
+     }
+ 
+     private static func route(_ record: DownloadedMediaRecord) -> AppNavigationRoute {
+-        record.isClip ? .downloadedVideo(id: record.itemID) : .downloadedMedia(type: record.type, id: record.itemID)
++        record.isClip ? .downloadedVideo(id: record.mediaItemID) : .downloadedMedia(type: record.type, id: record.mediaItemID)
+     }
+ 
+     // MARK: Sizes
+@@ -674,7 +674,7 @@ private struct MacDownloadsList: View {
+     }
+ 
+     private func fileURLs(for item: DownloadedLibraryItem) -> [URL] {
+-        records(for: item).compactMap { downloadManager.localPlaybackURL(for: $0.itemID) }
++        records(for: item).compactMap { downloadManager.localPlaybackURL(for: $0.mediaItemID) }
+     }
+ 
+     private func bytes(for item: DownloadedLibraryItem) -> Int64 {
+@@ -817,7 +817,7 @@ private struct MacDownloadQueueRow: View {
+                     }
+                     .help("Resume Download")
+                 } else if state.status == .failed {
+-                    Button { downloadManager.retryDownload(id: record.itemID) } label: {
++                    Button { downloadManager.retryDownload(id: record.mediaItemID) } label: {
+                         Image(systemName: "arrow.clockwise.circle")
+                     }
+                     .help("Retry Download")
+@@ -907,14 +907,14 @@ private enum DownloadedLibraryItem: Identifiable {
+     var route: AppNavigationRoute {
+         switch self {
+         case .movie(let record):
+-            let id = record.itemID
++            let id = record.mediaItemID
+             return record.isClip
+                 ? .downloadedVideo(id: id)
+                 : .downloadedMedia(type: .movie, id: id)
+         case .show(let show):
+             return .downloadedMedia(
+                 type: .show,
+-                id: show.itemID
++                id: show.mediaItemID
+             )
+         }
+     }
+@@ -932,9 +932,9 @@ private enum DownloadedLibraryItem: Identifiable {
+     var scope: DownloadScope {
+         switch self {
+         case .movie(let record):
+-            return DownloadScope(id: record.itemID, type: record.type)
++            return DownloadScope(id: record.mediaItemID, type: record.type)
+         case .show(let show):
+-            return DownloadScope(id: show.itemID, type: .show)
++            return DownloadScope(id: show.mediaItemID, type: .show)
+         }
+     }
+ 
+@@ -1046,7 +1046,7 @@ private struct DownloadQueueRow: View {
+     let onOpen: (AppNavigationRoute) -> Void
+ 
+     private var scope: DownloadScope {
+-        DownloadScope(id: record.itemID, type: record.type)
++        DownloadScope(id: record.mediaItemID, type: record.type)
+     }
+ 
+     private var state: DownloadControlState {
+@@ -1114,7 +1114,7 @@ private struct DownloadQueueRow: View {
+                 onResume: { downloadManager.resumeDownload(scope: scope) },
+                 onCancel: { downloadManager.cancelDownload(scope: scope) },
+                 onDelete: { downloadManager.deleteDownload(scope: scope) },
+-                onRetry: { downloadManager.retryDownload(id: record.itemID) }
++                onRetry: { downloadManager.retryDownload(id: record.mediaItemID) }
+             )
+         }
+     }
+diff --git a/Dusk/Sources/Features/Player/DuskWatchTogetherActivity.swift b/Dusk/Sources/Features/Player/DuskWatchTogetherActivity.swift
+index 21d2933..b1ea79c 100644
+--- a/Dusk/Sources/Features/Player/DuskWatchTogetherActivity.swift
++++ b/Dusk/Sources/Features/Player/DuskWatchTogetherActivity.swift
+@@ -15,6 +15,10 @@ struct DuskWatchTogetherActivity: GroupActivity, Equatable, Sendable {
+     let title: String
+     let subtitle: String?
+ 
++    enum CodingKeys: String, CodingKey {
++        case serverIdentifier, ratingKey, title, subtitle
++    }
++
+     /// Shared by AVPlayer and VLCKit playback coordinators. A rating key is
+     /// unique only within one Plex server, so both pieces are required.
+     var playbackItemIdentifier: String {
+diff --git a/Dusk/Sources/PlexService/PlexService+Downloads.swift b/Dusk/Sources/PlexService/PlexService+Downloads.swift
+index 0587acd..3ddb017 100644
+--- a/Dusk/Sources/PlexService/PlexService+Downloads.swift
++++ b/Dusk/Sources/PlexService/PlexService+Downloads.swift
+@@ -107,16 +107,16 @@ extension PlexService {
+     func downloadQueueItem(
+         context: PlexDownloadQueueContext,
+         queueID: String,
+-        itemID: String
++        queueItemID: String
+     ) async throws -> PlexDownloadQueueItem {
+         let data = try await downloadQueueRequest(
+             context: context,
+-            path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(itemID))",
++            path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(queueItemID))",
+             canExpire: true
+         )
+         let items = try PlexDownloadQueueResponse.elements(data, named: "DownloadQueueItem")
+             .map { try PlexDownloadQueueResponse.item($0, queueID: queueID) }
+-            .filter { $0.id == itemID }
++            .filter { $0.id == queueItemID }
+         guard items.count == 1 else { throw PlexDownloadQueueResponse.invalidResponse() }
+         return items[0]
+     }
+@@ -126,10 +126,10 @@ extension PlexService {
+     func preparedDownload(
+         context: PlexDownloadQueueContext,
+         queueID: String,
+-        itemID: String,
++        queueItemID: String,
+         sourceMedia: MediaVersion
+     ) async throws -> PlexPreparedDownload {
+-        let itemPath = "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/item/\(try PlexDownloadQueueResponse.id(itemID))"
++        let itemPath = "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/item/\(try PlexDownloadQueueResponse.id(queueItemID))"
+         let data = try await downloadQueueRequest(context: context, path: itemPath + "/decision", canExpire: true)
+         let decision = try PlexDownloadQueueResponse.decision(data)
+ 
+@@ -168,12 +168,12 @@ extension PlexService {
+     func removeDownloadQueueItem(
+         context: PlexDownloadQueueContext,
+         queueID: String,
+-        itemID: String
++        queueItemID: String
+     ) async throws {
+         do {
+             _ = try await downloadQueueRequest(
+                 context: context, method: "DELETE",
+-                path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(itemID))",
++                path: "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/items/\(try PlexDownloadQueueResponse.id(queueItemID))",
+                 canExpire: true
+             )
+         } catch PlexDownloadQueueError.expired {
+diff --git a/DuskTests/LegacyContainerRecorder.swift b/DuskTests/LegacyContainerRecorder.swift
+index ee6293a..bb72c69 100644
+--- a/DuskTests/LegacyContainerRecorder.swift
++++ b/DuskTests/LegacyContainerRecorder.swift
+@@ -114,7 +114,7 @@ struct LegacyContainerRecorder {
+                     clientIdentifier: "C0FFEE00-1111-4222-8333-944445555666",
+                     ratingKey: "2012",
+                     queueID: "17",
+-                    itemID: nil
++                    queueItemID: nil
+                 ),
+             ],
+             smartDownloadRules: [
+diff --git a/DuskTests/LegacyContainerTests.swift b/DuskTests/LegacyContainerTests.swift
+index d8f0410..dd974b5 100644
+--- a/DuskTests/LegacyContainerTests.swift
++++ b/DuskTests/LegacyContainerTests.swift
+@@ -66,7 +66,7 @@ struct LegacyContainerTests {
+             #expect(movie.globalKey == "4f2a9c1d7e3b5a60:a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9:1001")
+             #expect(movie.legacyGlobalKey == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9:1001")
+             #expect(movie.id == movie.globalKey)
+-            #expect(movie.itemID.storageKey == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9|1001")
++            #expect(movie.mediaItemID.storageKey == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9|1001")
+ 
+             let episode = snapshot.records[1]
+             #expect(episode.accountProfileID == "plex-home-24601")
+@@ -161,7 +161,7 @@ struct LegacyContainerTests {
+             #expect(removals[0].clientIdentifier == "C0FFEE00-1111-4222-8333-944445555666")
+             #expect(removals[0].ratingKey == "2012")
+             #expect(removals[0].queueID == "17")
+-            #expect(removals[0].itemID == nil)
++            #expect(removals[0].queueItemID == nil)
+ 
+             let rules = try #require(snapshot.smartDownloadRules)
+             try #require(rules.count == 1)

@@ -680,9 +680,9 @@ final class LibraryRecommendationsViewModel {
         var excludedContentKeys: Set<ContentKey> = []
 
         for item in continueWatchingItems {
-            for ratingKey in [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
+            for itemID in [item.itemID, item.parentID, item.grandparentID]
                 .compactMap({ $0 }) {
-                excludedIDs.insert(MediaItemID(serverID: item.serverID, ratingKey: ratingKey))
+                excludedIDs.insert(MediaItemID(serverID: item.serverID, itemID: itemID))
             }
             excludedContentKeys.insert(item.contentKey)
             excludedContentKeys.formUnion(item.movieContentKeys)

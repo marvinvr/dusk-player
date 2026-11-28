@@ -232,7 +232,7 @@ struct MainTabView: View {
             homePath = NavigationPath([link.route])
         case .play:
             let details = try? await plexService.getMediaDetails(
-                ratingKey: link.id.ratingKey,
+                itemID: link.id.itemID,
                 serverID: link.id.serverID
             )
             await playback.play(
@@ -538,8 +538,8 @@ private extension MainTabView {
                     addToPlaylist.present(target)
                 }
                 if let playlistID = destination.playlistID,
-                   let playlist = try? await plexService.getPlaylist(ratingKey: playlistID.ratingKey, serverID: playlistID.serverID),
-                   let entries = try? await plexService.getPlaylistEntries(ratingKey: playlist.ratingKey, serverID: playlist.serverID),
+                   let playlist = try? await plexService.getPlaylist(itemID: playlistID.itemID, serverID: playlistID.serverID),
+                   let entries = try? await plexService.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID),
                    let queue = PlaylistActions(plexService: plexService).queue(
                        for: playlist,
                        entries: entries,

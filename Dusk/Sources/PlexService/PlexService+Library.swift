@@ -137,7 +137,7 @@ extension PlexService {
         // Continue Watching and On Deck are account-wide rows; keep this
         // library's titles.
         return hubs.map { hub in
-            hub.replacingItems(hub.items.filter { $0.librarySectionID == nil || $0.librarySectionID == sectionId })
+            hub.replacingItems(hub.items.filter { $0.libraryID == nil || $0.libraryID == sectionId })
         }
     }
 
@@ -159,8 +159,8 @@ extension PlexService {
     /// its show's later seasons only exist there.
     func getNextEpisode(after episode: MediaDetails) async throws -> Episode? {
         guard episode.type == .episode,
-              let seasonKey = episode.parentRatingKey,
-              let showKey = episode.grandparentRatingKey else {
+              let seasonKey = episode.parentID,
+              let showKey = episode.grandparentID else {
             return nil
         }
 
@@ -168,7 +168,7 @@ extension PlexService {
         let currentSeasonEpisodes = try await getEpisodes(seasonKey: seasonKey, serverID: serverID)
             .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
 
-        if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }),
+        if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.itemID == episode.itemID }),
            currentEpisodeIndex < currentSeasonEpisodes.index(before: currentSeasonEpisodes.endIndex) {
             return currentSeasonEpisodes[currentSeasonEpisodes.index(after: currentEpisodeIndex)]
         }
@@ -182,12 +182,12 @@ extension PlexService {
             .sorted { $0.index < $1.index }
 
         let currentSeasonIndex = episode.parentIndex
-            ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
+            ?? seasons.first(where: { $0.itemID == seasonKey })?.index
 
         guard let currentSeasonIndex else { return nil }
 
         for season in seasons where season.index > currentSeasonIndex {
-            let episodes = try await getEpisodes(seasonKey: season.ratingKey, serverID: serverID)
+            let episodes = try await getEpisodes(seasonKey: season.itemID, serverID: serverID)
                 .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
 
             if let firstEpisode = episodes.first {
@@ -205,8 +205,8 @@ extension PlexService {
     /// a regular season back into Specials (season 0).
     func getAdjacentEpisodes(around episode: MediaDetails) async throws -> AdjacentEpisodes {
         guard episode.type == .episode,
-              let seasonKey = episode.parentRatingKey,
-              let showKey = episode.grandparentRatingKey else {
+              let seasonKey = episode.parentID,
+              let showKey = episode.grandparentID else {
             return AdjacentEpisodes()
         }
 
@@ -219,12 +219,12 @@ extension PlexService {
         let seasons = try await getSeasons(showKey: showKey, serverID: serverID)
             .sorted { $0.index < $1.index }
         let currentSeasonIndex = episode.parentIndex
-            ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
+            ?? seasons.first(where: { $0.itemID == seasonKey })?.index
         guard let currentSeasonIndex else { return adjacent }
 
         if adjacent.next == nil {
             for season in seasons where season.index > currentSeasonIndex {
-                let episodes = try await getEpisodes(seasonKey: season.ratingKey, serverID: serverID)
+                let episodes = try await getEpisodes(seasonKey: season.itemID, serverID: serverID)
                 if let first = episodes.min(by: { ($0.index ?? 0) < ($1.index ?? 0) }) {
                     adjacent.next = first
                     break
@@ -234,7 +234,7 @@ extension PlexService {
 
         if adjacent.previous == nil {
             for season in seasons.reversed() where season.index < currentSeasonIndex && season.index > 0 {
-                let episodes = try await getEpisodes(seasonKey: season.ratingKey, serverID: serverID)
+                let episodes = try await getEpisodes(seasonKey: season.itemID, serverID: serverID)
                 if let last = episodes.max(by: { ($0.index ?? 0) < ($1.index ?? 0) }) {
                     adjacent.previous = last
                     break
@@ -315,13 +315,13 @@ extension PlexService {
     }
 
     func getMediaDetails(
-        ratingKey: String,
+        itemID: String,
         checkFiles: Bool = false,
         serverID: String? = nil
     ) async throws -> MediaDetails {
         let targetID = try resolveServerID(serverID)
         let data = try await getMediaDetailsPayload(
-            ratingKey: ratingKey,
+            itemID: itemID,
             checkFiles: checkFiles,
             serverID: targetID
         )
@@ -329,7 +329,7 @@ extension PlexService {
         let items = response.MediaContainer.Metadata ?? []
 
         guard let details = items.first else {
-            throw PlexServiceError.decodingError("No metadata found for ratingKey \(ratingKey)")
+            throw PlexServiceError.decodingError("No metadata found for ratingKey \(itemID)")
         }
 
         return details
@@ -339,7 +339,7 @@ extension PlexService {
     ///   each `Part` carries accurate `accessible`/`exists` flags. Used right
     ///   before playback so a stale/missing version isn't chosen for direct play.
     func getMediaDetailsPayload(
-        ratingKey: String,
+        itemID: String,
         checkFiles: Bool = false,
         serverID: String? = nil
     ) async throws -> Data {
@@ -351,15 +351,15 @@ extension PlexService {
             queryItems.append(URLQueryItem(name: "checkFiles", value: "1"))
         }
         return try await rawServerRequest(
-            path: PlexMetadataCache.metadataEndpoint(ratingKey),
+            path: PlexMetadataCache.metadataEndpoint(itemID),
             queryItems: queryItems,
             serverID: serverID
         )
     }
 
-    func getChildrenPayload(ratingKey: String, serverID: String? = nil) async throws -> Data {
+    func getChildrenPayload(itemID: String, serverID: String? = nil) async throws -> Data {
         try await rawServerRequest(
-            path: PlexMetadataCache.childrenEndpoint(ratingKey),
+            path: PlexMetadataCache.childrenEndpoint(itemID),
             serverID: serverID
         )
     }

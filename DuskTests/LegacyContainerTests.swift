@@ -30,26 +30,26 @@ struct LegacyContainerTests {
             #expect(movie.accountProfileID == "4f2a9c1d7e3b5a60")
             #expect(movie.serverID == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9")
             #expect(movie.serverName == "Living Room")
-            #expect(movie.ratingKey == "1001")
+            #expect(movie.itemID == "1001")
             #expect(movie.type == .movie)
             #expect(movie.type.rawValue == "movie")
             #expect(movie.isClip == false)
             #expect(movie.title == "Arrival")
             #expect(movie.subtitle == "2016")
-            #expect(movie.parentRatingKey == nil)
-            #expect(movie.grandparentRatingKey == nil)
+            #expect(movie.parentID == nil)
+            #expect(movie.grandparentID == nil)
             #expect(movie.thumbPath == "/library/metadata/1001/thumb/1700000000")
             #expect(movie.artPath == "/library/metadata/1001/art/1700000000")
-            #expect(movie.mediaID == 501)
-            #expect(movie.partID == 601)
+            #expect(movie.mediaID == "501")
+            #expect(movie.partID == "601")
             #expect(movie.downloadQuality == .original)
             #expect(movie.isSmartDownload == false)
             #expect(movie.queueClientIdentifier == nil)
             #expect(movie.convertedMediaData == nil)
             #expect(movie.relativeVideoPath == "Profiles/4f2a9c1d7e3b5a60/Movies/Arrival (2016)/Arrival (2016).mkv")
             #expect(movie.externalSubtitlePaths == [
-                7001: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
-                7002: "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
+                "7001": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7001.srt",
+                "7002": "Subtitles/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e/7002.ass",
             ])
             #expect(movie.hasMissingExternalSubtitles == false)
             #expect(movie.resumeDataPath == nil)
@@ -66,25 +66,25 @@ struct LegacyContainerTests {
             #expect(movie.globalKey == "4f2a9c1d7e3b5a60:a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9:1001")
             #expect(movie.legacyGlobalKey == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9:1001")
             #expect(movie.id == movie.globalKey)
-            #expect(movie.itemID.storageKey == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9|1001")
+            #expect(movie.mediaItemID.storageKey == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9|1001")
 
             let episode = snapshot.records[1]
             #expect(episode.accountProfileID == "plex-home-24601")
             #expect(episode.serverID == "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5")
             #expect(episode.serverName == "Friend's Server")
-            #expect(episode.ratingKey == "2011")
+            #expect(episode.itemID == "2011")
             #expect(episode.type == .episode)
             #expect(episode.title == "Pilot")
             #expect(episode.subtitle == "S1 · E1")
-            #expect(episode.parentRatingKey == "2010")
+            #expect(episode.parentID == "2010")
             #expect(episode.parentTitle == "Season 1")
-            #expect(episode.grandparentRatingKey == "2000")
+            #expect(episode.grandparentID == "2000")
             #expect(episode.grandparentTitle == "Severance")
             #expect(episode.displayTitle == "Severance - Pilot")
             #expect(episode.thumbPath == "/library/metadata/2011/thumb/1700000001")
             #expect(episode.artPath == nil)
-            #expect(episode.mediaID == 81)
-            #expect(episode.partID == 82)
+            #expect(episode.mediaID == "81")
+            #expect(episode.partID == "82")
             #expect(episode.downloadQuality == .p720)
             #expect(episode.downloadQuality.rawValue == "p720")
             #expect(episode.isSmartDownload == true)
@@ -108,7 +108,7 @@ struct LegacyContainerTests {
             #expect(episode.globalKey == "plex-home-24601:b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5:2011")
 
             let converted = try #require(episode.convertedMedia)
-            #expect(converted.id == 91)
+            #expect(converted.id == "91")
             #expect(converted.container == "mkv")
             #expect(converted.videoCodec == "h264")
             #expect(converted.audioCodec == "aac")
@@ -119,13 +119,13 @@ struct LegacyContainerTests {
             #expect(converted.bitrate == 4000)
             #expect(converted.duration == 2_520_000)
             try #require(converted.parts.count == 1)
-            #expect(converted.parts[0].id == 92)
+            #expect(converted.parts[0].id == "92")
             #expect(converted.parts[0].key == "/library/parts/92/1700000000/file.mkv")
             #expect(converted.parts[0].file == "/transcode/92.mkv")
             #expect(converted.parts[0].size == 1_260_000_000)
             #expect(converted.parts[0].container == "mkv")
             try #require(converted.parts[0].streams.count == 1)
-            #expect(converted.parts[0].streams[0].id == 93)
+            #expect(converted.parts[0].streams[0].id == "93")
             #expect(converted.parts[0].streams[0].streamType == .audio)
             #expect(converted.parts[0].streams[0].codec == "aac")
             #expect(converted.parts[0].streams[0].languageCode == "eng")
@@ -137,7 +137,7 @@ struct LegacyContainerTests {
             #expect(legacy.accountProfileID == nil)
             #expect(legacy.serverID == "http://192.168.1.10:32400")
             #expect(legacy.serverName == nil)
-            #expect(legacy.ratingKey == "3001")
+            #expect(legacy.itemID == "3001")
             #expect(legacy.type == .movie)
             #expect(legacy.isClip == true)
             #expect(legacy.title == "Behind the Scenes")
@@ -159,9 +159,9 @@ struct LegacyContainerTests {
             #expect(removals[0].profileID == "plex-home-24601")
             #expect(removals[0].serverID == "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5")
             #expect(removals[0].clientIdentifier == "C0FFEE00-1111-4222-8333-944445555666")
-            #expect(removals[0].ratingKey == "2012")
+            #expect(removals[0].itemID == "2012")
             #expect(removals[0].queueID == "17")
-            #expect(removals[0].itemID == nil)
+            #expect(removals[0].queueItemID == nil)
 
             let rules = try #require(snapshot.smartDownloadRules)
             try #require(rules.count == 1)
@@ -205,7 +205,7 @@ struct LegacyContainerTests {
 
             #expect(actions[0].accountProfileID == "4f2a9c1d7e3b5a60")
             #expect(actions[0].serverID == "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9")
-            #expect(actions[0].ratingKey == "1001")
+            #expect(actions[0].itemID == "1001")
             #expect(actions[0].kind == .progress)
             #expect(actions[0].kind.rawValue == "progress")
             #expect(actions[0].viewOffsetMs == 1_234_000)
@@ -221,7 +221,7 @@ struct LegacyContainerTests {
 
             #expect(actions[1].accountProfileID == nil)
             #expect(actions[1].serverID == "http://192.168.1.10:32400")
-            #expect(actions[1].ratingKey == "3001")
+            #expect(actions[1].itemID == "3001")
             #expect(actions[1].kind == .watched)
             #expect(actions[1].viewOffsetMs == nil)
             #expect(actions[1].durationMs == nil)
@@ -233,7 +233,7 @@ struct LegacyContainerTests {
 
             #expect(actions[2].accountProfileID == "plex-home-24601")
             #expect(actions[2].serverID == "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5")
-            #expect(actions[2].ratingKey == "2011")
+            #expect(actions[2].itemID == "2011")
             #expect(actions[2].kind == .unwatched)
             #expect(actions[2].kind.rawValue == "unwatched")
             #expect(actions[2].viewOffsetMs == 0)
@@ -266,10 +266,10 @@ struct LegacyContainerTests {
             let store = PinnedPlaylistStore(defaults: defaults)
             let pins = store.pins(profileID: "4f2a9c1d7e3b5a60")
             try #require(pins.count == 2)
-            #expect(pins[0].id == MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "5001"))
+            #expect(pins[0].id == MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", itemID: "5001"))
             #expect(pins[0].title == "Friday Movie Night")
             #expect(pins[1].id.serverID == nil)
-            #expect(pins[1].id.ratingKey == "5002")
+            #expect(pins[1].id.itemID == "5002")
             #expect(pins[1].title == "Old Pin")
             #expect(store.pins(profileID: "plex-home-24601").isEmpty)
 
@@ -578,11 +578,11 @@ struct LegacyContainerTests {
         let entries = try JSONDecoder().decode([SiriCatalogEntry].self, from: fixture)
         #expect(entries == [
             SiriCatalogEntry(
-                id: MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "1001"),
+                id: MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", itemID: "1001"),
                 kind: .movie, title: "Arrival", year: 2016, lastViewedAt: 1_767_225_600
             ),
             SiriCatalogEntry(
-                id: MediaItemID(serverID: "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5", ratingKey: "2000"),
+                id: MediaItemID(serverID: "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5", itemID: "2000"),
                 kind: .show, title: "Severance", year: nil, lastViewedAt: nil
             ),
         ])
@@ -598,7 +598,7 @@ struct LegacyContainerTests {
         let activity = try JSONDecoder().decode(DuskWatchTogetherActivity.self, from: fixture)
         #expect(activity == DuskWatchTogetherActivity(
             serverIdentifier: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9",
-            ratingKey: "1001",
+            itemID: "1001",
             title: "Arrival",
             subtitle: nil
         ))
@@ -637,7 +637,7 @@ struct LegacyContainerTests {
 
         let link = try #require(TopShelfLink(url: clip.playURL))
         #expect(link.action == .play)
-        #expect(link.id == MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "4001"))
+        #expect(link.id == MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", itemID: "4001"))
         #expect(link.type == .movie)
         #expect(link.isClip == true)
 

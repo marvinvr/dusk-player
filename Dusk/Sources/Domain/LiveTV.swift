@@ -114,7 +114,7 @@ struct LiveChannel: Decodable, Sendable, Hashable, Identifiable {
 }
 
 struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
-    let ratingKey: String
+    let itemID: String
     let key: String?
     /// The metadata guid (`plex://episode/…`) on Plex guides. A DVR recording
     /// matched by Plex carries the same one, which is how a past airing finds
@@ -131,7 +131,7 @@ struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
     private(set) var airings: [LiveAiring]
 
     var id: String {
-        "\(ratingKey)-\(primaryAiring?.channelIdentifier ?? "unknown")-\(Int(primaryAiring?.beginsAt ?? 0))"
+        "\(itemID)-\(primaryAiring?.channelIdentifier ?? "unknown")-\(Int(primaryAiring?.beginsAt ?? 0))"
     }
 
     var primaryAiring: LiveAiring? {
@@ -216,7 +216,7 @@ struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case ratingKey, key, guid, title, summary, thumb, art, grandparentTitle, parentTitle
+        case itemID = "ratingKey", key, guid, title, summary, thumb, art, grandparentTitle, parentTitle
         case type, duration
         case airings = "Media"
     }
@@ -225,7 +225,7 @@ struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         key = try container.decodeIfPresent(String.self, forKey: .key)
         guid = try? container.decodeIfPresent(String.self, forKey: .guid)
-        ratingKey = Self.decodeString(container, key: .ratingKey)
+        itemID = Self.decodeString(container, key: .itemID)
             ?? key
             ?? UUID().uuidString
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
@@ -274,7 +274,7 @@ extension LiveProgram {
     /// the shared guide reads both the same way.
     init(iptv programme: IPTVProgramme, channel: LiveChannel) {
         let start = Int(programme.start.timeIntervalSince1970)
-        ratingKey = "iptv-\(channel.id)-\(start)"
+        itemID = "iptv-\(channel.id)-\(start)"
         key = nil
         guid = nil
         if let subtitle = programme.subtitle?.nilIfEmpty, subtitle != programme.title {
@@ -954,7 +954,7 @@ struct PlexLiveTuneResponse: Decodable {
                 part.makePart(id: index, sessionPath: sessionPath)
             }
             let fallbackPart = MediaPart(
-                id: 0,
+                id: "0",
                 key: sessionPath,
                 file: nil,
                 size: nil,
@@ -968,7 +968,7 @@ struct PlexLiveTuneResponse: Decodable {
             )
 
             return MediaVersion(
-                id: id ?? 0,
+                id: String(id ?? 0),
                 container: container ?? "hls",
                 videoCodec: videoCodec,
                 audioCodec: audioCodec,
@@ -1009,7 +1009,7 @@ struct PlexLiveTuneResponse: Decodable {
 
         func makePart(id fallbackID: Int, sessionPath: String) -> MediaPart {
             MediaPart(
-                id: id ?? fallbackID,
+                id: String(id ?? fallbackID),
                 key: key ?? sessionPath,
                 file: nil,
                 size: nil,
@@ -1073,7 +1073,7 @@ struct PlexLiveTuneResponse: Decodable {
             }
 
             return MediaStream(
-                id: id ?? index ?? fallbackID,
+                id: String(id ?? index ?? fallbackID),
                 streamType: type,
                 codec: codec,
                 displayTitle: nil,

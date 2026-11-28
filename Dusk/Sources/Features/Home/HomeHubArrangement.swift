@@ -74,7 +74,7 @@ enum HomeHubArrangement {
         guard isLibraryRow else { return nil }
 
         let items = hub.items.filter { $0.serverID == hub.representativeServerID }
-        let sectionIDs = Set(items.compactMap(\.librarySectionID))
+        let sectionIDs = Set(items.compactMap(\.libraryID))
         if sectionIDs.count == 1, let sectionID = sectionIDs.first {
             return hub.representativeServerID.map { "\($0)|\(sectionID)" } ?? sectionID
         }

@@ -313,7 +313,7 @@ private extension PlaybackNowPlayingController {
     func publishInitialMetadata(for details: MediaDetails) {
         nowPlayingInfo = [
             MPMediaItemPropertyTitle: nowPlayingTitle(for: details),
-            MPNowPlayingInfoPropertyExternalContentIdentifier: details.ratingKey,
+            MPNowPlayingInfoPropertyExternalContentIdentifier: details.itemID,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.video.rawValue,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyPlaybackRate: 0.0,

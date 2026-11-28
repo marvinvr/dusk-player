@@ -79,7 +79,7 @@ struct SubtitleSelectionPolicy: Equatable, Sendable {
     func preferredTrack(
         in tracks: [SubtitleTrack],
         audioLanguage rawAudioLanguage: String?,
-        serverSelectedStreamID: Int? = nil
+        serverSelectedStreamID: String? = nil
     ) -> SubtitleTrack? {
         let serverSelected = serverSelectedStreamID.flatMap { id in
             tracks.first { $0.plexStreamID == id }

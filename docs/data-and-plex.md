@@ -424,7 +424,7 @@ Extras (`PlexService+Extras.swift`, `Domain/Extra.swift`):
 
 Hubs and search:
 - `getHubs()` -> `/hubs`.
-- `HomeRow.librarySectionID` decodes int-or-string; `resolvedLibrarySectionID`
+- `HomeRow.libraryID` decodes int-or-string; `resolvedLibrarySectionID`
   falls back to the numeric suffix of `hubIdentifier`
   ("movie.recentlyadded.3" -> "3") because not every server sends the field.
   That id is what lets Home group a library's rows together.
@@ -818,7 +818,8 @@ servers hand out the same `ratingKey` for different titles. Identity therefore
 always carries the server.
 
 - `Domain/MediaItemID.swift` defines `CodingUserInfoKey.duskServerID`,
-  `Decoder.duskServerID`, and `MediaItemID { serverID, ratingKey }`. Each model's
+  `Decoder.duskServerID`, and `MediaItemID { serverID, itemID }` (Codable key
+  `ratingKey`). Each model's
   `init(from:)` reads `decoder.duskServerID` and stamps it, so nested items are
   stamped automatically. Do not add post-decode copy helpers or wrappers.
 - `MediaItem.id`, `MediaDetails.id`, `Episode.id`, and `Season.id` are
@@ -826,6 +827,15 @@ always carries the server.
   `"<serverID>|<key>"`. `AppNavigationRoute` carries a `MediaItemID`.
 - `serverID` is `String?`: nil means "not stamped" (a model built locally or
   decoded outside the pool), not "the primary server".
+- Swift field names are neutral (`itemID`, `parentID`, `grandparentID`,
+  `libraryID`); every `CodingKeys` case keeps the Plex/persisted key
+  (`ratingKey`, …). Version, part, stream and marker ids are `String`:
+  decoded from a number or a string, written back as a number when they are
+  one (`Domain/MediaIDCoding.swift`), so `downloads.json` and the
+  converted-media blob are unchanged. Order ids with `mediaIDPrecedes`, never
+  `<` on the strings.
+- `Providers/Core/ServerRegistry.swift`: which provider a `serverID` belongs
+  to; a server with no record is Plex. Lookup only, nothing stored yet.
 - `Domain/ContentKey.swift` is the *cross-server* identity used for merging:
   the scalar `guid` when it starts with `plex://`, else tmdb > imdb > tvdb from
   the `guids` array namespaced by type, else `type|normalizedTitle|year`

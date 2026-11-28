@@ -14,7 +14,7 @@ struct PlayerIntroAutoSkipTests {
         defer { preferences.autoSkipIntroMode = previousMode }
 
         let marker = Marker(
-            id: 42,
+            id: "42",
             type: "intro",
             startTimeOffset: 5_000,
             endTimeOffset: 20_000
@@ -201,8 +201,8 @@ struct PlayerIntroAutoSkipTests {
     }
 
     @Test func lastCreditsMarkerDrivesUpNextAndEarlierOnesGetTheChip() {
-        let early = Marker(id: 1, type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
-        let final = Marker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+        let early = Marker(id: "1", type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
+        let final = Marker(id: "2", type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
         let engine = IntroAutoSkipPlaybackEngine(currentTime: 35)
         let viewModel = PlayerViewModel(engine: engine, markers: [early, final])
         defer { viewModel.cleanup() }
@@ -224,7 +224,7 @@ struct PlayerIntroAutoSkipTests {
     }
 
     @Test func skippingCreditsToTheEndEndsPlaybackInsteadOfSeeking() {
-        let final = Marker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+        let final = Marker(id: "2", type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
         let engine = IntroAutoSkipPlaybackEngine(currentTime: 105)
         let viewModel = PlayerViewModel(engine: engine, markers: [final])
         defer { viewModel.cleanup() }
@@ -267,7 +267,7 @@ struct PlayerIntroAutoSkipTests {
         preferences.autoSkipIntroMode = mode
 
         let marker = Marker(
-            id: 42,
+            id: "42",
             type: "intro",
             startTimeOffset: 5_000,
             endTimeOffset: 20_000
