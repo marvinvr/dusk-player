@@ -380,7 +380,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   to Episode Still, the old 16:9 still/backdrop look.
 - Home filters playlist/music/unknown content and hides Plex "continue watching/on deck"
   hubs so the custom continue-watching flow is not duplicated. That rule lives in
-  `HomeHubFilter` (`HomeHubFilter.swift`).
+  `HomeHubFilter` (`HomeHubFilter.swift`), on the `HomeRow.kind` the Plex
+  mapper (`PlexHubMapper`) assigns.
 - Home's arrangement is fixed and identical on both platforms: the cinematic hero,
   the Live TV shelf (when enabled), the Plex hubs, then the personalized shelves. `HomeIOSView` and
   `HomeTVView` each render that sequence directly. There is no user-editable Home

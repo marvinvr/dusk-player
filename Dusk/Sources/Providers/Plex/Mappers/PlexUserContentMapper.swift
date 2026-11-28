@@ -107,18 +107,6 @@ enum PlexUserContentMapper {
         PlexWatchlistAvailability(title: dto.title, offerType: dto.offerType)
     }
 
-    // MARK: Managed Home rows
-
-    static func managedHub(_ dto: PlexManagedHubDTO) -> PlexManagedHub {
-        PlexManagedHub(
-            identifier: dto.identifier,
-            title: dto.title,
-            promotedToRecommended: dto.promotedToRecommended,
-            promotedToOwnHome: dto.promotedToOwnHome,
-            promotedToSharedHome: dto.promotedToSharedHome
-        )
-    }
-
     // MARK: Subtitle search
 
     /// A real non-zero id is the identity; otherwise the provider `key` is.

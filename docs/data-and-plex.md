@@ -36,7 +36,10 @@ enabled flags), `ServerSession.swift` (one session), `ServerProbe.swift`
 - The pool also stores the server's `provider` on each session it records,
   built by the provider's factory from `MediaService.providers`
   (`ProviderRegistry`, `Providers/Core/`). Nothing routes through it yet; the
-  provider is not part of the session's `==`/`hash`.
+  provider is not part of the session's `==`/`hash`. Facets whose requests
+  must keep the facade's routing and self-healing are built by the facade
+  for now (`MediaService.home(on:)` → `PlexHomeRows`, sending through
+  `rawServerRequest`).
 - `ServerPool` (`media.pool`) holds `states: [String: ServerConnectionState]`
   (`idle`/`connecting`/`connected`/`unauthorized`/`offline(reason)`/`disabled`),
   the discovered `servers`, `connections` (connected, in priority order),
@@ -332,7 +335,9 @@ facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
   endpoint, and returns `Data`.
 - Use `fetchMetadata<T>` for `MediaContainer.Metadata`.
 - Use `fetchDirectories<T>` for `MediaContainer.Directory`.
-- Use `fetchHomeRows(...)` (`MediaService+Hubs.swift`) for `MediaContainer.Hub`.
+- `MediaContainer.Hub` rows come from the home facet (`PlexHomeRows`, reached
+  through `MediaService.home(on:)` in `MediaService+Hubs.swift`); only search
+  still asks for a raw hub path, through `fetchHomeRows(...)`.
 - The fetch helpers decode through `pool.decoder(for: serverID)`. A DTO carries
   no server id: pass the resolved server id to its mapper, which stamps it. Items
   still decoded as domain types (the transitional `PlexItemDecodingBridge`) get
@@ -463,9 +468,19 @@ Extras (`MediaService+Extras.swift`, `Domain/Extra.swift`):
 Hubs and search:
 - `getHubs()` -> `/hubs`.
 - `HomeRow.libraryID` decodes int-or-string; `resolvedLibrarySectionID`
-  falls back to the numeric suffix of `hubIdentifier`
+  falls back to the paging key, then the numeric suffix of `hubIdentifier`
   ("movie.recentlyadded.3" -> "3") because not every server sends the field.
   That id is what lets Home group a library's rows together.
+- Every Plex string rule about a row runs once, in `PlexHubMapper`, and lands
+  on the row as `kind` (continue watching / next up / playlists / recently
+  added / other), `libraryScope` (section, unresolved library row, global),
+  `mergeKey` and `canHide`. `HomeHubFilter`, `HomeHubArrangement`, `HubMerge`
+  and `HomeViewModel.isRecentlyAddedHub` read those fields, never
+  `hubIdentifier`/titles. The rules read only fields a merge keeps from its
+  representative, so a merged row classifies as its representative did.
+  Pinned by `PlexHubFixtureTests` (`DuskTests/Fixtures/Plex/plex-hubs-*.json`).
+  `MediaItemMerge`, `LibraryRecommendationsViewModel` and
+  `HomeWatchlistPlacement` still read the strings themselves.
 - Build a changed hub with `HomeRow.replacingItems(_:)`, not the memberwise
   init: the init drops any field the call site forgets.
 - `getLibraryHubs(sectionId:count:)` -> `/hubs/sections/{sectionId}` with
@@ -599,7 +614,9 @@ Where to edit:
 - Direct play/transcode/remux URLs and stream selection:
   `MediaService+Streams.swift`; playback progress and watch state:
   `MediaService+WatchState.swift`.
-- Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`.
+- Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`
+  (routes) and `Providers/Plex/PlexHomeRows.swift` (the Plex requests), rows
+  mapped by `Providers/Plex/Mappers/PlexHubMapper.swift`.
 - Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
 - Account-level plex.tv settings (library order): `MediaService+LibraryOrder.swift`,
   with the shared state in `LibraryOrderStore.swift`.
@@ -780,7 +797,8 @@ state `MediaService/WatchlistStore.swift` (`media.watchlist`).
   (all three, 1/0, as Plex Web sends them) sets them. `GET /hubs` rows usually lack
   `librarySectionID`, and their identifier is kind + section + variant
   (`movie.curated.2.1`), so the trailing number is NOT the section
-  (`PlexManagedHub.matches`). Owner-only. See `MediaService+HomeRows.swift`.
+  (`PlexManagedHub.matches`). Owner-only. See `MediaService+HomeRows.swift`
+(permission, routes) and `PlexHomeRows.managedRow(for:source:libraryIDs:)`.
 
 ## Playlists
 File: `MediaService+Playlists.swift` (routes, store loading), Plex requests in
@@ -893,7 +911,8 @@ always carries the server.
   `Decoder.duskServerID`, and `MediaItemID { serverID, itemID }` (Codable key
   `ratingKey`). Item-family values (items, details, seasons, episodes,
   libraries, hub rows) are decoded as Plex DTOs (`Providers/Plex/DTO/`) and
-  built by `Providers/Plex/Mappers/PlexItemMapper.swift`, which takes the fetched server's id and stamps it
+  built by `Providers/Plex/Mappers/PlexItemMapper.swift` (hub rows by
+  `PlexHubMapper.swift`), which takes the fetched server's id and stamps it
   on everything it builds, nested items included. Their remaining direct
   `Decodable` conformances (`Providers/Plex/PlexItemDecodingBridge.swift`) are
   transitional forwarders that map with `decoder.duskServerID`; nothing else
@@ -1003,8 +1022,9 @@ order. This also governs movie Continue Watching representatives.
 - Continue Watching (TV): representative = newest `lastViewedAt`, then larger
   `viewOffset`, then lowest server rank; the row is then sorted newest-first. The
   other copies are registered as alternates (in rank order) for playback fallback.
-- Hubs: keyed on `hubIdentifier` with its trailing numeric section suffix
-  stripped, plus type (normalized title as fallback). Deduped by content key and
+- Hubs: keyed on `HomeRow.mergeKey` — for Plex `hubIdentifier` with its
+  trailing numeric section suffix stripped, plus type (normalized title as
+  fallback), computed by `PlexHubMapper`. Deduped by content key and
   round-robin interleaved in priority order, except merged Recently Added Movies:
   `MediaItemMerge.hubItems` sorts those by `addedAt` descending before deduplication
   (newest addition determines placement; movie progress determines the displayed

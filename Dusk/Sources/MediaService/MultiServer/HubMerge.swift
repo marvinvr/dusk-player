@@ -12,8 +12,8 @@ struct MergedPlexHubs: Sendable {
 ///
 /// The hard part is deciding that two rows *are* the same row. Plex names a
 /// per-library hub `"<type>.<name>.<sectionID>"`, and the section id is a
-/// per-server counter, so the suffix has to go before the identifiers can be
-/// compared — but stripping it also makes every movie library on one server
+/// per-server counter, so the mapper strips the suffix into `HomeRow.mergeKey`
+/// (`PlexHubMapper`) — but that also makes every movie library on one server
 /// look like the same row, which is why the library itself is part of the key
 /// and why two rows from the same server never merge in `.home` mode.
 /// Everything else (row order, which library a row belongs to) is left to
@@ -134,28 +134,14 @@ enum HubMerge {
         return MergedPlexHubs(hubs: collapsed, alternates: alternates)
     }
 
-    /// Identity of a row: the hub identifier without its per-server section
-    /// suffix plus the row's type, and — on Home — the library the row belongs
-    /// to, because that suffix is the only thing that told two libraries of the
-    /// same type apart. Rows with no identifier (some servers omit it on
-    /// `/hubs/sections`) fall back to the title.
+    /// Identity of a row: the provider's `HomeRow.mergeKey` (for Plex the hub
+    /// identifier without its per-server section suffix plus the row's type,
+    /// or the title when a server sent no identifier) and — on Home — the
+    /// library the row belongs to, because that suffix is the only thing that
+    /// told two libraries of the same type apart.
     static func mergeKey(for hub: HomeRow, mode: Mode = .home) -> String {
-        let type = hub.type ?? "-"
-        let base: String
-
-        if let hubIdentifier = hub.hubIdentifier?.nilIfEmpty {
-            var components = hubIdentifier.split(separator: ".").map(String.init)
-            if let last = components.last, !last.isEmpty, last.allSatisfy(\.isNumber) {
-                components.removeLast()
-            }
-            let stripped = components.joined(separator: ".").nilIfEmpty ?? hubIdentifier
-            base = "id:\(stripped.lowercased())|\(type)"
-        } else {
-            base = "title:\(normalized(hub.title))|\(type)"
-        }
-
-        guard mode == .home else { return base }
-        return "\(base)|\(libraryKey(for: hub))"
+        guard mode == .home else { return hub.mergeKey }
+        return "\(hub.mergeKey)|\(libraryKey(for: hub))"
     }
 
     /// Which library a Home row belongs to, as something comparable across
@@ -179,10 +165,7 @@ enum HubMerge {
     }
 
     private static func normalized(_ value: String) -> String {
-        String(
-            value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                .filter { $0.isLetter || $0.isNumber }
-        )
+        HomeRow.normalizedTitle(value)
     }
 }
 

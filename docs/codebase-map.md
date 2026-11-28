@@ -145,7 +145,8 @@ Home:
 - `LiveTVHomeShelf` renders currently airing programs without blocking ordinary
   Home content when Live TV is absent or unavailable.
 - `HomeHubFilter` owns the hub/item filter that keeps playlist/music/unknown
-  content and Plex's own continue-watching rows off Home.
+  content and the server's own continue-watching rows off Home. It reads
+  `HomeRow.kind`, which `PlexHubMapper` sets from Plex's row strings.
 - `HomeHubArrangement` regroups the merged hubs so a library's rows follow the
   account's library order, keyed on `Library.id` (never the bare section key,
   which aliases across servers). Home has no user-editable row layout.
@@ -357,7 +358,8 @@ Supporter:
 - New Plex endpoint: matching `MediaService+*.swift` file — e.g.
   `MediaService+Subtitles.swift` owns the server-side OpenSubtitles search,
   sidecar download, sidecar stream URL, and the `canDownloadSubtitles` gate.
-- New Home row type: `HomeViewModel` plus `HomeHubFilter`/`HomeHubArrangement`.
+- New Home row type: a `HomeRow.Kind` set by the provider's mapper
+  (`PlexHubMapper`), then `HomeViewModel` plus `HomeHubFilter`/`HomeHubArrangement`.
   Home's row sequence is fixed in `HomeIOSView`/`HomeTVView`; keep the two shells
   in step instead of reintroducing a user-editable row layout.
 - New account-level Plex setting: `MediaService+LibraryOrder.swift` for the
