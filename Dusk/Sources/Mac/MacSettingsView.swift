@@ -574,15 +574,15 @@ private struct MacAccountSettingsPane: View {
                 }
             }
 
-            if media.homeUsers.count > 1, let activeUser = media.activeHomeUser {
+            if media.canSwitchProfiles, let activeProfile = media.activeProfile {
                 Section {
                     LabeledContent {
                         Button("Switch User…") { showsHomeUserPicker = true }
                     } label: {
                         HStack(spacing: 10) {
-                            PlexHomeUserAvatar(user: activeUser, size: 28)
+                            ProfileAvatar(profile: activeProfile, size: 28)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(activeUser.displayName)
+                                Text(activeProfile.displayName)
                                 Text("Current User")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -623,7 +623,7 @@ private struct MacAccountSettingsPane: View {
         }
         .sheet(isPresented: homeUserPickerPresented) {
             HomeUserPickerView(
-                users: media.homeUsers,
+                profiles: media.profiles,
                 rememberSelection: media.automaticHomeSignIn,
                 onComplete: { showsHomeUserPicker = false },
                 onCancel: { showsHomeUserPicker = false }
@@ -642,7 +642,7 @@ private struct MacAccountSettingsPane: View {
 
     private var homeUserPickerPresented: Binding<Bool> {
         Binding(
-            get: { showsHomeUserPicker && media.homeUsers.count > 1 },
+            get: { showsHomeUserPicker && media.canSwitchProfiles },
             set: { showsHomeUserPicker = $0 }
         )
     }

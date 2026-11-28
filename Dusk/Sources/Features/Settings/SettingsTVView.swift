@@ -36,13 +36,13 @@ struct SettingsTVView: View {
                     }
                 }
 
-                if media.homeUsers.count > 1, let activeUser = media.activeHomeUser {
+                if media.canSwitchProfiles, let activeProfile = media.activeProfile {
                     TVSettingsSection(
                         title: "Plex Home",
                         footer: "When off, Dusk asks who’s watching at launch."
                     ) {
                         HStack(spacing: 22) {
-                            PlexHomeUserAvatar(user: activeUser, size: 68)
+                            ProfileAvatar(profile: activeProfile, size: 68)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Current User")
@@ -51,7 +51,7 @@ struct SettingsTVView: View {
                                     .tracking(0.5)
                                     .foregroundStyle(Color.duskTextSecondary)
 
-                                Text(activeUser.displayName)
+                                Text(activeProfile.displayName)
                                     .font(DuskFont.rowTitle(ios: .headline.weight(.semibold)))
                                     .foregroundStyle(Color.duskTextPrimary)
                                     .lineLimit(1)

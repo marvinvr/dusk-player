@@ -32,7 +32,7 @@ struct MacCommands: Commands {
         }
 
         CommandGroup(after: .appSettings) {
-            if media.hasPlexHome {
+            if media.canSwitchProfiles {
                 Button("Switch User…") {
                     showMainWindow()
                     router.isHomeUserPickerPresented = true

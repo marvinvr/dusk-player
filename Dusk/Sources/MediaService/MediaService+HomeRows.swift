@@ -13,8 +13,8 @@ extension MediaService {
     /// profiles cannot at all. Per server: the account can own one server and
     /// merely be shared another.
     func canManageHomeRows(serverID: String) -> Bool {
-        guard let connection = pool.connection(for: serverID) else { return false }
-        return connection.owned && activeHomeUser?.isRestricted != true
+        guard pool.connection(for: serverID) != nil else { return false }
+        return serverProvider(for: serverID).permissions.canManageHomeRows
     }
 
     func getManagedHubs(sectionId: String, serverID: String) async throws -> [PlexManagedHub] {

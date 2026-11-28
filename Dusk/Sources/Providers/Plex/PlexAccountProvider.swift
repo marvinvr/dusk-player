@@ -180,11 +180,10 @@ final class PlexAccountProvider: MediaAccountProvider {
     @MainActor
     private func discoverServerCandidateSets() async throws -> [ServerCandidateSet] {
         let servers = try await discoverServers()
-        let restricted = state.activeHomeUser?.isRestricted == true
         return servers.map { server in
             let serverID = server.clientIdentifier
             return ServerCandidateSet(
-                seed: Self.seed(for: server, restrictedProfile: restricted),
+                seed: Self.seed(for: server),
                 credential: server.usableAccessToken ?? ServerPool.storedToken(serverID: serverID),
                 candidates: ServerPool.connectionCandidates(
                     for: server,
@@ -194,14 +193,13 @@ final class PlexAccountProvider: MediaAccountProvider {
         }
     }
 
-    static func seed(for server: PlexServer, restrictedProfile: Bool) -> ServerSessionSeed {
+    static func seed(for server: PlexServer) -> ServerSessionSeed {
         ServerSessionSeed(
             serverID: server.clientIdentifier,
             name: server.name,
             version: server.productVersion,
             owned: server.owned,
-            sourceTitle: server.sourceTitle,
-            restrictedProfile: restrictedProfile
+            sourceTitle: server.sourceTitle
         )
     }
 

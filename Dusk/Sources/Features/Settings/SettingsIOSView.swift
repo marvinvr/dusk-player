@@ -66,10 +66,10 @@ struct SettingsIOSView: View {
             }
             .listRowBackground(Color.duskSurface)
 
-            if media.homeUsers.count > 1, let activeUser = media.activeHomeUser {
+            if media.canSwitchProfiles, let activeProfile = media.activeProfile {
                 Section {
                     HStack(spacing: 16) {
-                        PlexHomeUserAvatar(user: activeUser, size: 48)
+                        ProfileAvatar(profile: activeProfile, size: 48)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Current User")
@@ -78,7 +78,7 @@ struct SettingsIOSView: View {
                                 .tracking(0.4)
                                 .foregroundStyle(Color.duskTextSecondary)
 
-                            Text(activeUser.displayName)
+                            Text(activeProfile.displayName)
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(Color.duskTextPrimary)
                                 .lineLimit(1)

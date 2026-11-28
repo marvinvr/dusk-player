@@ -68,10 +68,6 @@ final class ServerPool {
     @ObservationIgnored private var providers: ProviderRegistry?
     /// Which provider each server id belongs to; no record is Plex.
     @ObservationIgnored private var serverRegistry = ServerRegistry()
-    /// Whether the active profile is restricted, for `ServerPermissions`. Read
-    /// when a session is recorded: a profile switch clears the pool, so every
-    /// session's provider is built for the profile it serves.
-    @ObservationIgnored private var isRestrictedProfile: @MainActor () -> Bool = { false }
 
     /// Injected by `MediaService` at init. The headers carry no credential; the
     /// per-server token is added when a request is built.
@@ -79,14 +75,12 @@ final class ServerPool {
         probeSession: URLSession,
         baseHeaders: [String: String],
         providers: ProviderRegistry,
-        serverRegistry: ServerRegistry = ServerRegistry(),
-        restrictedProfile: @escaping @MainActor () -> Bool = { false }
+        serverRegistry: ServerRegistry = ServerRegistry()
     ) {
         self.probeSession = probeSession
         self.baseHeaders = baseHeaders
         self.providers = providers
         self.serverRegistry = serverRegistry
-        self.isRestrictedProfile = restrictedProfile
     }
 
     /// The provider for a session with `server`, from the factory of the
@@ -106,8 +100,7 @@ final class ServerPool {
                 name: server.name,
                 version: server.productVersion,
                 owned: server.owned,
-                sourceTitle: server.sourceTitle,
-                restrictedProfile: isRestrictedProfile()
+                sourceTitle: server.sourceTitle
             )
         )
     }

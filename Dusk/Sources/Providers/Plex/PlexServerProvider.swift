@@ -12,7 +12,8 @@ final class PlexServerProvider: MediaServerProvider {
     let client: PlexClient
     let router: PlexServerRouter
     let descriptor: ServerDescriptor
-    let permissions: ServerPermissions
+    /// The account owns this server (rather than having it shared).
+    let owned: Bool
 
     /// The id the facets send to; nil for the primary-tracking provider.
     var routedServerID: String? { descriptor.id.nilIfEmpty }
@@ -27,22 +28,29 @@ final class PlexServerProvider: MediaServerProvider {
             version: seed.version,
             ownerLabel: seed.owned ? nil : seed.sourceTitle
         )
-        self.permissions = Self.permissions(for: seed)
+        self.owned = seed.owned
     }
 
-    /// Today's Plex rules in neutral form. Hiding Home rows and installing
-    /// subtitles need the server's owner on an unrestricted profile
-    /// (`MediaService+HomeRows`, `+Subtitles`); playing, downloading and
-    /// playlists are open to every account Plex shares a server with.
-    static func permissions(for seed: ServerSessionSeed) -> ServerPermissions {
-        let manages = seed.owned && !seed.restrictedProfile
+    /// Today's Plex rules in neutral form, read live: hiding Home rows and
+    /// installing subtitles need the server's owner on an unrestricted
+    /// profile, and the active profile can change while the session stays
+    /// (`MediaService.canManageHomeRows`, `canDownloadSubtitles`). Playing,
+    /// downloading and playlists are open to every account Plex shares a
+    /// server with.
+    @MainActor var permissions: ServerPermissions {
+        let restricted = router.account?.state.activeHomeUser?.isRestricted == true
+        return Self.permissions(owned: owned, restrictedProfile: restricted, ownerLabel: descriptor.ownerLabel)
+    }
+
+    static func permissions(owned: Bool, restrictedProfile: Bool, ownerLabel: String?) -> ServerPermissions {
+        let manages = owned && !restrictedProfile
         return ServerPermissions(
             canManageHomeRows: manages,
             canInstallSubtitles: manages,
             canDownload: true,
             canPlay: true,
             canEditPlaylists: true,
-            ownerLabel: seed.owned ? nil : seed.sourceTitle
+            ownerLabel: ownerLabel
         )
     }
 }

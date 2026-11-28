@@ -71,14 +71,14 @@ enum MacScreenshotUserPicker {
         ScreenshotMode.isActive && UserDefaults.standard.bool(forKey: "DuskScreenshotUserPicker")
     }
 
-    static let sampleUsers: [PlexHomeUser] = {
-        let json = """
-        [{"id": 1, "title": "Marvin", "protected": true, "admin": true},
-         {"id": 2, "title": "Anna Rezanova"},
-         {"id": 3, "title": "Kids", "restricted": true}]
-        """
-        return (try? JSONDecoder().decode([PlexHomeUser].self, from: Data(json.utf8))) ?? []
-    }()
+    static let sampleProfiles: [Profile] = [
+        Profile(id: "plex-home-1", nativeID: "1", displayName: "Marvin", avatarURL: nil,
+                isProtected: true, isAdmin: true, isRestricted: false),
+        Profile(id: "plex-home-2", nativeID: "2", displayName: "Anna Rezanova", avatarURL: nil,
+                isProtected: false, isAdmin: false, isRestricted: false),
+        Profile(id: "plex-home-3", nativeID: "3", displayName: "Kids", avatarURL: nil,
+                isProtected: false, isAdmin: false, isRestricted: true),
+    ]
 }
 #endif
 

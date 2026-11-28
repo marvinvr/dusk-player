@@ -135,7 +135,7 @@ extension MediaService {
     /// shared another, so the answer differs per item.
     func canDownloadSubtitles(serverID: String?) -> Bool {
         guard let connection = pool.connection(for: serverID) else { return false }
-        return connection.owned && activeHomeUser?.isRestricted != true
+        return serverProvider(for: connection.serverID).permissions.canInstallSubtitles
     }
 
     /// Server-side provider downloads are slower than a metadata read.

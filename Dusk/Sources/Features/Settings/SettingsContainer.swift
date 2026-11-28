@@ -38,7 +38,7 @@ struct SettingsContainer<Content: View>: View {
 
     private var homeUserPicker: some View {
         HomeUserPickerView(
-            users: media.homeUsers,
+            profiles: media.profiles,
             rememberSelection: media.automaticHomeSignIn,
             onComplete: {
                 viewModel.showHomeUserPicker = false
@@ -51,7 +51,7 @@ struct SettingsContainer<Content: View>: View {
 
     private var homeUserPickerPresented: Binding<Bool> {
         Binding(
-            get: { viewModel.showHomeUserPicker && media.homeUsers.count > 1 },
+            get: { viewModel.showHomeUserPicker && media.canSwitchProfiles },
             set: { viewModel.showHomeUserPicker = $0 }
         )
     }

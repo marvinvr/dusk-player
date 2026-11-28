@@ -42,23 +42,6 @@ struct HomeUserPickerView: View {
         _rememberSelection = State(initialValue: rememberSelection)
     }
 
-    /// For the Settings and Mac callers that still hand over Plex Home members.
-    init(
-        users: [PlexHomeUser],
-        rememberSelection: Bool = true,
-        onComplete: (() -> Void)? = nil,
-        onCancel: (() -> Void)? = nil,
-        onSignOut: (() -> Void)? = nil
-    ) {
-        self.init(
-            profiles: users.map(\.profile),
-            rememberSelection: rememberSelection,
-            onComplete: onComplete,
-            onCancel: onCancel,
-            onSignOut: onSignOut
-        )
-    }
-
     private var isMac: Bool {
         #if os(macOS)
         true
@@ -501,16 +484,6 @@ private struct HomeUserBackButton: View {
 #endif
 
 // MARK: - Shared profile artwork
-
-/// A Plex Home member's avatar, for the Settings rows that still hold one.
-struct PlexHomeUserAvatar: View {
-    let user: PlexHomeUser
-    let size: CGFloat
-
-    var body: some View {
-        ProfileAvatar(profile: user.profile, size: size)
-    }
-}
 
 struct ProfileAvatar: View {
     let profile: Profile

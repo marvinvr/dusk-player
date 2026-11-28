@@ -232,8 +232,7 @@ final class MediaService {
             probeSession: probeSession,
             baseHeaders: plexRequestHeaders,
             providers: providers,
-            serverRegistry: serverRegistry,
-            restrictedProfile: { [weak self] in self?.activeHomeUser?.isRestricted == true }
+            serverRegistry: serverRegistry
         )
         // `-DuskScreenshotSignedOut` never touches the Keychain: the stored
         // server tokens are real sign-ins too.

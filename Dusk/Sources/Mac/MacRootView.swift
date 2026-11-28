@@ -67,7 +67,7 @@ struct MacRootView: View {
         }
         .sheet(isPresented: homeUserPickerPresented) {
             HomeUserPickerView(
-                users: media.homeUsers,
+                profiles: media.profiles,
                 rememberSelection: media.automaticHomeSignIn,
                 onComplete: { router.isHomeUserPickerPresented = false },
                 onCancel: { router.isHomeUserPickerPresented = false }
@@ -77,7 +77,7 @@ struct MacRootView: View {
         #if DEBUG
         .sheet(isPresented: $isScreenshotUserPickerPresented) {
             HomeUserPickerView(
-                users: MacScreenshotUserPicker.sampleUsers,
+                profiles: MacScreenshotUserPicker.sampleProfiles,
                 onComplete: { isScreenshotUserPickerPresented = false },
                 onCancel: { isScreenshotUserPickerPresented = false }
             )
@@ -312,7 +312,7 @@ struct MacRootView: View {
 
     private var homeUserPickerPresented: Binding<Bool> {
         Binding(
-            get: { router.isHomeUserPickerPresented && media.hasPlexHome },
+            get: { router.isHomeUserPickerPresented && media.canSwitchProfiles },
             set: { router.isHomeUserPickerPresented = $0 }
         )
     }

@@ -4,16 +4,13 @@ import Foundation
 /// provider's `ProviderFactory` builds one per session and the pool stores it on
 /// that `ServerSession`.
 ///
-/// Each facet starts as an empty protocol. A wave-4 package fills in its facet,
-/// moves the Plex code behind it and makes the facade route to it (05-plan.md
-/// §4); until then the facade still talks to Plex directly and nothing reads
-/// these properties.
+/// Each facet is a protocol in its own file. The facade routes every facet
+/// call to the provider of the item's server (`MediaService.serverProvider(for:)`).
 protocol MediaServerProvider: AnyObject, Sendable {
     var descriptor: ServerDescriptor { get }
-    /// What the signed-in profile may do on this server. Fixed for the
-    /// session's life: a profile switch tears every session down and the pool
-    /// builds new providers for the new profile.
-    var permissions: ServerPermissions { get }
+    /// What the active profile may do on this server, read live: the profile
+    /// can change while the session stays.
+    @MainActor var permissions: ServerPermissions { get }
 
     // Required: both platforms can do these.
     var catalog: any CatalogProviding { get }
@@ -49,6 +46,4 @@ struct ServerSessionSeed: Sendable, Hashable {
     let version: String?
     let owned: Bool
     let sourceTitle: String?
-    /// The active profile is a restricted one (a managed Plex Home member).
-    var restrictedProfile: Bool = false
 }
