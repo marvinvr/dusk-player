@@ -83,7 +83,8 @@ struct PlexUserData: UserDataProviding {
 extension PlexServerProvider {
     /// Nothing reads this yet: the facade builds the routed facet itself
     /// (`MediaService.userData(on:)`), because the routing lives there. This
-    /// one has no transport until `PlexClient` can route (05-plan P0-10 report).
+    /// one has no transport until `PlexClient` carries a routed send (a
+    /// reference to `MediaService`'s routing, set when the service builds it).
     var userData: any UserDataProviding {
         PlexUserData(serverID: descriptor.id, transport: nil)
     }

@@ -744,8 +744,9 @@ One policy for both providers, chosen by the coordinator from
 @MainActor protocol UserDataProviding {
     func report(_ event: PlaybackReport) async throws       // started / progress / paused / buffering / stopped; throws for offline replay
     func setWatched(_ watched: Bool, item: MediaItemID, at date: Date?) async throws
-    func setResumeOffset(_ ms: Int, item: MediaItemID, at date: Date?) async throws   // offline replay
-    func setFavourite(_ on: Bool, item: MediaItemID) async throws
+    // Planned, not declared yet (see below):
+    // func setResumeOffset(_ ms: Int, item: MediaItemID, at date: Date?) async throws
+    // func setFavourite(_ on: Bool, item: MediaItemID) async throws
 }
 ```
 
@@ -896,7 +897,7 @@ forever anyway.
 | `globalKey` | `"{profileID}:{serverID}:{ratingKey}"` | unchanged string |
 | `Metadata/[Profiles/{p}/]{serverID}/{hash}.json` | raw PMS response, hash of the PMS path | `MetadataSnapshotKey` (`.details(id)`, `.children(id)`, `.allLeaves(id)`); **its Plex string form is exactly today's endpoint path**, so existing files are found under the same hash. Jellyfin payloads are written in an envelope `{"provider":"jellyfin","schema":1,"payload":…}`; a bare payload is Plex |
 | `SmartDownloadRule` | `serverID`, `showRatingKey` | same keys |
-| `playback-sync.json` → `OfflinePlaybackSyncAction` | `plexState` etc. | same keys; replay calls `userData.report` / `setResumeOffset` / `setWatched(at:)` |
+| `playback-sync.json` → `OfflinePlaybackSyncAction` | `plexState` etc. | same keys; replay calls `userData.report` / `setWatched(at:)` (Plex replays progress as a timeline report; `setResumeOffset` joins if Jellyfin needs it) |
 
 Offline browsing asks `DownloadManager` for the record's provider kind (from
 the record, not from a live session) and decodes through that provider's
