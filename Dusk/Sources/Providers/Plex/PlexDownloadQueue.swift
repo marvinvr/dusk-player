@@ -46,6 +46,16 @@ extension PlexDownloadQueueItem {
 /// regression fixtures throw it.
 typealias PlexDownloadQueueError = DownloadPreparationError
 
+extension DownloadPreparationError: CustomNSError {
+    /// Frozen: error reports send the NSError domain, which was this type's
+    /// pre-provider name (`<module>.PlexDownloadQueueError`). Codes are the
+    /// case order, unchanged.
+    static var errorDomain: String {
+        let module = String(reflecting: DownloadPreparationError.self).prefix { $0 != "." }
+        return "\(module).PlexDownloadQueueError"
+    }
+}
+
 /// Only describes the validated converted output; library stream IDs and HDR
 /// flags belong to the original file and must not leak into offline playback.
 struct PlexDownloadDecision: Sendable {
