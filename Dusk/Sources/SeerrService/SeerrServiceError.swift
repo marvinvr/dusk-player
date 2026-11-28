@@ -6,7 +6,7 @@ enum SeerrServiceError: LocalizedError, Equatable {
     case serverMismatch
     case notConfigured
     case notConnected
-    case plexLoginUnavailable
+    case mediaServerLoginUnavailable
     case unauthorized
     case authenticationRequired(String)
     case permissionDenied(String)
@@ -33,7 +33,7 @@ enum SeerrServiceError: LocalizedError, Equatable {
             "Set up Seerr in Settings before using request results."
         case .notConnected:
             "Connect this Plex user to Seerr in Settings."
-        case .plexLoginUnavailable:
+        case .mediaServerLoginUnavailable:
             "This Seerr server is not configured to accept Plex sign-in."
         case .unauthorized:
             "Seerr refused this Plex account."
@@ -68,7 +68,7 @@ enum SeerrServiceError: LocalizedError, Equatable {
 
     var haltsCandidateSearch: Bool {
         switch self {
-        case .localNetworkDenied, .plexLoginUnavailable:
+        case .localNetworkDenied, .mediaServerLoginUnavailable:
             return true
         default:
             return false
@@ -131,7 +131,7 @@ enum SeerrServiceError: LocalizedError, Equatable {
         case .serverError(let message):
             let lowered = message.lowercased()
             if lowered.contains("login is disabled") {
-                return .plexLoginUnavailable
+                return .mediaServerLoginUnavailable
             }
             if lowered.contains("unable to authenticate")
                 || lowered.contains("access denied")
@@ -148,7 +148,7 @@ enum SeerrServiceError: LocalizedError, Equatable {
     private var connectRank: Int {
         switch self {
         case .localNetworkDenied: 100
-        case .plexLoginUnavailable: 90
+        case .mediaServerLoginUnavailable: 90
         case .tlsUntrusted: 80
         case .tlsHandshakeFailed: 75
         case .unauthorized: 70

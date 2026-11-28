@@ -6,9 +6,14 @@ of truth for all playable media.
 
 ## Ownership
 
-- `SeerrService/` owns URL validation, Plex-token sign-in, cookie sessions,
+- `SeerrService/` owns URL validation, sending the sign-in, cookie sessions,
   endpoint calls, request status mapping, and Seerr artwork URLs
   (`SeerrImageURL`).
+- The account's `SeerrAuthProviding` facet (`MediaService.seerrAuth`, Plex:
+  `Providers/Plex/PlexSeerrAuth.swift`) decides which Seerr accepts the
+  account (`accepts(_:)`) and builds the sign-in request (`login()`: path and
+  JSON body). It never sends; `SeerrService` posts it on its own session for
+  connect and for every 401 re-authentication.
 - `Domain/SeerrModels.swift` mirrors only the Seerr response fields Dusk uses.
 - `Features/Settings/SeerrSettings*` owns opt-in setup.
 - `Features/Search/SearchMediaResult.swift` is the presentation union used to
@@ -16,8 +21,8 @@ of truth for all playable media.
 - `Features/Seerr/` owns request-only movie, show, and season screens.
 - `ShowDetailViewModel` may add missing Seerr seasons to an online Plex show.
 
-Do not introduce a generic media-provider abstraction. Seerr is not a playback
-backend and must stay a focused optional integration.
+Seerr is not a playback backend and must stay a focused optional integration:
+the only provider-specific part is the sign-in facet above.
 
 ## Connection Flow
 

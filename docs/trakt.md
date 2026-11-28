@@ -10,8 +10,9 @@ else: no history import, no ratings, no watchlist, no other services.
   (constructed in `DuskApp`, also handed to `PlaybackCoordinator.traktService`).
   Owns the sign-in (browser or device code, see Flow), the per-profile
   tokens, the retry queue and the `/sync/history` calls.
-- `TraktService/TraktModels.swift`: `TraktHistoryMapper` (Plex guids → Trakt
-  ids), `TraktAuthorization` (iOS PKCE + `state`, callback check),
+- `TraktService/TraktHistoryMapper.swift`: `TraktHistoryMapper` (an item's
+  `ExternalIDs`, or a Plex legacy-agent guid, → Trakt ids).
+- `TraktService/TraktModels.swift`: `TraktAuthorization` (iOS PKCE + `state`, callback check),
   `TraktRequestBuilder` (every request, headers and bodies), API DTOs.
   Both pure and covered by `DuskTests/TraktMappingTests.swift`.
 - `TraktService/TraktStores.swift`: tokens in the Keychain

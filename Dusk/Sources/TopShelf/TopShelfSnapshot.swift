@@ -5,8 +5,8 @@ import Foundation
 /// extension through the shared App Group container.
 ///
 /// This file is compiled into both the app and the `DuskTopShelf` extension.
-/// The extension never talks to Plex: it has no token and no network access to
-/// a server, only this snapshot and the artwork files the app cached next to
+/// The extension never talks to a media server: it has no token and no network
+/// access to one, only this snapshot and the artwork files the app cached next to
 /// it. Titles, artwork file names and the deep links are all decided by the
 /// app (see `TopShelfPublisher`).
 struct TopShelfSnapshot: Codable, Sendable {

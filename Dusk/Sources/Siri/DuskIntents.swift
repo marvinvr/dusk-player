@@ -13,7 +13,14 @@ import Foundation
 // Both open Dusk first: only the foreground app connects its servers.
 // See docs/siri.md.
 
-/// A movie or show in the user's Plex libraries.
+/// A movie or show in the user's libraries, on any server.
+///
+/// Frozen wire format (docs/jellyfin/04-architecture.md §18): App Intents
+/// identifies an entity type by its Swift type name, and Shortcuts users built
+/// store that name and the `id` string (`MediaItemID.storageKey`). So the
+/// `Plex` names of this type and `PlexTitleEntityQuery` stay, unlike every
+/// other `Plex` type outside `Providers/`; renaming either breaks saved
+/// shortcuts.
 struct PlexTitleEntity: AppEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Movie or Show")
     static let defaultQuery = PlexTitleEntityQuery()
@@ -73,6 +80,7 @@ struct PlexTitleEntity: AppEntity {
     }
 }
 
+/// Frozen name, see `PlexTitleEntity`.
 struct PlexTitleEntityQuery: EntityStringQuery {
     @Dependency private var siri: SiriPlaybackService
 

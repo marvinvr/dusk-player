@@ -18,7 +18,7 @@ import UIKit
 ///   it, and rotated whenever the user turns reporting off. Supplying it means
 ///   Rybbit never has to fall back to its default identity, which is a hash of
 ///   IP and User-Agent.
-/// - **Nothing Plex-derived is ever reported.** No titles, servers, libraries,
+/// - **Nothing server-derived is ever reported.** No titles, servers, libraries,
 ///   search terms, or playback state. Error reports carry a technical profile
 ///   (codec, container, HDR format, resolution bucket) only through the
 ///   allowlists in `AnalyticsErrorSanitizer`. See `docs/analytics.md`.
