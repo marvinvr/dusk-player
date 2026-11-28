@@ -152,8 +152,7 @@ struct PlexHomeRows: HomeProviding {
 
     // MARK: - Requests
 
-    /// `MediaContainer.Hub` rows of `path`, mapped onto this server. Also what
-    /// search fetches `/hubs/search` with (`MediaService.fetchHomeRows`).
+    /// `MediaContainer.Hub` rows of `path`, mapped onto this server.
     @MainActor func rows(
         path: String,
         queryItems: [URLQueryItem]? = nil,

@@ -13,9 +13,9 @@ struct PlexMetadataSnapshotFormat: MetadataSnapshotFormat {
         }
     }
 
-    /// The same reads the catalog makes online (`getMediaDetailsPayload`,
-    /// `getChildrenPayload`), so a cached payload is what an online screen
-    /// would have decoded.
+    /// The same details and children reads the catalog makes online
+    /// (`getMediaDetailsPayload`, the catalog's children request), so a cached
+    /// payload is what an online screen would have decoded.
     func fetchRequest(for key: MetadataSnapshotKey) -> MetadataSnapshotRequest {
         switch key {
         case .details(let itemID):

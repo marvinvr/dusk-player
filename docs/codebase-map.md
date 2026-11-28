@@ -16,7 +16,7 @@ Dusk/Sources
     Plex/              PlexClient (sessions, headers, sending), PlexAccountProvider (account
                        credentials + Home state, plex.tv requests, discovery), PlexProfiles,
                        PlexSignInFlow, one facet per file, transport security, DTO/, Mappers/
-    Jellyfin/          Client and DTOs (not wired in yet)
+    Jellyfin/          Client, DTOs and mappers (not wired in yet)
   MediaService/        The facade: AccountStore + session state, sign-in/Home orchestration,
                        the multi-server session pool, request routing and self-healing,
                        API calls, images, playback + subtitle URLs

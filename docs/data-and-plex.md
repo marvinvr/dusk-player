@@ -350,8 +350,8 @@ facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
 - Use `fetchMetadata<T>` for `MediaContainer.Metadata`.
 - Use `fetchDirectories<T>` for `MediaContainer.Directory`.
 - `MediaContainer.Hub` rows come from the home facet (`PlexHomeRows`, reached
-  through `MediaService.home(on:)` in `MediaService+Hubs.swift`); only search
-  still asks for a raw hub path, through `fetchHomeRows(...)`.
+  through `MediaService.home(on:)` in `MediaService+Hubs.swift`); search's
+  `/hubs/search` groups come from the catalog facet (`PlexCatalog`).
 - The fetch helpers decode through `pool.decoder(for: serverID)`. A DTO carries
   no server id: pass the resolved server id to its mapper, which stamps it. Items
   still decoded as domain types (the transitional `PlexItemDecodingBridge`) get
@@ -603,8 +603,8 @@ Detail and hierarchy:
 - `getSeasons(showKey:)` and `getEpisodes(seasonKey:)` use
   `/library/metadata/{ratingKey}/children`.
 - `getNextEpisode(after:)` walks current season episodes, then later seasons.
-- `getMediaDetailsPayload` and `getChildrenPayload` return raw data. Downloads
-  make the same reads through `PlexMetadataSnapshotFormat.fetchRequest` for
+- `getMediaDetailsPayload` returns the raw details payload. Downloads make the
+  same details and children reads through `PlexMetadataSnapshotFormat.fetchRequest` for
   `MetadataSnapshotCache`; keep the two in step.
 
 Subtitle search and download (`MediaService+Subtitles.swift`):
@@ -937,9 +937,8 @@ Files: `MediaService+Images.swift` (routing, fetching), `Providers/Plex/PlexImag
   preview source and should not affect normal image or playback behavior. The
   read has its own healing (re-authorize a missing session, one token refresh
   on 401) and never goes through `rawServerRequest`, so a missing index (404)
-  cannot start connection recovery. The older
-  `scrubPreviewSource(forPartID:)` in `MediaService+Images.swift` is only still
-  called by the Mac player and is due to be removed.
+  cannot start connection recovery. The iOS, tvOS and Mac players all load
+  previews this way.
 
 Pitfalls:
 - Transcoded image and playback URLs can contain token-bearing query

@@ -330,6 +330,69 @@ provider).
   `docs/codebase-map.md`, `docs/playback.md`) and `docs/data-and-plex.md` →
   provider layering; full §3 gate.
 - **Accept.** G1 – G7 on iOS, tvOS and macOS. Tag `provider-abstraction-done`.
+- **Left by wave 4** (merged together with J-00b; the package reports were the
+  source). Most of these are what the boundary check will flag:
+  - **Routing.** Every server facet is still built by the facade, with the
+    facade as its transport. The facets are `PlexServerTransport` (catalog,
+    rating, home, playlists, user data) and `PlexLiveTVTransport` (refines
+    it); playback, markers and the account preferences use their own
+    `PlexPlaybackRouting`, `PlexMarkersTransport` and `PlexAccountTransport`.
+    A provider's own facets have no transport and refuse to send. The open
+    design step is a routed send on `PlexClient` or the provider (04 §8),
+    after which the facade routes through `session.provider`.
+  - **The plex.tv request exists twice.** One copy is
+    `MediaService+Networking.rawPlexTVRequest`, the other is
+    `PlexAccountProvider.plexTVData`. The facade's copy also sends the JSON
+    body and timeout that the library-order write needs.
+  - **Account readers.** The Settings views (iOS, tvOS, container) and
+    `MacRootView`, `MacSettingsView`, `MacCommands` and
+    `MacScreenshotRouting` still read `homeUsers`, `activeHomeUser`,
+    `hasPlexHome` and `PlexHomeUserAvatar`. They should switch to
+    `profiles` / `activeProfile` / `ProfileAvatar`, and then the shims can
+    be removed. `+HomeRows` and `+Subtitles` should read the provider's
+    `permissions` instead of checking ownership themselves. A provider's
+    `permissions` is a snapshot from when its session was built.
+  - **Plex shapes left in neutral code:**
+    - Plex sort and filter strings are still passed by the recommendation
+      engines, Siri (`SiriTitleCatalog`), the video shelf loader,
+      `VideoDetailViewModel` and `LibraryGenreSupport`.
+    - Plex wrappers kept for old callers: `CollectionDetailViewModel` uses
+      `plexValue`, and `PlexPhotoQuery` is a typealias.
+    - `MediaItemMerge`, `LibraryRecommendationsViewModel` and
+      `HomeWatchlistPlacement` parse the row strings instead of reading
+      `HomeRow.kind` / `mergeKey`.
+    - `removeFromContinueWatching` is in `+WatchState`; it belongs on
+      `HomeProviding`.
+    - The download quality menus (`DownloadActionButton`, `MacUIItemMenu`)
+      use `DownloadQuality.allCases` instead of
+      `media.downloadQualities(for:)`.
+    - `ProviderFactory` has no `metadataSnapshotFormat` yet, so the code
+      reaches it with an `as?` cast.
+    - The Seerr token isn't on `PlexAccountProvider.seerrAuth` yet.
+    - `MainTabView`'s screenshot live channel builds the lineup directly.
+  - **Plex names that are still referenced:**
+    - `PlexTransportSecurity` in the remux relay, the DV 7 proxy,
+      `SubtitleTextDecoder`, `PlaybackError`, downloads and `SeerrService`.
+    - `PlexScrubPreviewSource` / `Frame`, cast in `PlayerView` and
+      `MacPlayerView`.
+    - The Domain types `PlexLibraryFilter`, `PlexPerson`, `PlexManagedHub`,
+      `PlexHubSource`, `PlexPlaylistAddResult` and `PlexHomeHubSetting`.
+    - The `PlexMetadataCache` alias, which the tests still use.
+    - The `+Images` forwarders `transcodeSourceURLString` and
+      `imageRequestURLString`, and the `PlexImages` fallback.
+    - Exemptions the script must allow: `PlexTitleEntity` and
+      `PlexTitleEntityQuery` (frozen App Intents ids).
+  - **Kept on purpose:** P0-10 kept the `isIPTV` timeline guard. Without it,
+    an IPTV session's nil server id would report to the primary Plex server.
+  - **Still to come:**
+    - `PlexItemDecodingBridge` still has callers (`HomeRow` decoding among
+      them), and its header comment is stale.
+    - P0-12's `/hubs` fixtures are hand-written; real plex-demo captures
+      should be added.
+    - P0-09 departs from 04 §12.1, and its confirm hook only logs (see its
+      report). J-05 and J-06 read this.
+    - J-00b's Domain gaps (`Person.id`, rating sources, artwork slots) belong
+      to the J packages.
 
 ## 5. Phase J packages
 
