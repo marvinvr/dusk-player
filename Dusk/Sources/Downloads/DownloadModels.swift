@@ -170,6 +170,11 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// matching server is known (see `DownloadManager`).
     var serverID: String
     var serverName: String?
+    /// Which provider wrote the record and its metadata snapshot. Absent means
+    /// Plex: every record written before Jellyfin support, and every Plex
+    /// record still, so `downloads.json` keeps its exact shape for Plex. Read
+    /// it through `providerKind`.
+    var provider: ProviderKind? = nil
     let itemID: String
     let type: MediaKind
     /// Whether the item is a video clip (Plex reports clips as `type == "movie"`
@@ -246,7 +251,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case accountProfileID, serverID, serverName, itemID = "ratingKey", type, isClip
+        case accountProfileID, serverID, serverName, provider, itemID = "ratingKey", type, isClip
         case title, subtitle
         case parentID = "parentRatingKey", parentTitle
         case grandparentID = "grandparentRatingKey", grandparentTitle
@@ -257,6 +262,17 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
         case relativeVideoPath, externalSubtitlePaths, hasMissingExternalSubtitles, resumeDataPath, downloadTaskIdentifier, wasPausedForProfileSwitch
         case status, progress, downloadedBytes, totalBytes
         case errorMessage, addedAt, updatedAt
+    }
+
+    /// The record's provider; a record without a tag is Plex.
+    var providerKind: ProviderKind {
+        provider ?? .plex
+    }
+
+    /// The tag a new record stores: none for Plex, so Plex records keep their
+    /// exact persisted shape.
+    static func providerTag(for kind: ProviderKind) -> ProviderKind? {
+        kind == .plex ? nil : kind
     }
 
     var globalKey: String {
@@ -315,6 +331,7 @@ extension DownloadedMediaRecord {
         accountProfileID = try container.decodeIfPresent(String.self, forKey: .accountProfileID)
         serverID = try container.decode(String.self, forKey: .serverID)
         serverName = try container.decodeIfPresent(String.self, forKey: .serverName)
+        provider = try container.decodeIfPresent(ProviderKind.self, forKey: .provider)
         itemID = try container.decode(String.self, forKey: .itemID)
         type = try container.decode(MediaKind.self, forKey: .type)
         isClip = try container.decodeIfPresent(Bool.self, forKey: .isClip) ?? false
@@ -428,6 +445,7 @@ extension DownloadedMediaRecord {
         try container.encodeIfPresent(accountProfileID, forKey: .accountProfileID)
         try container.encode(serverID, forKey: .serverID)
         try container.encodeIfPresent(serverName, forKey: .serverName)
+        try container.encodeIfPresent(provider, forKey: .provider)
         try container.encode(itemID, forKey: .itemID)
         try container.encode(type, forKey: .type)
         try container.encode(isClip, forKey: .isClip)

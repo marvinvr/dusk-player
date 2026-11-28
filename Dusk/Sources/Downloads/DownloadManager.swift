@@ -74,7 +74,7 @@ final class DownloadManager {
     private let media: MediaService
     private let preferences: UserPreferences
     private let fileStore: DownloadFileStore
-    private let metadataCache: PlexMetadataCache
+    private let metadataCache: MetadataSnapshotCache
 
     private(set) var storedRecords: [DownloadedMediaRecord] = []
     private(set) var isProcessingQueue = false
@@ -158,7 +158,7 @@ final class DownloadManager {
         self.media = media
         self.preferences = preferences
         self.fileStore = fileStore
-        self.metadataCache = PlexMetadataCache(fileStore: fileStore)
+        self.metadataCache = MetadataSnapshotCache(fileStore: fileStore, formats: media.metadataSnapshotFormats)
         try? fileStore.prepareRootDirectory()
         let snapshot = fileStore.loadSnapshot()
         storedRecords = snapshot.records
@@ -327,7 +327,8 @@ final class DownloadManager {
             let cachedShow = metadataCache.mediaDetails(
                 accountProfileID: accountProfileID,
                 serverID: serverID,
-                itemID: showKey
+                itemID: showKey,
+                kind: first.providerKind
             )
             let title = cachedShow?.title ?? first.grandparentTitle ?? "TV Show"
             return DownloadedShowSummary(
@@ -348,7 +349,8 @@ final class DownloadManager {
             let cachedShow = metadataCache.mediaDetails(
                 accountProfileID: rule.accountProfileID,
                 serverID: rule.serverID,
-                itemID: rule.showRatingKey
+                itemID: rule.showRatingKey,
+                kind: snapshotKind(for: rule.serverID)
             )
             summaries.append(DownloadedShowSummary(
                 serverID: rule.serverID,
@@ -1141,7 +1143,8 @@ final class DownloadManager {
         return metadataCache.firstCachedMediaDetails(
             accountProfileID: accountProfileID,
             itemID: id.itemID,
-            serverIDs: candidateServerIDs(for: id)
+            serverIDs: candidateServerIDs(for: id),
+            kind: snapshotKind(for:)
         )
     }
 
@@ -1150,7 +1153,8 @@ final class DownloadManager {
         return metadataCache.firstCachedSeasons(
             accountProfileID: accountProfileID,
             showKey: show.itemID,
-            serverIDs: candidateServerIDs(for: show)
+            serverIDs: candidateServerIDs(for: show),
+            kind: snapshotKind(for:)
         )
     }
 
@@ -1159,7 +1163,8 @@ final class DownloadManager {
         return metadataCache.firstCachedEpisodes(
             accountProfileID: accountProfileID,
             seasonKey: season.itemID,
-            serverIDs: candidateServerIDs(for: season)
+            serverIDs: candidateServerIDs(for: season),
+            kind: snapshotKind(for:)
         )
     }
 
@@ -1318,12 +1323,14 @@ final class DownloadManager {
         let cachedDetails = metadataCache.mediaDetails(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            itemID: itemID
+            itemID: itemID,
+            kind: snapshotKind(for: serverID)
         )
         let record = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: serverName(for: serverID),
+            provider: providerTag(for: serverID),
             itemID: itemID,
             type: cachedDetails?.type ?? type,
             isClip: isClip || type == .clip || cachedDetails?.isClip == true,
@@ -1374,12 +1381,14 @@ final class DownloadManager {
         let cachedDetails = metadataCache.mediaDetails(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            itemID: episode.itemID
+            itemID: episode.itemID,
+            kind: snapshotKind(for: serverID)
         )
         let record = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: serverName(for: serverID),
+            provider: providerTag(for: serverID),
             itemID: episode.itemID,
             type: .episode,
             title: cachedDetails?.title ?? episode.title,
@@ -1539,7 +1548,8 @@ final class DownloadManager {
             if record.downloadQuality == .original,
                let accountProfileID = record.accountProfileID,
                let cached = metadataCache.mediaDetails(accountProfileID: accountProfileID,
-                                                       serverID: record.serverID, itemID: record.itemID) {
+                                                       serverID: record.serverID, itemID: record.itemID,
+                                                       kind: record.providerKind) {
                 details = cached
             } else {
                 details = try await fetchAndCacheDetails(itemID: record.itemID, serverID: record.serverID)
@@ -1596,12 +1606,10 @@ final class DownloadManager {
                 // metadata must be durable before URLSession takes ownership.
                 try fileStore.saveSnapshot(currentSnapshot)
             } else {
-                guard let connection = self.media.pool.connection(for: record.serverID),
-                      let sourceURL = self.media.directPlayURL(for: part, serverID: record.serverID) else {
+                guard let original = self.media.originalDownloadRequest(for: part, serverID: record.serverID) else {
                     throw PlexServiceError.invalidURL
                 }
-                request = URLRequest(url: sourceURL)
-                self.media.applyHeaders(to: &request, token: connection.token)
+                request = original
                 transferPart = part
             }
             try checkPreparation(record)
@@ -1660,7 +1668,7 @@ final class DownloadManager {
 
     private func prepareConvertedDownload(
         record: DownloadedMediaRecord, sourceMedia: MediaVersion, mediaIndex: Int
-    ) async throws -> PlexPreparedDownload {
+    ) async throws -> ConvertedDownload {
         guard let profileID = record.accountProfileID else { throw PlexServiceError.notAuthenticated }
         try checkPreparation(record)
         guard var latest = self.record(globalKey: record.globalKey) else { throw CancellationError() }
@@ -1671,7 +1679,7 @@ final class DownloadManager {
         // Retry this checked write even if a previous persistence attempt
         // failed after assigning the in-memory identity.
         try fileStore.saveSnapshot(currentSnapshot)
-        let context = try media.captureDownloadQueueContext(
+        let context = try media.captureConversionContext(
             serverID: record.serverID, profileID: profileID, clientIdentifier: latest.queueClientIdentifier!
         )
         do {
@@ -1679,7 +1687,7 @@ final class DownloadManager {
             if let existing = latest.plexDownloadQueueID {
                 queueID = existing
             } else {
-                queueID = try await media.createDownloadQueue(context: context)
+                queueID = try await media.createConversionQueue(context: context)
                 update(globalKey: record.globalKey) { $0.plexDownloadQueueID = queueID }
                 try checkPreparation(record)
             }
@@ -1688,7 +1696,7 @@ final class DownloadManager {
             if let existing = latest.plexDownloadItemID {
                 queueItemID = existing
             } else {
-                queueItemID = try await media.addDownloadQueueItem(
+                queueItemID = try await media.addConversionJob(
                     context: context, queueID: queueID, itemID: record.itemID,
                     mediaIndex: mediaIndex, quality: record.downloadQuality
                 )
@@ -1708,12 +1716,12 @@ final class DownloadManager {
                 // Conversion can outlive a LAN/remote endpoint change or token
                 // refresh. Capture the current connection for each poll, while
                 // keeping the durable client and owning profile unchanged.
-                let pollContext = try media.captureDownloadQueueContext(
+                let pollContext = try media.captureConversionContext(
                     serverID: record.serverID, profileID: profileID, clientIdentifier: latest.queueClientIdentifier!
                 )
-                let item: PlexDownloadQueueItem
+                let job: ConversionJob
                 do {
-                    item = try await media.downloadQueueItem(context: pollContext, queueID: queueID, queueItemID: queueItemID)
+                    job = try await media.conversionJob(context: pollContext, queueID: queueID, jobID: queueItemID)
                     failedPolls = 0
                 } catch PlexServiceError.networkError where failedPolls < 10 {
                     // A poll dropped by a network blip or app suspension must not
@@ -1723,36 +1731,36 @@ final class DownloadManager {
                     continue
                 }
                 try checkPreparation(record)
-                guard item.key == "/library/metadata/\(record.itemID)" else {
-                    throw PlexDownloadQueueError.invalidResponse("Plex returned a different item for this download.")
+                guard job.itemID == record.itemID else {
+                    throw DownloadPreparationError.invalidResponse("Plex returned a different item for this download.")
                 }
-                update(globalKey: record.globalKey) { $0.preparationProgress = item.progress }
-                switch item.status {
-                case .available:
+                update(globalKey: record.globalKey) { $0.preparationProgress = job.progress }
+                switch job.state {
+                case .ready:
                     // Hand off right away: the session's connection limit
                     // queues it behind running transfers. If the prepared file
                     // expires before the session gets to it, the transfer
                     // fails without bytes and is requeued once, which
                     // regenerates it here.
                     if DownloadQueuePolicy.Counts(records: records).handedOff < DownloadQueuePolicy.maximumHandedOffTransfers {
-                        let prepared = try await media.preparedDownload(
-                            context: pollContext, queueID: queueID, queueItemID: queueItemID, sourceMedia: sourceMedia
+                        let prepared = try await media.preparedConversion(
+                            context: pollContext, queueID: queueID, jobID: queueItemID, sourceMedia: sourceMedia
                         )
                         try checkPreparation(record)
                         return prepared
                     }
                 case .expired:
-                    throw PlexDownloadQueueError.expired
-                case .error:
-                    throw PlexDownloadQueueError.preparationFailed(item.error ?? "Plex could not prepare this quality. Try Original or check server transcoding permissions.")
-                case .deciding, .waiting, .processing:
+                    throw DownloadPreparationError.expired
+                case .failed:
+                    throw DownloadPreparationError.preparationFailed(job.failureReason ?? "Plex could not prepare this quality. Try Original or check server transcoding permissions.")
+                case .preparing:
                     break
                 }
                 try await Task.sleep(for: .seconds(2))
             }
-        } catch PlexDownloadQueueError.expired {
+        } catch DownloadPreparationError.expired {
             try checkPreparation(record)
-            guard resetExpiredPreparation(globalKey: record.globalKey) else { throw PlexDownloadQueueError.expired }
+            guard resetExpiredPreparation(globalKey: record.globalKey) else { throw DownloadPreparationError.expired }
             // Re-enter through startDownload to resolve the saved media ID
             // against fresh ordering before adding another server job.
             update(globalKey: record.globalKey) { $0.status = .queued }
@@ -1816,26 +1824,26 @@ final class DownloadManager {
                     serverID: removal.serverID, itemID: removal.itemID)
                 guard self.preparationTasks[globalKey] == nil,
                       removal.profileID == self.media.activeProfileID,
-                      let context = try? self.media.captureDownloadQueueContext(
+                      let context = try? self.media.captureConversionContext(
                         serverID: removal.serverID, profileID: removal.profileID, clientIdentifier: removal.clientIdentifier
                       ) else { continue }
                 do {
                     let queueID: String
                     if let existing = removal.queueID { queueID = existing }
-                    else { queueID = try await self.media.createDownloadQueue(context: context) }
+                    else { queueID = try await self.media.createConversionQueue(context: context) }
                     if let queueItemID = removal.queueItemID {
-                        try await self.media.removeDownloadQueueItem(context: context, queueID: queueID, queueItemID: queueItemID)
+                        try await self.media.removeConversionJob(context: context, queueID: queueID, jobID: queueItemID)
                     } else {
-                        // Covers cancellation/termination after PMS accepted add
-                        // but before its response could be persisted.
-                        let items = try await self.media.downloadQueueItems(context: context, queueID: queueID)
-                        for item in items where item.key == "/library/metadata/\(removal.itemID)" {
-                            try await self.media.removeDownloadQueueItem(context: context, queueID: queueID, queueItemID: item.id)
+                        // Covers cancellation/termination after the server
+                        // accepted add but before its response could be persisted.
+                        let jobs = try await self.media.conversionJobs(context: context, queueID: queueID)
+                        for job in jobs where job.itemID == removal.itemID {
+                            try await self.media.removeConversionJob(context: context, queueID: queueID, jobID: job.id)
                         }
                     }
                     self.pendingQueueRemovals.removeAll { $0 == removal }
                     self.persist()
-                } catch PlexDownloadQueueError.expired {
+                } catch DownloadPreparationError.expired {
                     self.pendingQueueRemovals.removeAll { $0 == removal }
                     self.persist()
                 } catch {
@@ -1873,7 +1881,8 @@ final class DownloadManager {
                   let details = metadataCache.mediaDetails(
                     accountProfileID: accountProfileID,
                     serverID: record.serverID,
-                    itemID: record.itemID
+                    itemID: record.itemID,
+                    kind: record.providerKind
                   ) else {
                 throw PlexServiceError.decodingError("Cached metadata missing for \(record.title)")
             }
@@ -1946,7 +1955,8 @@ final class DownloadManager {
             throw PlexServiceError.noServerConnected
         }
 
-        let data = try await media.getMediaDetailsPayload(itemID: itemID, serverID: serverID)
+        let kind = snapshotKind(for: serverID)
+        let data = try await media.metadataSnapshot(.details(itemID: itemID), serverID: serverID)
         guard !Task.isCancelled,
               !isProfileSwitching,
               media.activeProfileID == accountProfileID else {
@@ -1954,16 +1964,13 @@ final class DownloadManager {
         }
         try metadataCache.storePayload(
             data,
+            for: .details(itemID: itemID),
             accountProfileID: accountProfileID,
             serverID: serverID,
-            endpoint: PlexMetadataCache.metadataEndpoint(itemID)
+            kind: kind
         )
-        let response = try media.decodeJSON(
-            MetadataResponse<MediaDetails>.self,
-            from: data,
-            serverID: serverID
-        )
-        guard let details = response.MediaContainer.Metadata?.first else {
+        let decoded = try decodeSnapshot(data, serverID: serverID, kind: kind) { try $0.details(from: data, serverID: serverID) }
+        guard let details = decoded.first else {
             throw PlexServiceError.decodingError("No metadata found for \(itemID)")
         }
         await cacheArtwork(for: details, serverID: serverID)
@@ -1977,7 +1984,7 @@ final class DownloadManager {
             throw PlexServiceError.noServerConnected
         }
 
-        let data = try await media.getChildrenPayload(itemID: itemID, serverID: serverID)
+        let data = try await media.metadataSnapshot(.children(itemID: itemID), serverID: serverID)
         guard !Task.isCancelled,
               !isProfileSwitching,
               media.activeProfileID == accountProfileID else {
@@ -1985,25 +1992,67 @@ final class DownloadManager {
         }
         try metadataCache.storePayload(
             data,
+            for: .children(itemID: itemID),
             accountProfileID: accountProfileID,
             serverID: serverID,
-            endpoint: PlexMetadataCache.childrenEndpoint(itemID)
+            kind: snapshotKind(for: serverID)
         )
         return data
     }
 
-    private func fetchAndCacheChildren<T: Decodable>(
-        _ type: T.Type,
+    private func fetchAndCacheChildren(
+        _ type: Season.Type,
         itemID: String,
         serverID: String
-    ) async throws -> [T] {
+    ) async throws -> [Season] {
         let data = try await fetchAndCacheChildren(itemID: itemID, serverID: serverID)
-        let response = try media.decodeJSON(
-            MetadataResponse<T>.self,
-            from: data,
-            serverID: serverID
-        )
-        return response.MediaContainer.Metadata ?? []
+        return try decodeSnapshot(data, serverID: serverID, kind: snapshotKind(for: serverID)) {
+            try $0.seasons(from: data, serverID: serverID)
+        }
+    }
+
+    private func fetchAndCacheChildren(
+        _ type: Episode.Type,
+        itemID: String,
+        serverID: String
+    ) async throws -> [Episode] {
+        let data = try await fetchAndCacheChildren(itemID: itemID, serverID: serverID)
+        return try decodeSnapshot(data, serverID: serverID, kind: snapshotKind(for: serverID)) {
+            try $0.episodes(from: data, serverID: serverID)
+        }
+    }
+
+    /// Decodes a just-fetched snapshot with its provider's format. A failure
+    /// reads exactly as the online decode's (`PlexServiceError.decodingError`).
+    private func decodeSnapshot<T>(
+        _ data: Data,
+        serverID: String,
+        kind: ProviderKind,
+        _ decode: (any MetadataSnapshotFormat) throws -> [T]
+    ) throws -> [T] {
+        guard let format = metadataCache.formats.format(for: kind) else {
+            throw PlexServiceError.decodingError("No metadata format for this server")
+        }
+        do {
+            return try decode(format)
+        } catch {
+            throw PlexServiceError.decodingError(String(describing: error))
+        }
+    }
+
+    /// Which provider's snapshot format reads a server's cached metadata: its
+    /// live session's, else a stored record's, else Plex (a server with no
+    /// record is Plex).
+    private func snapshotKind(for serverID: String) -> ProviderKind {
+        if media.pool.connection(for: serverID) != nil {
+            return media.downloadProviderKind(for: serverID)
+        }
+        return storedRecords.first { $0.serverID == serverID }?.providerKind ?? .plex
+    }
+
+    /// The `provider` tag a new record on this server stores (none for Plex).
+    private func providerTag(for serverID: String) -> ProviderKind? {
+        DownloadedMediaRecord.providerTag(for: snapshotKind(for: serverID))
     }
 
     private func cacheEpisodeContext(_ details: MediaDetails, serverID: String) async throws {
@@ -2146,7 +2195,8 @@ final class DownloadManager {
                 guard let self, let details = self.metadataCache.mediaDetails(
                     accountProfileID: activeProfileID,
                     serverID: record.serverID,
-                    itemID: record.itemID
+                    itemID: record.itemID,
+                    kind: record.providerKind
                 ) else { continue }
                 await self.cacheExternalSubtitles(globalKey: record.globalKey, details: details)
             }
@@ -2169,17 +2219,15 @@ final class DownloadManager {
         where fileStore.existingFileURL(for: paths[stream.id]) == nil {
             guard !isProfileSwitching, media.activeProfileID == expectedProfileID,
                   let fileExtension = SubtitleTextDecoder.fileExtension(for: stream.codec),
-                  let url = media.externalSubtitleURL(for: stream, serverID: record.serverID) else {
+                  var sidecar = media.offlineSidecar(for: stream, serverID: record.serverID) else {
                 failed = true
                 continue
             }
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 30
-            request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
-            request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
+            sidecar.request.timeoutInterval = 30
+            sidecar.request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
+            sidecar.request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
             do {
-                try PlexTransportSecurity.validate(request)
-                let (data, response) = try await PlexTransportSecurity.session.data(for: request)
+                let (data, response) = try await sidecar.fetch(sidecar.request)
                 guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
                       let normalized = SubtitleTextDecoder.normalizedFileData(data) else {
                     failed = true
@@ -2191,7 +2239,7 @@ final class DownloadManager {
                     normalized, globalKey: globalKey, streamID: stream.id, fileExtension: fileExtension
                 )
             } catch {
-                // Never log the error: URLSession errors can include Plex tokens.
+                // Never log the error: URLSession errors can include server tokens.
                 failed = true
             }
         }
@@ -2750,7 +2798,8 @@ final class DownloadManager {
               let details = metadataCache.mediaDetails(
                 accountProfileID: accountProfileID,
                 serverID: record.serverID,
-                itemID: record.itemID
+                itemID: record.itemID,
+                kind: record.providerKind
               ) else {
             return record.totalBytes
         }
@@ -2812,6 +2861,7 @@ final class DownloadManager {
             accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: serverName(for: serverID),
+            provider: providerTag(for: serverID),
             itemID: itemID,
             type: type,
             isClip: isClip || type == .clip,
@@ -3228,6 +3278,7 @@ extension DownloadManager {
                 accountProfileID: accountProfileID,
                 serverID: serverID,
                 serverName: serverName(for: serverID),
+                provider: providerTag(for: serverID),
                 itemID: id.itemID,
                 type: details.type,
                 isClip: details.isClip,

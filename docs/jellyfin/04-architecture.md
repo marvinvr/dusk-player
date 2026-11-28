@@ -916,6 +916,28 @@ protocol DownloadProviding {
 `ConvertedDownload` is either `.file(DownloadRequest)` (Plex: the download
 queue has prepared a file) or `.segments(HLSSegmentPlan)`.
 
+**As built in Phase 0 (P0-15).** The source differs from the sketch above
+where behaviour neutrality required it:
+
+- Converted downloads are a resumable job rather than one `prepareConverted`
+  call: `createConversionQueue`, `addConversionJob`, `conversionJob(s)`,
+  `preparedConversion` and `removeConversionJob`. Today's flow persists the
+  client identifier, the queue id and the job id between steps, and it gates
+  hand-off on the transfer cap, so the state machine stays in
+  `DownloadManager`.
+- Each step is sent through a `DownloadConversionTransport`, implemented by
+  the facade. It checks the owning profile and the server state around every
+  await.
+- `ConvertedDownload` is a struct (request, media, expected bytes). The
+  `.segments` case arrives with J-08b.
+- Snapshots have no session, so `snapshot`/`decodeSnapshot` became a
+  sessionless `MetadataSnapshotFormat` (`storageName`, `fetchRequest`, typed
+  decodes), reached by `ProviderKind` through the factory. The facade does
+  the fetch.
+- `MetadataSnapshotKey` has `.details` and `.children` only; nothing reads
+  `allLeaves`. The envelope and `decodeSnapshot` of `convertedMediaData` come
+  with J-08a. Until then, Plex payloads are stored bare.
+
 ### 15.2 Converted quality on Jellyfin
 
 **Decision: converted downloads ship for Jellyfin, as a segment-wise download
