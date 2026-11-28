@@ -654,6 +654,49 @@ Row / Hidden Rows via `LatestItemsExcludes`, library Recommended rows.
 for the shared data; dismiss and hide behave the same on screen; first-paint
 gate unchanged.
 
+- **As built (2026-11-28).** `JellyfinHome` + `JellyfinHomeRowSpec`; details in
+  `docs/data-and-plex.md` (Jellyfin's Home rows).
+  - Rows use Plex's identifiers, titles and types for the same row of a
+    library (`movie.recentlyadded.<id>`, "Recently Added in Movies"), so
+    `mergeKey` and the library tab's string checks need no change and J-13
+    merges both servers' rows.
+  - Home: one Recently Added row per film / TV / video library not in
+    `LatestItemsExcludes`, all from `/Items/Latest` (row, expansion and Show
+    All), so played titles stay out when the user hides them in Latest
+    (`HidePlayedInLatest`, default on).
+  - Continue Watching: Resume + Next Up per library, one per show, newest
+    first; Next Up dated by the show's latest played episode.
+  - Library tab: Continue Watching, Recently Released, Recently Added, Top
+    Unwatched / Top Rated, Recently Watched, with Plex's conditions (one year,
+    rating ≥ 7, unplayed / played).
+  - Dismiss is `HomeProviding.dismissFromContinueWatching`. Plex's PUT moved
+    verbatim into `PlexHomeRows` (pinned by a request test);
+    `MediaService+WatchState.removeFromContinueWatching` is a route now.
+  - Hide Row rewrites only `LatestItemsExcludes` in the raw `Configuration`,
+    read fresh before each write.
+  - Verified against jellyfin-demo on iPhone and Apple TV simulators
+    (`~/dusk-qa/jellyfin/J-04/`): Home rows per library, hero order, the
+    TV Shows tab merging Real TV and Shorts, Hide Row then Hidden Rows
+    switching it back (every other `Configuration` key kept, including J-11's concurrent `OrderedViews` /
+    `MyMediaExcludes` test values), dismissing a Next Up episode (stays out
+    after relaunch), dismissing Paddington 2 (position cleared,
+    `LastPlayedDate` kept; restored afterwards). Library rows match
+    plex-demo's `/hubs/sections` for the same data (Top Unwatched = Sintel;
+    Recently Watched the same three films; TV rows the same titles).
+  - Open:
+    - plex-demo shows duskcompare (a shared user) type-wide rows ("Recently
+      Added Movies", `home.*`); Jellyfin shows one row per library, as Plex
+      does for an owner. Same kind, different count of rows.
+    - Plex's library tab also has genre, actor/director, Start Watching and
+      Rediscover rows; Jellyfin has the five above (04 §11).
+    - The Next Up dismiss store is per device, not per account.
+    - Settings › Home › Hidden Rows still says "Other Plex apps hide these
+      rows too." and names Plex in its errors (feature file, not this
+      package's).
+    - Continue Watching on Home costs `/UserViews`, one Resume per library,
+      one Next Up per TV library and one dating query; not timed on a large
+      server.
+
 ### J-06 Playback II: server streams — XL, R
 
 - **Scope.** `DeviceProfile` builder per `StreamIntent`; `PlaybackInfo` with

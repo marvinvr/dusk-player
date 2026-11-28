@@ -704,8 +704,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   already set (a rewatch); poster menus keep hiding it. The same
   `HomeViewModel.setWatched` scrobble then reloads Home, which drops the item
   from Continue Watching. Its optional
-  `onRemoveFromContinueWatching` adds Plex's "Remove from Continue Watching" action
-  (server `PUT /actions/removeFromContinueWatching`); the hero supplies it because its
+  `onRemoveFromContinueWatching` adds the "Remove from Continue Watching" action
+  (`HomeProviding.dismissFromContinueWatching`: Plex `PUT /actions/removeFromContinueWatching`;
+  Jellyfin clears the resume point and keeps a dismissed Next Up episode out until the
+  show moves on, `docs/data-and-plex.md`); the hero supplies it because its
   items are always the Continue Watching hub. `HomeViewModel.removeFromContinueWatching`
   drops the item optimistically, then reloads to reconcile. A resumable movie,
   episode or video (`canPlayFromStartFromContextMenu`, a rewatch too) leads with
@@ -791,6 +793,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Only owners can change it (shared servers and restricted profiles never see the
   action), and account-wide rows (`home.*`: the type-wide Recently Added, Continue
   Watching) are not in any library's list, so they cannot be hidden this way.
+- Jellyfin: each film, TV and video library has one switch, "Recently Added", stored in
+  the user's `LatestItemsExcludes` (any user with preference access; other Jellyfin apps
+  follow it). The page's footer and error copy still name Plex.
 - Known gap: on tvOS, hiding the focused row sends focus back to the hero.
 
 ### Hidden Libraries

@@ -42,17 +42,9 @@ extension MediaService {
         playback(for: serverID).traits.serverAppliesWatchedThreshold
     }
 
-    /// Hides an item from the server-wide "Continue Watching" hub without
-    /// changing its watch state, mirroring Plex's "Remove from Continue
-    /// Watching" action.
+    /// Takes an item off the server's Continue Watching without marking it
+    /// watched (`HomeProviding.dismissFromContinueWatching`).
     func removeFromContinueWatching(itemID: String, serverID: String? = nil) async throws {
-        _ = try await rawServerRequest(
-            method: "PUT",
-            path: "/actions/removeFromContinueWatching",
-            queryItems: [
-                URLQueryItem(name: "ratingKey", value: itemID),
-            ],
-            serverID: serverID
-        )
+        try await home(on: resolveServerID(serverID)).dismissFromContinueWatching(itemID: itemID)
     }
 }

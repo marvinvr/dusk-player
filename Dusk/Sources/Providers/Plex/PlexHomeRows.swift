@@ -29,6 +29,20 @@ struct PlexHomeRows: HomeProviding {
         return hubs.flatMap(\.items)
     }
 
+    /// Plex's "Remove from Continue Watching": the item leaves the
+    /// server-wide hub and keeps its watch state and resume point.
+    @MainActor func dismissFromContinueWatching(itemID: String) async throws {
+        _ = try await routed().rawServerRequest(
+            method: "PUT",
+            path: "/actions/removeFromContinueWatching",
+            queryItems: [
+                URLQueryItem(name: "ratingKey", value: itemID),
+            ],
+            timeoutInterval: nil,
+            serverID: serverID
+        )
+    }
+
     /// On a library of tens of thousands of titles this is the server's most
     /// expensive read (10s on a 43k-movie test server, far longer on slower
     /// hardware), so it gets more than the usual 30s.

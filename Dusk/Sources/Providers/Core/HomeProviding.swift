@@ -11,8 +11,7 @@ import Foundation
 /// The methods run on the main actor, where the facade and its request routing
 /// live.
 ///
-/// Dismiss from Continue Watching belongs here too (§11) but still lives in
-/// `MediaService+WatchState`. The managed-row types (`ManagedHub`,
+/// The managed-row types (`ManagedHub`,
 /// `ManagedHomeRow`) and `HomeRowSource` keep their Plex names until the
 /// boundary pass (05-plan P0-19).
 protocol HomeProviding: Sendable {
@@ -21,6 +20,9 @@ protocol HomeProviding: Sendable {
 
     /// Titles in progress and next up, as the server orders them.
     @MainActor func continueWatching() async throws -> [MediaItem]
+
+    /// Takes one item off Continue Watching without marking it watched.
+    @MainActor func dismissFromContinueWatching(itemID: String) async throws
 
     /// A library's rows, `count` items each. On a big library this is the
     /// server's most expensive read.

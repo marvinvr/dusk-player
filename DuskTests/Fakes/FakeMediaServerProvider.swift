@@ -322,6 +322,10 @@ struct FakeHome: HomeProviding {
         return server.continueWatching
     }
 
+    func dismissFromContinueWatching(itemID: String) async throws {
+        server.record(#function)
+    }
+
     func libraryRows(libraryID: String, count: Int) async throws -> [HomeRow] {
         server.record(#function)
         return server.libraryRows[libraryID] ?? []

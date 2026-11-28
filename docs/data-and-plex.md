@@ -542,6 +542,44 @@ Jellyfin's catalog (`Providers/Jellyfin/Facets/JellyfinCatalog.swift`, J-02):
 - No Rate button: `MediaService.canRate` is false while a server's provider has
   no `rating` facet. Collections listings and pages are J-07.
 
+Jellyfin's Home rows (`Providers/Jellyfin/Facets/JellyfinHome.swift`, J-04).
+Jellyfin has no hub API, so each row is a fixed query (`JellyfinHomeRowSpec`):
+- Rows carry the identifier, title and type Plex gives the same row of a
+  library (`movie.recentlyadded.<viewID>`, "Recently Added in Movies",
+  `movie`; TV `tv.recentlyadded` / `mixed`, videos `video.recent` / `clip`),
+  so `mergeKey`, the library tab's string checks and a mixed account's merge
+  treat both servers alike. `HomeRow.key` is `jellyfin-row/<row>/<kind>/<viewID>`,
+  which `rowItems` pages.
+- Home (`homeRows`): one Recently Added row per film, TV and video library
+  (from `/UserViews`, so libraries the user hid in `MyMediaExcludes` are gone)
+  that is not in `LatestItemsExcludes`. The row, its expansion and Show All
+  all read `/Items/Latest` (episodes grouped into season or show, the user's
+  "hide played" setting applied); Latest cannot page, so Show All asks for up
+  to 500.
+- Continue Watching: `/UserItems/Resume` and (TV libraries) `/Shows/NextUp`
+  per library, so each title carries its library. One entry per show, newest
+  first. A Next Up episode is dated by the user's latest played episode of
+  its show (one `DatePlayed` query of 100 played episodes); undated ones go
+  last in the server's order.
+- Library Recommended tab (`libraryRows`): Continue Watching, Recently
+  Released (films: the last year; TV: episodes by air date), Recently Added,
+  Top Unwatched Movies / Top Rated TV (unplayed, `CommunityRating` ≥ 7),
+  Recently Watched (played, by `DatePlayed`); videos get Continue Watching,
+  Recently Added, Recently Watched. Empty rows are left out.
+  `promotedLibraryRows` is the first and the third.
+- Dismiss (`HomeProviding.dismissFromContinueWatching`; Plex keeps
+  `PUT /actions/removeFromContinueWatching` in `PlexHomeRows`): clears the
+  resume point (`PlaybackPositionTicks: 0`; Jellyfin cannot hide and keep it)
+  and, for an episode, records it in UserDefaults `JellyfinDismissedNextUp`
+  (`{ "<serverID>|<userID>": { seriesID: episodeID } }`, device-local) so Next
+  Up leaves it out until a different episode of that show is next.
+- Hide Row / Hidden Rows: only Recently Added has a switch (`canHide`); it
+  writes the library id into `LatestItemsExcludes`, which other Jellyfin apps
+  honour. The write re-reads `/Users/Me` and changes only that key in the raw
+  `Configuration` (`JellyfinJSONValue`), because `POST /Users/Configuration`
+  resets every field it leaves out and the typed DTO does not carry them all.
+  Allowed when the user's policy has `EnableUserPreferenceAccess`.
+
 Library:
 - `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
 - `getLibraryItems(sectionId:start:size:sort:filters:)` /
