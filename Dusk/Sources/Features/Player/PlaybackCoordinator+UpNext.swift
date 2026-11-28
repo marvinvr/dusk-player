@@ -178,11 +178,14 @@ extension PlaybackCoordinator {
         guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return false }
         guard let candidate = resolved else { return true }
         guard upNextPresentation == nil else { return false }
-        // Up Next During Credits off (#84): no card, as if the viewer had
-        // dismissed it. Only an auto-skip keeps a visible countdown (the chip);
-        // otherwise the credits play out with nothing on screen.
+        // Up Next During Credits off (#84): no card. The end still advances
+        // the way the card would have (`hiddenUpNextAdvance`); an auto-skip
+        // keeps a visible countdown through the Skip Credits chip instead, and
+        // manual modes play the credits out with nothing on screen.
         guard preferences.upNextDuringCreditsEnabled else {
-            return upNextPosterMode(creditsMarkerID: creditsMarkerID, estimated: isEstimated).isTimed
+            let mode = upNextPosterMode(creditsMarkerID: creditsMarkerID, estimated: isEstimated)
+            hiddenUpNextAdvance = mode == .manual ? nil : candidate
+            return mode.isTimed
         }
         // A poster for a newer credits marker was raised while we resolved.
         if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return false }
@@ -231,6 +234,16 @@ extension PlaybackCoordinator {
         }
         cancelUpNextPosterCountdown()
         upNextPoster = nil
+        hiddenUpNextAdvance = nil
+    }
+
+    /// The natural end with Up Next During Credits off where the card would
+    /// have advanced: start the next episode straight away. The full-screen
+    /// overlay only serves as the loading state, as it does after a countdown.
+    func startHiddenUpNextAdvance(_ candidate: UpNextCandidate) async {
+        presentUpNext(for: candidate)
+        cancelUpNextCountdown()
+        await startUpNextPlayback(trigger: .autoplay)
     }
 
     /// Plays the poster's next episode immediately — a poster tap or a fired
