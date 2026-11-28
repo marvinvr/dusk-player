@@ -152,7 +152,7 @@ name is an `AnalyticsErrorCategory`; the path is `/player`, `/downloads`,
 | `engine_fallback_failed` | the ladder's last rung failed | `server_stream_unavailable`, `server_stream_request_failed` |
 | `transcode_failed` | quality switch, AirPlay HLS, start-time server stream | `quality_switch`, `airplay`, `server_stream_request_failed` |
 | `download_failed` | `DownloadManager` failure states | `prepare`, `transfer`, `finalize`, `validate` |
-| `sign_in_failed` | `SignInView` | `pin_request`, `timeout` |
+| `sign_in_failed` | `SignInPlexFlowView` | `pin_request`, `timeout` |
 | `connection_failed` | `ServerPool.commit` via `ConnectionReport.errorReport` | `unreachable`, `unauthorized` (`count` = candidates) |
 
 Properties — the complete list:

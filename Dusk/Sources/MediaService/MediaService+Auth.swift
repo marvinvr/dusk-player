@@ -1,11 +1,24 @@
 import Foundation
 import OSLog
 
-enum AuthenticationBootstrapError: Error {
-    case waitingForPropagation
-}
-
+/// Sign-in, sign-out and the fresh-sign-in retry. The Plex calls and the
+/// account credential are `PlexAccountProvider`'s; this keeps the state
+/// transitions (teardown on an account change, the Home reset) in one place.
 extension MediaService {
+    /// The sign-in host's flows, in registry order. Plex is the only one.
+    var signInFlows: [any SignInFlow] { accounts.signInFlows }
+
+    /// The end of every sign-in flow: the account it signed in to and the
+    /// credential it obtained.
+    func completeSignIn(_ account: StoredAccount, credential: String) {
+        switch account.kind {
+        case .plex:
+            setAuthToken(credential)
+        case .jellyfin:
+            assertionFailure("No Jellyfin sign-in flow is registered yet")
+        }
+    }
+
     func setAuthToken(_ token: String) {
         let normalizedToken = token.nilIfEmpty
         if primaryAccountToken != normalizedToken {
@@ -19,37 +32,24 @@ extension MediaService {
 
         plexAuthLogger.notice("Stored new Plex auth token and opened bootstrap retry window")
 
-        if let primaryAccountToken {
-            KeychainHelper.save(
-                key: Self.keychainTokenKey,
-                data: Data(primaryAccountToken.utf8)
-            )
-        } else {
-            KeychainHelper.delete(key: Self.keychainTokenKey)
-        }
+        plexAccount.saveCredential(primaryAccountToken)
     }
 
     func clearAuthToken() {
-        primaryAccountToken = nil
-        activeAccountToken = nil
-        authTokenUpdatedAt = nil
-        currentUser = nil
-        KeychainHelper.delete(key: Self.keychainTokenKey)
+        plexAccount.clearCredential()
         resetHomeSession(clearPreference: true)
         plexAuthLogger.notice("Cleared Plex auth token")
     }
 
+    /// The Plex sign-in flow, for its own screens.
+    var plexSignInFlow: PlexSignInFlow { PlexSignInFlow(account: plexAccount) }
+
     func generatePin(strong: Bool = false) async throws -> PlexPin {
-        try await plexTVRequest(
-            method: "POST",
-            path: "/api/v2/pins",
-            formBody: strong ? ["strong": "true"] : nil
-        )
+        try await plexSignInFlow.generatePin(strong: strong)
     }
 
     func checkPin(_ pinId: Int) async throws -> String? {
-        let pin: PlexPin = try await plexTVRequest(path: "/api/v2/pins/\(pinId)")
-        return pin.authToken
+        try await plexSignInFlow.checkPin(pinId)
     }
 
     func signOut() {
@@ -58,64 +58,21 @@ extension MediaService {
     }
 
     func authURL(for pin: PlexPin) -> URL? {
-        URL(string: "https://app.plex.tv/auth#?clientID=\(clientIdentifier)&code=\(pin.code)&context%5Bdevice%5D%5Bproduct%5D=Dusk")
+        plexSignInFlow.authURL(for: pin)
     }
 
-    var isAuthenticationFresh: Bool {
-        guard let authTokenUpdatedAt else { return false }
-        return Date().timeIntervalSince(authTokenUpdatedAt) < Self.authenticationPropagationRetryWindow
-    }
+    var isAuthenticationFresh: Bool { plexAccount.isAuthenticationFresh }
 
     func retryAfterFreshAuthentication<T>(
         attempts: Int? = nil,
         delay: Duration = .seconds(1),
         _ operation: () async throws -> T
     ) async throws -> T {
-        let requestedAttempts = attempts ?? Self.authenticationPropagationRetryAttempts
-        let maxAttempts = isAuthenticationFresh ? max(requestedAttempts, 1) : 1
-        var lastError: Error?
-
-        for attempt in 1...maxAttempts {
-            do {
-                return try await operation()
-            } catch {
-                lastError = error
-                let shouldRetry = attempt < maxAttempts && shouldRetryAfterFreshAuthentication(error)
-
-                if shouldRetry {
-                    try? await Task.sleep(for: delay)
-                    continue
-                }
-
-                if isAuthenticationFresh, shouldRetryAfterFreshAuthentication(error) {
-                    plexAuthLogger.notice("Authentication bootstrap still pending after retries: \(error.localizedDescription, privacy: .public)")
-                    throw PlexServiceError.authenticationPending
-                }
-
-                throw error
-            }
-        }
-
-        throw lastError ?? PlexServiceError.authenticationPending
+        try await plexAccount.retryAfterFreshAuthentication(attempts: attempts, delay: delay, operation)
     }
 
     func shouldRetryAfterFreshAuthentication(_ error: Error) -> Bool {
-        guard isAuthenticationFresh else { return false }
-
-        if error is AuthenticationBootstrapError {
-            return true
-        }
-
-        guard let plexError = error as? PlexServiceError else {
-            return false
-        }
-
-        switch plexError {
-        case .unauthorized:
-            return true
-        default:
-            return false
-        }
+        plexAccount.shouldRetryAfterFreshAuthentication(error)
     }
 
     private func resetHomeSession(clearPreference: Bool) {

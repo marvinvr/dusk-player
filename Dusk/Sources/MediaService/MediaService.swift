@@ -9,24 +9,63 @@ let plexAuthLogger = Logger(
 @MainActor
 @Observable
 final class MediaService {
+    // MARK: - Account
+    //
+    // The Plex account's state lives on its provider (`plexAccount.state`);
+    // these forward to it so every caller reads and writes exactly what it did
+    // when they were stored here. Orchestration stays in `+Auth` and `+Home`.
+
     /// Durable credential created by the normal Plex sign-in flow. This token
     /// belongs to the linked full account and is the only credential allowed to
     /// enumerate or switch Plex Home members.
-    var primaryAccountToken: String?
+    var primaryAccountToken: String? {
+        get { plexAccount.state.primaryAccountToken }
+        set { plexAccount.state.primaryAccountToken = newValue }
+    }
     /// Credential used for account-scoped API calls in the current session.
     /// It equals `primaryAccountToken` outside Plex Home and becomes the token
     /// returned by the Home switch endpoint for another member.
-    var activeAccountToken: String?
-    var authTokenUpdatedAt: Date?
-    var currentUser: PlexUser?
-    var homeUsers: [PlexHomeUser] = []
-    var activeHomeUser: PlexHomeUser?
-    var homeBootstrapCompleted = false
+    var activeAccountToken: String? {
+        get { plexAccount.state.activeAccountToken }
+        set { plexAccount.state.activeAccountToken = newValue }
+    }
+    var authTokenUpdatedAt: Date? {
+        get { plexAccount.state.authTokenUpdatedAt }
+        set { plexAccount.state.authTokenUpdatedAt = newValue }
+    }
+    var currentUser: PlexUser? {
+        get { plexAccount.state.currentUser }
+        set { plexAccount.state.currentUser = newValue }
+    }
+    var homeUsers: [PlexHomeUser] {
+        get { plexAccount.state.homeUsers }
+        set { plexAccount.state.homeUsers = newValue }
+    }
+    var activeHomeUser: PlexHomeUser? {
+        get { plexAccount.state.activeHomeUser }
+        set { plexAccount.state.activeHomeUser = newValue }
+    }
+    var homeBootstrapCompleted: Bool {
+        get { plexAccount.state.homeBootstrapCompleted }
+        set { plexAccount.state.homeBootstrapCompleted = newValue }
+    }
     /// Cached identity is usable offline; Plex Home still needs online validation.
-    var isUsingOfflineHomeSession = false
-    var homeSelectionRequested = false
-    var primaryProfileID: String?
-    var hasRememberedHomeUserToken = false
+    var isUsingOfflineHomeSession: Bool {
+        get { plexAccount.state.isUsingOfflineHomeSession }
+        set { plexAccount.state.isUsingOfflineHomeSession = newValue }
+    }
+    var homeSelectionRequested: Bool {
+        get { plexAccount.state.homeSelectionRequested }
+        set { plexAccount.state.homeSelectionRequested = newValue }
+    }
+    var primaryProfileID: String? {
+        get { plexAccount.state.primaryProfileID }
+        set { plexAccount.state.primaryProfileID = newValue }
+    }
+    var hasRememberedHomeUserToken: Bool {
+        get { plexAccount.state.hasRememberedHomeUserToken }
+        set { plexAccount.state.hasRememberedHomeUserToken = newValue }
+    }
 
     /// Compatibility name for the account token used by existing service code.
     /// New account operations should choose `primaryAccountToken` or
@@ -34,7 +73,7 @@ final class MediaService {
     var authToken: String? { activeAccountToken }
 
     var isAuthenticated: Bool { primaryAccountToken != nil }
-    var hasPlexHome: Bool { homeUsers.count > 1 }
+    var hasPlexHome: Bool { plexAccount.state.hasPlexHome }
     var activeProfileID: String? {
         if needsHomeUserSelection, activeHomeUser == nil {
             return nil
@@ -43,8 +82,16 @@ final class MediaService {
             ?? currentUser?.uuid?.nilIfEmpty
             ?? (activeAccountToken == primaryAccountToken ? primaryProfileID : nil)
     }
-    var needsHomeUserSelection: Bool {
-        homeBootstrapCompleted && hasPlexHome && homeSelectionRequested
+    /// The storage scope of the active profile; nil while there is none.
+    var profileScope: ProfileScope? { activeProfileID.map(ProfileScope.init(id:)) }
+    var needsHomeUserSelection: Bool { plexAccount.state.needsHomeUserSelection }
+    /// What `ContentView` shows: one value instead of `isAuthenticated`,
+    /// `homeBootstrapCompleted` and `needsHomeUserSelection`.
+    var sessionState: SessionState {
+        if !isAuthenticated { return .signedOut }
+        if !homeBootstrapCompleted { return .bootstrapping }
+        if needsHomeUserSelection { return .needsProfile }
+        return .ready
     }
     var isSessionReady: Bool {
         isAuthenticated
@@ -58,8 +105,13 @@ final class MediaService {
             && activeAccountToken == primaryAccountToken
             && (activeHomeUser == nil || activeHomeUser?.stableProfileID == primaryProfileID)
     }
-    var automaticHomeSignIn = true {
-        didSet {
+    /// Every set persists the choice (and the remembered member token), as the
+    /// stored property's `didSet` did; `PlexAccountProvider.restoreCredentials`
+    /// runs the same step for the launch-time assignment.
+    var automaticHomeSignIn: Bool {
+        get { plexAccount.state.automaticHomeSignIn }
+        set {
+            plexAccount.state.automaticHomeSignIn = newValue
             automaticHomeSignInDidChange()
         }
     }
@@ -99,27 +151,30 @@ final class MediaService {
 
     @ObservationIgnored var streamSelectionWriteTask: Task<Void, Error>?
 
-    /// The Plex account's provider. A shell for now (P0-16 moves the account
-    /// work into it); it owns `client`, the request core every Plex call uses.
+    /// The Plex account's provider. It owns the account's credentials and
+    /// Home state, the plex.tv request core and discovery, and `client`, the
+    /// request core every Plex call uses.
     let plexAccount: PlexAccountProvider
     /// The provider factories. The pool builds each session's server provider
     /// with them.
     let providers: ProviderRegistry
+    /// The signed-in accounts, read in place from each provider's credentials.
+    let accounts: AccountStore
+    /// Which provider each server id belongs to. Empty: every server is Plex.
+    let serverRegistry = ServerRegistry()
     var client: PlexClient { plexAccount.client }
-    var bootstrapNetworkAvailable = true
+    var bootstrapNetworkAvailable: Bool {
+        get { plexAccount.state.bootstrapNetworkAvailable }
+        set { plexAccount.state.bootstrapNetworkAvailable = newValue }
+    }
     let decoder: JSONDecoder
     let encoder: JSONEncoder
 
-    static var plexTVBase: String {
-        #if DEBUG
-        if let override = ScreenshotMode.plexTVBase { return override }
-        #endif
-        return "https://plex.tv"
-    }
+    static var plexTVBase: String { PlexAccountProvider.plexTVBase }
     /// Kept at the legacy name so existing users' linked-account credential
     /// migrates without requiring another sign-in.
-    static let keychainTokenKey = "PlexAuthToken"
-    static let keychainActiveHomeTokenKey = "PlexActiveHomeUserToken"
+    static let keychainTokenKey = PlexAccountProvider.keychainTokenKey
+    static let keychainActiveHomeTokenKey = PlexAccountProvider.keychainActiveHomeTokenKey
     static let defaultsClientIDKey = "PlexClientIdentifier"
     // The four keys below are the single-server layout. Nothing writes them any
     // more: they are read once by `migrateLegacySingleServerState()` and then
@@ -133,17 +188,17 @@ final class MediaService {
     /// Legacy selection, still read by `ServerPriorityStore` to seed the first
     /// priority order. Only sign-out removes it.
     static let defaultsServerIDKey = "PlexServerID"
-    static let defaultsActiveHomeUserDataKey = "PlexActiveHomeUserData"
-    static let defaultsAutomaticHomeSignInKey = "PlexAutomaticallySignInHomeUser"
-    static let defaultsHomeMigrationCompletedKey = "PlexHomeMigrationCompleted"
-    static let defaultsPrimaryProfileIDKey = "PlexPrimaryProfileID"
+    static let defaultsActiveHomeUserDataKey = PlexAccountProvider.defaultsActiveHomeUserDataKey
+    static let defaultsAutomaticHomeSignInKey = PlexAccountProvider.defaultsAutomaticHomeSignInKey
+    static let defaultsHomeMigrationCompletedKey = PlexAccountProvider.defaultsHomeMigrationCompletedKey
+    static let defaultsPrimaryProfileIDKey = PlexAccountProvider.defaultsPrimaryProfileIDKey
     /// How long requests to a server keep failing fast after its recovery
     /// failed. Long enough that a screenful of requests cannot re-run discovery
     /// over and over, short enough that a server coming back is picked up on the
     /// next screen refresh.
     static let serverRecoveryCooldown: TimeInterval = 30
-    static let authenticationPropagationRetryWindow: TimeInterval = 20
-    static let authenticationPropagationRetryAttempts = 20
+    static let authenticationPropagationRetryWindow = PlexAccountProvider.authenticationPropagationRetryWindow
+    static let authenticationPropagationRetryAttempts = PlexAccountProvider.authenticationPropagationRetryAttempts
     /// The shared session's whole-request budget (`PlexClient.session`).
     static let requestResourceTimeout: TimeInterval = PlexClient.requestResourceTimeout
 
@@ -161,58 +216,26 @@ final class MediaService {
             clientIdentifier = id
         }
         let client = PlexClient(clientIdentifier: clientIdentifier, urlProtocolClasses: urlProtocolClasses)
-        self.plexAccount = PlexAccountProvider(client: client)
-        self.providers = ProviderRegistry([PlexProviderFactory(client: client)])
+        let plexAccount = PlexAccountProvider(client: client)
+        let providers = ProviderRegistry([PlexProviderFactory(account: plexAccount)])
+        self.plexAccount = plexAccount
+        self.providers = providers
+        self.accounts = AccountStore(registry: providers)
 
         #if DEBUG
         let readsStoredSignIn = !ScreenshotMode.startsSignedOut
         #else
         let readsStoredSignIn = true
         #endif
-        if readsStoredSignIn,
-           let data = KeychainHelper.load(key: Self.keychainTokenKey),
-           let token = String(data: data, encoding: .utf8) {
-            primaryAccountToken = token.nilIfEmpty
-        }
-        #if DEBUG
-        // Screenshot mode signs in to the mock server's demo account and never
-        // touches a real Plex sign-in stored in the Keychain.
-        if ScreenshotMode.isActive {
-            primaryAccountToken = ScreenshotMode.accountToken
-        }
-        #endif
+        plexAccount.restoreCredentials(readsStoredSignIn: readsStoredSignIn)
 
-        if let profileData = UserDefaults.standard.data(forKey: Self.defaultsActiveHomeUserDataKey),
-           let profile = try? decoder.decode(PlexHomeUser.self, from: profileData) {
-            activeHomeUser = profile
-        }
-
-        let shouldAutomaticallySignIn: Bool
-        if UserDefaults.standard.object(forKey: Self.defaultsAutomaticHomeSignInKey) == nil {
-            shouldAutomaticallySignIn = true
-        } else {
-            shouldAutomaticallySignIn = UserDefaults.standard.bool(
-                forKey: Self.defaultsAutomaticHomeSignInKey
-            )
-        }
-        automaticHomeSignIn = shouldAutomaticallySignIn
-
-        primaryProfileID = UserDefaults.standard
-            .string(forKey: Self.defaultsPrimaryProfileIDKey)?
-            .nilIfEmpty
-
-        if readsStoredSignIn,
-           shouldAutomaticallySignIn,
-           activeHomeUser != nil,
-           let data = KeychainHelper.load(key: Self.keychainActiveHomeTokenKey),
-           let token = String(data: data, encoding: .utf8)?.nilIfEmpty {
-            activeAccountToken = token
-            hasRememberedHomeUserToken = true
-        } else {
-            activeAccountToken = primaryAccountToken
-        }
-
-        pool.configure(probeSession: probeSession, baseHeaders: plexRequestHeaders, providers: providers)
+        pool.configure(
+            probeSession: probeSession,
+            baseHeaders: plexRequestHeaders,
+            providers: providers,
+            serverRegistry: serverRegistry,
+            restrictedProfile: { [weak self] in self?.activeHomeUser?.isRestricted == true }
+        )
         // `-DuskScreenshotSignedOut` never touches the Keychain: the stored
         // server tokens are real sign-ins too.
         if readsStoredSignIn {

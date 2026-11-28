@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Shared Plex Home profile picker used during app startup and from Settings.
+/// Shared profile picker (Plex Home members) used during app startup and from
+/// Settings. Shows the account's `Profile`s.
 ///
 /// PINs are deliberately held only in this view's transient state. The service
 /// receives the PIN for the switch request and persists the resulting profile
@@ -10,7 +11,7 @@ struct HomeUserPickerView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
 
-    let users: [PlexHomeUser]
+    let users: [Profile]
     var onComplete: (() -> Void)? = nil
     var onCancel: (() -> Void)? = nil
     var onSignOut: (() -> Void)? = nil
@@ -21,12 +22,27 @@ struct HomeUserPickerView: View {
     @FocusState private var focusedProfileID: String?
     @State private var returningProfileID: String?
     #endif
-    @State private var pendingUser: PlexHomeUser?
+    @State private var pendingUser: Profile?
     @State private var pin = ""
     @State private var switchingProfileID: String?
     @State private var switchError: String?
     @State private var confirmsSigningOut = false
 
+    init(
+        profiles: [Profile],
+        rememberSelection: Bool = true,
+        onComplete: (() -> Void)? = nil,
+        onCancel: (() -> Void)? = nil,
+        onSignOut: (() -> Void)? = nil
+    ) {
+        self.users = profiles
+        self.onComplete = onComplete
+        self.onCancel = onCancel
+        self.onSignOut = onSignOut
+        _rememberSelection = State(initialValue: rememberSelection)
+    }
+
+    /// For the Settings and Mac callers that still hand over Plex Home members.
     init(
         users: [PlexHomeUser],
         rememberSelection: Bool = true,
@@ -34,11 +50,13 @@ struct HomeUserPickerView: View {
         onCancel: (() -> Void)? = nil,
         onSignOut: (() -> Void)? = nil
     ) {
-        self.users = users
-        self.onComplete = onComplete
-        self.onCancel = onCancel
-        self.onSignOut = onSignOut
-        _rememberSelection = State(initialValue: rememberSelection)
+        self.init(
+            profiles: users.map(\.profile),
+            rememberSelection: rememberSelection,
+            onComplete: onComplete,
+            onCancel: onCancel,
+            onSignOut: onSignOut
+        )
     }
 
     private var isMac: Bool {
@@ -139,11 +157,11 @@ struct HomeUserPickerView: View {
                     }
 
                     LazyVGrid(columns: macProfileColumns, spacing: 16) {
-                        ForEach(users, id: \.stableProfileID) { user in
+                        ForEach(users, id: \.id) { user in
                             MacHomeUserCard(
                                 user: user,
-                                isCurrent: user.stableProfileID == media.activeProfileID,
-                                isSwitching: switchingProfileID == user.stableProfileID,
+                                isCurrent: user.id == media.activeProfileID,
+                                isSwitching: switchingProfileID == user.id,
                                 isDisabled: switchingProfileID != nil
                             ) {
                                 select(user)
@@ -212,12 +230,12 @@ struct HomeUserPickerView: View {
                     columns: [GridItem(.adaptive(minimum: 132, maximum: 180), spacing: 18)],
                     spacing: 18
                 ) {
-                    ForEach(users, id: \.stableProfileID) { user in
+                    ForEach(users, id: \.id) { user in
                         HomeUserCard(
                             user: user,
                             avatarSize: 88,
-                            isCurrent: user.stableProfileID == media.activeProfileID,
-                            isSwitching: switchingProfileID == user.stableProfileID,
+                            isCurrent: user.id == media.activeProfileID,
+                            isSwitching: switchingProfileID == user.id,
                             isDisabled: switchingProfileID != nil
                         ) {
                             select(user)
@@ -252,12 +270,12 @@ struct HomeUserPickerView: View {
                     columns: tvProfileColumns,
                     spacing: 34
                 ) {
-                    ForEach(users, id: \.stableProfileID) { user in
+                    ForEach(users, id: \.id) { user in
                         HomeUserCard(
                             user: user,
                             avatarSize: 142,
-                            isCurrent: user.stableProfileID == media.activeProfileID,
-                            isSwitching: switchingProfileID == user.stableProfileID,
+                            isCurrent: user.id == media.activeProfileID,
+                            isSwitching: switchingProfileID == user.id,
                             isDisabled: switchingProfileID != nil,
                             profileFocus: $focusedProfileID
                         ) {
@@ -266,7 +284,7 @@ struct HomeUserPickerView: View {
                     }
                 }
                 .frame(width: tvProfileGridWidth)
-                .defaultFocus($focusedProfileID, returningProfileID ?? users.first?.stableProfileID)
+                .defaultFocus($focusedProfileID, returningProfileID ?? users.first?.id)
                 .task {
                     if let returningProfileID {
                         focusedProfileID = returningProfileID
@@ -378,7 +396,7 @@ struct HomeUserPickerView: View {
         #endif
     }
 
-    private func select(_ user: PlexHomeUser) {
+    private func select(_ user: Profile) {
         switchError = nil
 
         if user.isProtected {
@@ -390,7 +408,7 @@ struct HomeUserPickerView: View {
     }
 
     @ViewBuilder
-    private func pinEntry(for user: PlexHomeUser) -> some View {
+    private func pinEntry(for user: Profile) -> some View {
         #if os(tvOS)
         TVHomeUserPINView(
             user: user,
@@ -416,25 +434,25 @@ struct HomeUserPickerView: View {
         pin = ""
         switchError = nil
         #if os(tvOS)
-        returningProfileID = pendingUser?.stableProfileID
+        returningProfileID = pendingUser?.id
         #endif
         pendingUser = nil
     }
 
-    private func switchTo(_ user: PlexHomeUser, pin: String?) {
+    private func switchTo(_ user: Profile, pin: String?) {
         guard switchingProfileID == nil else { return }
 
         switchError = nil
-        switchingProfileID = user.stableProfileID
+        switchingProfileID = user.id
 
         Task {
             downloadManager.prepareForProfileSwitch()
             await offlinePlaybackSyncManager.prepareForProfileSwitch()
 
             do {
-                try await media.switchHomeUser(
+                try await media.switchProfile(
                     user,
-                    pin: pin?.nilIfEmpty,
+                    secret: pin?.nilIfEmpty,
                     remember: rememberSelection
                 )
                 downloadManager.activateProfile()
@@ -484,8 +502,18 @@ private struct HomeUserBackButton: View {
 
 // MARK: - Shared profile artwork
 
+/// A Plex Home member's avatar, for the Settings rows that still hold one.
 struct PlexHomeUserAvatar: View {
     let user: PlexHomeUser
+    let size: CGFloat
+
+    var body: some View {
+        ProfileAvatar(profile: user.profile, size: size)
+    }
+}
+
+struct ProfileAvatar: View {
+    let profile: Profile
     let size: CGFloat
 
     var body: some View {
@@ -493,7 +521,7 @@ struct PlexHomeUserAvatar: View {
             Circle()
                 .fill(Color.duskTextSecondary.opacity(0.14))
 
-            DuskAsyncImage(url: user.avatarURL) { phase in
+            DuskAsyncImage(url: profile.avatarURL) { phase in
                 switch phase {
                 case .success(let image):
                     image
@@ -516,7 +544,7 @@ struct PlexHomeUserAvatar: View {
 }
 
 private struct HomeUserCard: View {
-    let user: PlexHomeUser
+    let user: Profile
     let avatarSize: CGFloat
     let isCurrent: Bool
     let isSwitching: Bool
@@ -529,7 +557,7 @@ private struct HomeUserCard: View {
     #if os(tvOS)
     @FocusState private var fallbackFocusedProfileID: String?
     private var isFocused: Bool {
-        (profileFocus ?? $fallbackFocusedProfileID).wrappedValue == user.stableProfileID
+        (profileFocus ?? $fallbackFocusedProfileID).wrappedValue == user.id
     }
     #endif
 
@@ -537,7 +565,7 @@ private struct HomeUserCard: View {
         Button(action: action) {
             VStack(spacing: 14) {
                 ZStack(alignment: .bottomTrailing) {
-                    PlexHomeUserAvatar(user: user, size: avatarSize)
+                    ProfileAvatar(profile: user, size: avatarSize)
 
                     if user.isProtected {
                         Image(systemName: "lock.fill")
@@ -585,7 +613,7 @@ private struct HomeUserCard: View {
         .disabled(isDisabled)
         .duskSuppressTVOSButtonChrome()
         #if os(tvOS)
-        .focused(profileFocus ?? $fallbackFocusedProfileID, equals: user.stableProfileID)
+        .focused(profileFocus ?? $fallbackFocusedProfileID, equals: user.id)
         .duskTVOSFocusedScale(isFocused)
         #endif
         .accessibilityLabel(user.displayName)
@@ -599,7 +627,7 @@ private struct HomeUserCard: View {
 private struct MacHomeUserCard: View {
     static let size = CGSize(width: 140, height: 170)
 
-    let user: PlexHomeUser
+    let user: Profile
     let isCurrent: Bool
     let isSwitching: Bool
     let isDisabled: Bool
@@ -611,7 +639,7 @@ private struct MacHomeUserCard: View {
         Button(action: action) {
             VStack(spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    PlexHomeUserAvatar(user: user, size: 96)
+                    ProfileAvatar(profile: user, size: 96)
                         .overlay {
                             if isSwitching {
                                 Circle().fill(.black.opacity(0.45))
@@ -666,7 +694,7 @@ private struct MacHomeUserCard: View {
 private struct IOSHomeUserPINView: View {
     @Environment(\.openURL) private var openURL
 
-    let user: PlexHomeUser
+    let user: Profile
     @Binding var pin: String
     let isSubmitting: Bool
     let error: String?
@@ -687,7 +715,7 @@ private struct IOSHomeUserPINView: View {
     #if os(macOS)
     private var macBody: some View {
         VStack(spacing: 18) {
-            PlexHomeUserAvatar(user: user, size: 80)
+            ProfileAvatar(profile: user, size: 80)
 
             VStack(spacing: 4) {
                 Text("Enter PIN")
@@ -759,7 +787,7 @@ private struct IOSHomeUserPINView: View {
     private var iosBody: some View {
         ScrollView {
             VStack(spacing: 24) {
-                PlexHomeUserAvatar(user: user, size: 104)
+                ProfileAvatar(profile: user, size: 104)
 
                 VStack(spacing: 8) {
                     Text("Enter PIN")
@@ -838,7 +866,7 @@ private struct IOSHomeUserPINView: View {
 
 #if os(tvOS)
 private struct TVHomeUserPINView: View {
-    let user: PlexHomeUser
+    let user: Profile
     @Binding var pin: String
     let isSubmitting: Bool
     let error: String?
@@ -854,7 +882,7 @@ private struct TVHomeUserPINView: View {
     var body: some View {
         HStack(spacing: 120) {
             VStack(spacing: 28) {
-                PlexHomeUserAvatar(user: user, size: 176)
+                ProfileAvatar(profile: user, size: 176)
 
                 VStack(spacing: 10) {
                     Text("Enter PIN")

@@ -66,25 +66,40 @@ final class ServerPool {
     @ObservationIgnored private var priorityStore: ServerPriorityStore?
     /// Builds the provider stored on each recorded session.
     @ObservationIgnored private var providers: ProviderRegistry?
+    /// Which provider each server id belongs to; no record is Plex.
+    @ObservationIgnored private var serverRegistry = ServerRegistry()
+    /// Whether the active profile is restricted, for `ServerPermissions`. Read
+    /// when a session is recorded: a profile switch clears the pool, so every
+    /// session's provider is built for the profile it serves.
+    @ObservationIgnored private var isRestrictedProfile: @MainActor () -> Bool = { false }
 
     /// Injected by `MediaService` at init. The headers carry no credential; the
     /// per-server token is added when a request is built.
-    func configure(probeSession: URLSession, baseHeaders: [String: String], providers: ProviderRegistry) {
+    func configure(
+        probeSession: URLSession,
+        baseHeaders: [String: String],
+        providers: ProviderRegistry,
+        serverRegistry: ServerRegistry = ServerRegistry(),
+        restrictedProfile: @escaping @MainActor () -> Bool = { false }
+    ) {
         self.probeSession = probeSession
         self.baseHeaders = baseHeaders
         self.providers = providers
+        self.serverRegistry = serverRegistry
+        self.isRestrictedProfile = restrictedProfile
     }
 
-    /// The provider for a session with `server`. Every server the pool knows
-    /// today is a Plex server.
+    /// The provider for a session with `server`, from the factory of the
+    /// server's kind. Every server the pool knows today is a Plex server.
     private func makeProvider(for server: PlexServer) -> (any MediaServerProvider)? {
-        providers?.factory(for: .plex)?.makeServerProvider(
+        providers?.factory(for: serverRegistry.kind(for: server.clientIdentifier))?.makeServerProvider(
             ServerSessionSeed(
                 serverID: server.clientIdentifier,
                 name: server.name,
                 version: server.productVersion,
                 owned: server.owned,
-                sourceTitle: server.sourceTitle
+                sourceTitle: server.sourceTitle,
+                restrictedProfile: isRestrictedProfile()
             )
         )
     }
