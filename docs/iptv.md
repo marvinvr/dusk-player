@@ -62,9 +62,9 @@ XMLTV works.
   scrobble, Trakt, Up Next, markers, quality, offline sync, SharePlay, or debug
   info. The schedule refresh re-derives the current program from the lineup but
   never fetches a Plex grid for IPTV.
-- **Images**: IPTV art paths are absolute URLs; `MediaService.imageURL` returns
-  them untouched for `serverID == IPTVImages.serverID` (never through a Plex
-  photo transcoder). The IPTV provider, placeholder and Now Playing all carry
+- **Images**: IPTV art paths are absolute URLs; `MediaService.imageURL` hands
+  refs with `serverID == IPTVImages.serverID` to `IPTVImageProvider`, which
+  returns them untouched (never through a Plex photo transcoder). The IPTV provider, placeholder and Now Playing all carry
   that sentinel.
 - **Tab**: `LiveTVViewModel.isAvailable` is `provider != nil || hasIPTVSources`,
   so IPTV alone shows the Live TV tab. With no DVR the Plex guide load is

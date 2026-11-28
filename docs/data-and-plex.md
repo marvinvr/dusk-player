@@ -802,24 +802,35 @@ File: `MediaService+Photos.swift`, model `Domain/PhotoItem.swift`.
   against a real PMS from Dusk.
 
 ## Image URL And Data Handling
-File: `MediaService+Images.swift`.
+Files: `MediaService+Images.swift` (routing, fetching), `Providers/Plex/PlexImages.swift`
+(Plex URLs), `IPTVService/IPTVImageProvider.swift`; the facet is
+`Providers/Core/ImageProviding.swift`.
 - Call `media.imageURL(for: ArtworkRef, size: ImageSize)` from view models/UI
   helpers. An `ArtworkRef` is the server id plus an opaque locator (for Plex the
   server-relative path); `MediaItem.artwork` is an `ArtworkSet`, and the poster/
   landscape fallback order lives on it (`preferredPoster(for:)`, …). A ref keeps
   the call site's server, never a guessed one.
-- With dimensions, URLs go through `/photo/:/transcode` using display-scaled
-  pixel dimensions, `minSize=1`, and `upscale=0`.
+- Routing: the facade resolves `pool.connection(for: ref.serverID)` and asks that
+  session's provider (`session.provider.images`), passing the session in, since
+  providers hold no endpoint or token. No session (server not connected) or no
+  provider (a session built outside the pool) falls back to `PlexImages`, so
+  absolute-URL artwork still resolves. The `IPTVImages.serverID` sentinel goes to
+  `IPTVImageProvider` before any pool lookup.
+- Plex: with dimensions, URLs go through `/photo/:/transcode` using display-scaled
+  pixel dimensions (`ImageDisplayScale`), `minSize=1`, and `upscale=0`.
 - The transcode `url` is the server-relative path (`transcodeSourceURLString`),
   as Plex Web sends it. With the server's own absolute URL the server fetches
   itself, which 404s over a LAN address and left every poster blank at home.
-- Without dimensions, `directImageURL(for:)` builds the server-relative URL
+- Without dimensions, `PlexImages.directImageURL` builds the server-relative URL
   without embedding a token.
 - `imageRequestURLString(for:includeToken:)` accepts absolute URLs as-is and
   builds relative paths from the connection of the item's server, resolved via
   `pool.connection(for:)`.
 - `imageData(for:)` authenticates URLs matching a connected server's
-  scheme/host/defaulted port; other URLs are fetched as plain binary requests.
+  scheme/host/defaulted port (`imageServerConnection`): the provider builds the
+  request (`authenticatedRequest`, Plex headers + token), the facade does the
+  cache, the send with its fresh-sign-in retry, and one token refresh on a 401
+  (then `markUnauthorized`). Other URLs are fetched as plain binary requests.
 - `DuskAsyncImage` uses `DuskImageLoader`, delegating to
   `media.imageData(for:)`.
 - `AppImageCache.shared` is the shared URL cache and can be cleared in settings.

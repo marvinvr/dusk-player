@@ -523,11 +523,18 @@ struct ArtworkSet: Sendable {
     var parentPoster, grandparentPoster, grandparentBackdrop, grandparentLogo: ArtworkRef?
 }
 
-protocol ImageProviding {
-    func request(for ref: ArtworkRef, size: ImageSize) -> ImageRequest?   // url + headers + cache key
-    func data(for ref: ArtworkRef, size: ImageSize) async throws -> Data  // authenticated fetch for offline artwork
+protocol ImageProviding {     // as built in P0-08
+    func url(for ref: ArtworkRef, size: ImageSize, session: ServerSession?) -> URL?
+    func authenticatedRequest(for url: URL, session: ServerSession) -> URLRequest
 }
 ```
+
+- Providers hold no endpoint or token, so the facade passes the session it
+  resolved for `ref.serverID` (nil when not connected: absolute-URL artwork
+  still resolves). Fetching, the image cache, the 401 refresh and matching a
+  URL back to its server stay in `MediaService+Images`. A ref-based
+  `data(for:size:)` for offline artwork lands with its callers (downloads,
+  Top Shelf), which still fetch by URL.
 
 - For Plex the locator **is** today's path string, so persisted `thumbPath` /
   `artPath` values in `downloads.json` and the Top Shelf snapshot are valid
@@ -544,7 +551,8 @@ protocol ImageProviding {
   Jellyfin's `Thumb` image has the title baked in, so the Jellyfin mapper puts
   the backdrop, not `Thumb`, in `landscape`.
 - `imageServerConnection(for: URL)` (matching a URL back to a server by host)
-  disappears: the ref already names its server.
+  disappears once every fetch goes by ref: the ref already names its server.
+  It stays while `DuskAsyncImage`, downloads and Top Shelf fetch by URL.
 - **No BlurHash.** Plex has no equivalent the app uses today, so adding
   placeholders for one provider would be a visible difference.
 - IPTV images keep using `ArtworkRef(serverID: IPTVImages.serverID, …)`
