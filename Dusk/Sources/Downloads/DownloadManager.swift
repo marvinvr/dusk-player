@@ -497,6 +497,24 @@ final class DownloadManager {
         }.count
     }
 
+    /// The qualities the item's server can download, Original first.
+    func downloadQualities(for id: MediaItemID) -> [DownloadQuality] {
+        media.downloadQualities(for: id)
+    }
+
+    /// Whether the user may start a download from the item's server. What is
+    /// already on the device stays manageable either way.
+    func canStartDownload(for id: MediaItemID) -> Bool {
+        media.canDownload(serverID: id.serverID)
+    }
+
+    /// `quality` when the server offers it, else Original, so a remembered
+    /// preset or a Smart Downloads rule never asks a server for a copy it
+    /// cannot make.
+    private func supportedQuality(_ quality: DownloadQuality, for id: MediaItemID) -> DownloadQuality {
+        downloadQualities(for: id).contains(quality) ? quality : .original
+    }
+
     func queueDownload(id: MediaItemID, type: MediaKind, isClip: Bool = false, quality: DownloadQuality? = nil) async {
         let initiatingProfileID = media.activeProfileID
         let scope = DownloadScope(id: id, type: type)
@@ -1313,6 +1331,7 @@ final class DownloadManager {
         }
         let serverID = try downloadServerID(for: id)
         let itemID = id.itemID
+        let quality = supportedQuality(quality, for: MediaItemID(serverID: serverID, itemID: itemID))
 
         if let existing = record(for: MediaItemID(serverID: serverID, itemID: itemID)),
            existing.status != .cancelled {
@@ -1371,6 +1390,7 @@ final class DownloadManager {
             throw MediaServiceError.notAuthenticated
         }
         let serverID = try downloadServerID(for: episode.id)
+        let quality = supportedQuality(quality, for: MediaItemID(serverID: serverID, itemID: episode.itemID))
 
         if let existing = record(for: MediaItemID(serverID: serverID, itemID: episode.itemID)),
            existing.status != .cancelled {

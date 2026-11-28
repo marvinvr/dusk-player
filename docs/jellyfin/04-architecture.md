@@ -944,8 +944,14 @@ where behaviour neutrality required it:
   decodes), reached by `ProviderKind` through the factory. The facade does
   the fetch.
 - `MetadataSnapshotKey` has `.details` and `.children` only; nothing reads
-  `allLeaves`. The envelope and `decodeSnapshot` of `convertedMediaData` come
-  with J-08a. Until then, Plex payloads are stored bare.
+  `allLeaves`. Plex payloads are stored bare.
+- J-08a: fetching moved to the facet (`DownloadProviding.metadataSnapshot`),
+  since a Jellyfin `.details` is two requests (item + `/MediaSegments`) and
+  `.children` needs the item's type; `MetadataSnapshotFormat` only names and
+  decodes. The original file is `originalFileRequest(for:directPlayURL:credential:)`.
+  `convertedMediaData` keeps Plex's bare `MediaVersion` JSON: no Jellyfin
+  writer exists before J-08b, and re-encoding Plex's blob would be a persisted
+  change.
 
 ### 15.2 Converted quality on Jellyfin
 

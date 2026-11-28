@@ -7,8 +7,13 @@ import Foundation
 extension MediaService {
     /// The presets the download quality menu offers for an item.
     func downloadQualities(for item: MediaItemID) -> [DownloadQuality] {
-        pool.connection(for: item.serverID)?.provider?.downloads.qualities(for: item)
-            ?? DownloadQuality.allCases
+        serverProvider(for: item.serverID).downloads.qualities(for: item)
+    }
+
+    /// Whether the user may start a download from this server. Existing
+    /// downloads stay playable and deletable either way.
+    func canDownload(serverID: String?) -> Bool {
+        serverProvider(for: serverID).permissions.canDownload
     }
 
     /// The provider behind a server id, from its live session when there is
@@ -34,7 +39,7 @@ extension MediaService {
               let downloads = connection.provider?.downloads else {
             return nil
         }
-        return downloads.originalFileRequest(url: sourceURL, credential: connection.token)
+        return downloads.originalFileRequest(for: part, directPlayURL: sourceURL, credential: connection.token)
     }
 
     /// One external text subtitle saved next to a download.
@@ -48,14 +53,10 @@ extension MediaService {
         }
     }
 
-    /// The raw payload the offline cache stores for `key`, through the same
-    /// healing server read every other request takes.
+    /// The payload the offline cache stores for `key`, from the server's
+    /// provider (Plex: the same healing server read every other request takes).
     func metadataSnapshot(_ key: MetadataSnapshotKey, serverID: String) async throws -> Data {
-        guard let format = metadataSnapshotFormats.format(for: downloadProviderKind(for: serverID)) else {
-            throw MediaServiceError.noServerConnected
-        }
-        let request = format.fetchRequest(for: key)
-        return try await rawServerRequest(path: request.path, queryItems: request.queryItems, serverID: serverID)
+        try await serverProvider(for: serverID).downloads.metadataSnapshot(key)
     }
 
     // MARK: - Converted downloads

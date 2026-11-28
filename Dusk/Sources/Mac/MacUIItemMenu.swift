@@ -155,13 +155,16 @@ struct MacItemContextMenu: View {
             let state = downloadManager.downloadState(for: scope)
             switch state.status {
             case nil, .cancelled?:
-                if item.isClip {
-                    Button("Download", systemImage: "arrow.down.circle") {
+                let qualities = downloadManager.downloadQualities(for: scope.id)
+                if !downloadManager.canStartDownload(for: scope.id) {
+                    EmptyView()
+                } else if item.isClip || qualities.count < 2 {
+                    Button(downloadTitle, systemImage: "arrow.down.circle") {
                         queueDownload(scope, quality: .original)
                     }
                 } else {
                     Menu {
-                        ForEach(DownloadQuality.allCases) { quality in
+                        ForEach(qualities) { quality in
                             Button(quality.displayName) {
                                 queueDownload(scope, quality: quality)
                             }

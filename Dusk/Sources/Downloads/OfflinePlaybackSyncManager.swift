@@ -215,6 +215,11 @@ final class OfflinePlaybackSyncManager {
     /// Replays one action on the server it was recorded on, through that
     /// server's `UserDataProviding`. Throws when the server did not take it,
     /// so the action stays pending.
+    ///
+    /// A server that marks an item played from the report itself
+    /// (`PlaybackTraits.serverAppliesWatchedThreshold`) gets no extra
+    /// watched write: the same action syncs again on every timeline tick
+    /// past 90 %, and each write would count another play.
     private func sync(_ action: OfflinePlaybackSyncAction) async throws {
         let item = MediaItemID(serverID: action.serverID, itemID: action.itemID)
         switch action.kind {
@@ -225,7 +230,7 @@ final class OfflinePlaybackSyncManager {
                 positionMs: action.viewOffsetMs ?? 0,
                 durationMs: action.durationMs ?? 0
             ))
-            if action.shouldMarkWatched {
+            if action.shouldMarkWatched, !media.serverAppliesWatchedThreshold(serverID: action.serverID) {
                 try await media.setWatched(true, itemID: action.itemID, serverID: action.serverID)
             }
         case .watched:

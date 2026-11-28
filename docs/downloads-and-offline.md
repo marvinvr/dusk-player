@@ -64,6 +64,21 @@ DownloadActionButton
 
 Movies, episodes, seasons, and shows present a native quality picker. Original
 is the default and keeps the direct-file path; clips also keep Original. The
+picker lists `DownloadManager.downloadQualities(for:)` (the server's
+`DownloadProviding.qualities`); with one choice (Jellyfin until J-08b) the
+movie/episode/season button downloads Original directly and the show sheet keeps
+only its Episodes section. A record is queued with Original when its server does
+not offer the asked preset (a remembered one, a Smart Downloads rule). The start
+affordances (button, Mac menu, episode rows, Keep Next) are hidden when
+`ServerPermissions.canDownload` is off (Jellyfin `EnableContentDownloading`);
+what is on the device stays manageable.
+
+The original file is the facet's `originalFileRequest(for:directPlayURL:credential:)`:
+Plex downloads the part's direct-play URL with its token header, Jellyfin
+`/Items/{sourceID}/Download` with the `Authorization` token (the source id picks
+the version; a multi-part film downloads its first part, as it plays).
+`TransportSecurity.validate` / `allowsRedirect`, which the transfer delegate
+uses, check both providers' credentials. The
 Download Quality setting (Auto / 4K / 1080p / 720p) selects an existing source
 version. Playback’s separate Preferred Version setting is unchanged.
 An explicit 320p–1080p bitrate preset asks Plex to prepare a smaller offline
@@ -130,7 +145,8 @@ Both download modes save the source part's external **text** sidecars
 (`DownloadedMediaRecord.offlineSubtitleStreams`: a `key` plus a codec
 `SubtitleTextDecoder.fileExtension` knows, so srt/ass/ssa/vtt/smi/MicroDVD;
 never VobSub or unknown codecs). `DownloadManager.cacheExternalSubtitles` runs
-right after a download completes: each `/library/streams/{id}` is fetched,
+right after a download completes: each sidecar URL (Plex `/library/streams/{id}`,
+Jellyfin `…/Subtitles/{index}/0/Stream.{format}`) is fetched,
 normalized to UTF-8 with a BOM (`SubtitleTextDecoder.normalizedFileData`, the
 same step the VLCKit mount uses) and written to `Subtitles/`. The record keeps
 `externalSubtitlePaths` (stream id → relative path; nil = never synced, empty =
@@ -301,8 +317,16 @@ Formats are reached by `ProviderKind` without a session
 `MetadataSnapshotFormatProviding`), so offline browsing decodes with the
 record's provider: `DownloadedMediaRecord.provider` is an optional tag that is
 absent for Plex (absent = Plex), so a Plex `downloads.json` keeps its exact
-shape. Fetches use the same reads the catalog makes online
-(`/library/metadata/{id}?includeMarkers=1&includeGuids=1`, `…/children`).
+shape. Fetches go through the server's `DownloadProviding.metadataSnapshot(_:)`
+and use the same reads the catalog makes online. Plex:
+`/library/metadata/{id}?includeMarkers=1&includeGuids=1`, `…/children`, through
+the healing routed send. Jellyfin (`JellyfinMetadataSnapshotFormat`): an
+envelope `{"provider":"jellyfin","schema":1,"payload":…}` around the raw
+answer; `.details` is `/Items/{id}` plus its `/MediaSegments` as `segments` (skip
+markers offline), `.children` is a series' `/Shows/{id}/Seasons` or a season's
+episode `/Items` query (the item's type is looked up first). Its storage names
+are `jellyfin:/Items/{id}` and `…/children` (pinned in
+`JellyfinDownloadsTests`).
 `PlexMetadataCache` is a source-compatibility alias until its last callers move.
 
 Queueing fills cache progressively: movies cache their own details; episodes
@@ -379,7 +403,12 @@ Action kinds are `progress` (offset, duration, Plex state, optional watched
 mark), `watched` (scrobble), and `unwatched` (unscrobble). Replay goes through
 the server's `UserDataProviding`: `media.submit(PlaybackReport)` for progress
 (throwing, so a refused action stays pending) and `media.setWatched` for the
-watched mark. The stored `plexState` string and the `ratingKey` key keep their
+watched mark. A server that marks played from the report itself
+(`PlaybackTraits.serverAppliesWatchedThreshold`, Jellyfin) gets no watched
+write: the same action syncs again on every tick past 90 %, and each
+`/UserPlayedItems` call would count another play. Jellyfin takes a sessionless
+`/Sessions/Playing/Stopped` or `/Progress` (no `PlaySessionId`): it stores the
+position under its 5 %/90 % rules and never counts a play. The stored `plexState` string and the `ratingKey` key keep their
 persisted names.
 
 `PlaybackCoordinator+Timeline` reports every 10 seconds. Live streams report to

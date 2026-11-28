@@ -5,7 +5,8 @@ import Foundation
 /// subtitle and error-text fetches, the remux relay and the Dolby Vision 7
 /// proxy, the pool's endpoint checks. Each forwards to this build's provider
 /// policy, which today is Plex's (`PlexTransportSecurity`), so every rule is
-/// exactly the one it was. A second provider adds its policy here.
+/// exactly the one it was. Jellyfin's policy joins `validate` and
+/// `allowsRedirect`, which never match a Plex request.
 enum TransportSecurity {
     /// A session whose redirects follow the policy.
     static var session: URLSession { PlexTransportSecurity.session }
@@ -34,11 +35,15 @@ enum TransportSecurity {
     }
 
     /// Throws when `request` would send a credential where it must not go.
+    /// Jellyfin's credential (its `Authorization` token, `ApiKey=`) is checked
+    /// too: a download or sidecar request can carry either provider's.
     static func validate(_ request: URLRequest) throws {
         try PlexTransportSecurity.validate(request)
+        try JellyfinCredentialPolicy.shared.validate(request)
     }
 
     static func allowsRedirect(_ request: URLRequest, original: URLRequest?) -> Bool {
         PlexTransportSecurity.allowsRedirect(request, original: original)
+            && JellyfinCredentialPolicy.shared.allowsRedirect(request, original: original)
     }
 }

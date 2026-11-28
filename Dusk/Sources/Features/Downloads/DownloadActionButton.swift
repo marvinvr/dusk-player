@@ -36,7 +36,7 @@ struct DownloadActionButton: View {
 
     @ViewBuilder
     var body: some View {
-        if DownloadsFeature.isVisible {
+        if DownloadsFeature.isVisible, isAvailable {
             Button {
                 handleTap()
             } label: {
@@ -81,7 +81,7 @@ struct DownloadActionButton: View {
                 Text(deleteConfirmationMessage)
             }
             .sheet(isPresented: $isShowingQualitySelection) {
-                DownloadQualitySelectionSheet(offersKeepNext: type == .show) { quality, keepNext in
+                DownloadQualitySelectionSheet(qualities: qualities, offersKeepNext: type == .show) { quality, keepNext in
                     isShowingQualitySelection = false
                     if let keepNext {
                         startSmartDownloads(count: keepNext, quality: quality)
@@ -133,6 +133,16 @@ struct DownloadActionButton: View {
 
     private var smartRule: SmartDownloadRule? {
         type == .show ? downloadManager.smartDownloadRule(show: id) : nil
+    }
+
+    /// Hidden only when nothing is on the device and the user may not
+    /// download from this server.
+    private var isAvailable: Bool {
+        state.hasRecords || smartRule != nil || downloadManager.canStartDownload(for: id)
+    }
+
+    private var qualities: [DownloadQuality] {
+        downloadManager.downloadQualities(for: id)
     }
 
     private var scope: DownloadScope {
@@ -258,9 +268,12 @@ struct DownloadActionButton: View {
         }
     }
 
+    /// A show always gets the sheet for its Episodes choice; anything else
+    /// only when there is a quality to pick.
     private var supportsQualitySelection: Bool {
         guard !isClip else { return false }
-        return type == .movie || type == .episode || type == .season || type == .show
+        if type == .show { return true }
+        return qualities.count > 1 && (type == .movie || type == .episode || type == .season)
     }
 
     private var deleteConfirmationTitle: String {
@@ -337,6 +350,8 @@ struct DownloadQualitySelectionSheet: View {
     /// 0 = every episode; otherwise Keep Next N Unwatched.
     @State private var keepNextCount = 0
 
+    /// What the item's server can download; one choice hides the section.
+    var qualities: [DownloadQuality] = DownloadQuality.allCases
     /// Shows get the Episodes choice (all, or keep the next N unwatched).
     var offersKeepNext = false
     /// The chosen quality, and the Keep Next count when one was picked.
@@ -364,21 +379,23 @@ struct DownloadQualitySelectionSheet: View {
                     }
                 }
 
-                Section {
-                    Picker("Quality", selection: $selectedQuality) {
-                        ForEach(DownloadQuality.allCases) { quality in
-                            Text(quality.displayName)
-                                .tag(quality)
+                if qualities.count > 1 {
+                    Section {
+                        Picker("Quality", selection: $selectedQuality) {
+                            ForEach(qualities) { quality in
+                                Text(quality.displayName)
+                                    .tag(quality)
+                            }
                         }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                    } header: {
+                        if offersKeepNext {
+                            Text("Quality")
+                        }
+                    } footer: {
+                        Text("Original downloads the file as it is. Other qualities ask your Plex server to convert a smaller copy first, which may leave out embedded subtitles. Keep Dusk open while Plex prepares it; the download then continues in the background.")
                     }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                } header: {
-                    if offersKeepNext {
-                        Text("Quality")
-                    }
-                } footer: {
-                    Text("Original downloads the file as it is. Other qualities ask your Plex server to convert a smaller copy first, which may leave out embedded subtitles. Keep Dusk open while Plex prepares it; the download then continues in the background.")
                 }
             }
             #if os(macOS)
@@ -479,7 +496,7 @@ struct SmartDownloadMenuContent: View {
             } label: {
                 Label("Stop Keeping \(rule.shortLabel)", systemImage: "xmark.circle")
             }
-        } else {
+        } else if downloadManager.canStartDownload(for: show) {
             Menu {
                 ForEach(SmartDownloadRule.countOptions, id: \.self) { count in
                     Button("Next \(count) Unwatched") {

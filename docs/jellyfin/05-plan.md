@@ -687,6 +687,45 @@ film and a season on both servers; airplane-mode browsing and playback match;
 progress made offline appears on the server afterwards; a Plex download made
 by the pre-refactor build still plays (G4).
 
+- **As built (2026-11-28).**
+  - Original only (`JellyfinDownloads.qualities` = `[.original]`) until J-08b.
+    The quality UI reads the facade, so a single choice downloads directly. A
+    show's sheet keeps only Keep Next. Mac's menu becomes a plain item. A
+    stored preset the server lacks is queued as Original.
+  - The original is `/Items/{sourceID}/Download` with the `Authorization`
+    token. The source id picks the version, checked live for both versions of
+    the two-version film. `ServerPermissions.canDownload` hides only the start
+    affordances. `TransportSecurity` now checks Jellyfin's credential too: one
+    hook in a shared `Providers/` file.
+  - Snapshot: fetching is a facet member (`metadataSnapshot`) because Jellyfin
+    `.details` is item + `/MediaSegments` and `.children` needs the item's
+    type. Payloads sit in the 04 §15.3 envelope under `jellyfin:/Items/{id}`
+    (pinned). Plex's request is unchanged (G2).
+  - Offline replay: verified on the server, a sessionless Stopped/Progress
+    stores the position, marks played past 90 % and never counts a play. The
+    sync manager skips its own watched write for such a server, because every
+    timeline tick past 90 % syncs again and each `/UserPlayedItems` counted a
+    play.
+  - Verified on jellyfin-demo (iPhone simulator, through a killable proxy):
+    - A film with an external `.ass` downloaded with its sidecar. Weekend
+      Projects downloaded under Keep Next 3.
+    - With the proxy killed, a cold launch reached the offline shell. The show,
+      season and film pages decoded from the Jellyfin snapshots. Downloads
+      played on AVPlayer (episode) and VLCKit (film), and the film's subtitle
+      menu listed the saved external track.
+    - Back online, the queued 1:21 position reached the server.
+    - After marking S01E01 watched on the server, a foreground refill removed
+      it and downloaded S01E04.
+  - Gaps:
+    - Multi-part films download cd1 only, as they play.
+    - Item-level `CanDownload` is not read.
+    - No user with downloading off exists on the demo, so the hidden button
+      is not checked live.
+    - Apple TV has no download UI.
+    - The Smart Downloads refill does not run on a cold launch whose server
+      was restored before `DownloadManager` started (generic, not Jellyfin
+      specific). Foregrounding or finishing an episode refills.
+
 ### J-08b Downloads: converted quality — L, R
 
 Starts with a spike: segment-wise HLS download of a 2 h film at the 4 Mbit/s

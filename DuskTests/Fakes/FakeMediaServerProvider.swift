@@ -528,9 +528,15 @@ struct FakeDownloads: DownloadProviding {
 
     nonisolated func qualities(for item: MediaItemID) -> [DownloadQuality] { [] }
 
-    func originalFileRequest(url: URL, credential: String) -> URLRequest { URLRequest(url: url) }
+    func originalFileRequest(for part: MediaPart, directPlayURL: URL, credential: String) -> URLRequest? {
+        URLRequest(url: directPlayURL)
+    }
 
     func fetchSidecar(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        throw FakeProviderError.unsupported(#function)
+    }
+
+    func metadataSnapshot(_ key: MetadataSnapshotKey) async throws -> Data {
         throw FakeProviderError.unsupported(#function)
     }
 

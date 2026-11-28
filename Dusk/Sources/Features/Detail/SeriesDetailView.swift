@@ -591,7 +591,7 @@ struct SeriesDetailView: View {
                     onDelete: { downloadManager.deleteDownload(scope: downloadState.scope) },
                     onRetry: { downloadManager.retryDownload(id: episode.id) }
                 )
-            } else {
+            } else if downloadManager.canStartDownload(for: episode.id) {
                 Button {
                     Task {
                         await downloadManager.queueDownload(episode: episode)

@@ -6,6 +6,9 @@ import Foundation
 /// `DownloadConversionTransport`, which owns the profile and server checks.
 struct PlexDownloads: DownloadProviding {
     let client: PlexClient
+    let router: PlexServerRouter
+    /// nil for the primary-tracking provider (`PlexServerProvider.routedServerID`).
+    let serverID: String?
 
     // Offline queue jobs match static targets. A streaming target fails with
     // PMS decision 4005 even though the same profile works during playback.
@@ -18,10 +21,17 @@ struct PlexDownloads: DownloadProviding {
     }
 
     @MainActor
-    func originalFileRequest(url: URL, credential: String) -> URLRequest {
-        var request = URLRequest(url: url)
+    func originalFileRequest(for part: MediaPart, directPlayURL: URL, credential: String) -> URLRequest? {
+        var request = URLRequest(url: directPlayURL)
         client.applyHeaders(to: &request, token: credential)
         return request
+    }
+
+    /// The raw PMS response, through the account's healing routed send.
+    @MainActor
+    func metadataSnapshot(_ key: MetadataSnapshotKey) async throws -> Data {
+        let request = PlexMetadataSnapshotFormat().fetchRequest(for: key)
+        return try await router.rawServerRequest(path: request.path, queryItems: request.queryItems, serverID: serverID)
     }
 
     @MainActor
@@ -209,5 +219,5 @@ struct PlexDownloads: DownloadProviding {
 }
 
 extension PlexServerProvider {
-    var downloads: any DownloadProviding { PlexDownloads(client: client) }
+    var downloads: any DownloadProviding { PlexDownloads(client: client, router: router, serverID: routedServerID) }
 }

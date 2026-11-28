@@ -68,7 +68,7 @@ struct SeasonDetailView: View {
             Task { await viewModel.refresh() }
         }
         .sheet(item: $episodeToDownload) { episode in
-            DownloadQualitySelectionSheet { quality, _ in
+            DownloadQualitySelectionSheet(qualities: downloadManager.downloadQualities(for: episode.id)) { quality, _ in
                 episodeToDownload = nil
                 Task {
                     await downloadManager.queueDownload(episode: episode, quality: quality)
@@ -383,9 +383,13 @@ struct SeasonDetailView: View {
                     onDelete: { downloadManager.deleteDownload(scope: downloadState.scope) },
                     onRetry: { downloadManager.retryDownload(id: episode.id) }
                 )
-            } else {
+            } else if downloadManager.canStartDownload(for: episode.id) {
                 Button {
-                    episodeToDownload = episode
+                    if downloadManager.downloadQualities(for: episode.id).count > 1 {
+                        episodeToDownload = episode
+                    } else {
+                        Task { await downloadManager.queueDownload(episode: episode) }
+                    }
                 } label: {
                     Label("Download Episode", systemImage: "arrow.down.circle")
                 }

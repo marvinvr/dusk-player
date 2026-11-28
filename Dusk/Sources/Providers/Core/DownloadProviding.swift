@@ -18,11 +18,17 @@ protocol DownloadProviding: Sendable {
     /// The presets the download quality menu offers for this item.
     func qualities(for item: MediaItemID) -> [DownloadQuality]
 
-    /// The original file's transfer request, for a URL the facade built.
-    @MainActor func originalFileRequest(url: URL, credential: String) -> URLRequest
+    /// The original file's transfer request. `directPlayURL` is the part's
+    /// direct-play URL the facade built; a provider with its own download
+    /// route (Jellyfin's `/Items/{id}/Download`) builds that instead.
+    @MainActor func originalFileRequest(for part: MediaPart, directPlayURL: URL, credential: String) -> URLRequest?
 
     /// Fetches one sidecar (an external text subtitle) saved next to a download.
     @MainActor func fetchSidecar(_ request: URLRequest) async throws -> (Data, URLResponse)
+
+    /// The payload the offline cache stores for `key`, exactly as this
+    /// provider's `MetadataSnapshotFormat` decodes it.
+    @MainActor func metadataSnapshot(_ key: MetadataSnapshotKey) async throws -> Data
 
     // MARK: Converted downloads
 
@@ -159,15 +165,15 @@ struct MetadataSnapshotRequest: Sendable, Hashable {
     let queryItems: [URLQueryItem]?
 }
 
-/// How one provider names, fetches and decodes its snapshot payloads. Needs no
+/// How one provider names and decodes its snapshot payloads. Needs no
 /// session: offline browsing decodes with the kind the payload was written by.
+/// Fetching is the provider's `DownloadProviding.metadataSnapshot(_:)`.
 protocol MetadataSnapshotFormat: Sendable {
     var kind: ProviderKind { get }
     /// The cache file's hash input. **Wire format**: the file name is
     /// SHA-256 of this string, so it may never change for a provider that has
     /// shipped (Plex: the PMS endpoint path).
     func storageName(for key: MetadataSnapshotKey) -> String
-    func fetchRequest(for key: MetadataSnapshotKey) -> MetadataSnapshotRequest
     /// Every model is stamped with `serverID`, as if it had been fetched online.
     func details(from data: Data, serverID: String) throws -> [MediaDetails]
     func seasons(from data: Data, serverID: String) throws -> [Season]
