@@ -5,8 +5,8 @@ import Testing
 /// The A–Z jump bar's labels: Plex's numbers-and-symbols keys fold into "#".
 @Suite("Library letter index")
 struct LibraryLetterIndexTests {
-    private func row(_ key: String, _ size: Int) -> PlexFirstCharacter {
-        PlexFirstCharacter(key: key, size: size)
+    private func row(_ key: String, _ size: Int) -> LibraryLetterCount {
+        LibraryLetterCount(key: key, size: size)
     }
 
     @Test("Percent-encoded and symbol keys become a single leading #")

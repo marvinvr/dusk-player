@@ -946,13 +946,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   chip that resets) opens `LibraryFiltersSheet` (iOS sheet; tvOS full-screen cover
   built from the `TVSettings*` rows, because a plain `List` there shows no focus).
   `LibraryFilterState` = watch status (All/Unwatched/In Progress/Watched; shows have no
-  In Progress) + one value per field + boolean toggles, ANDed. Fields are the ones in
-  `LibraryFilterField.offered` that the section's `/filters` lists (decade, year,
+  In Progress) + one value per field + boolean toggles, ANDed, handed to the catalog as a
+  neutral `LibraryFilter`. Fields are the ones in Plex's
+  `PlexCatalog.offeredFilters` that the section's `/filters` lists (decade, year,
   content rating, resolution, HDR, Dolby Vision, audio language, studio, network,
   collection, director, actor); values come from the filter's own key path, cached per
   screen, searchable past 20. Edits apply once on Done. Unwatched stays the remembered
   one-tap chip (`watchStatus == .unwatched`); everything else lasts for the screen.
-  Plex percent-encodes some value keys (`Not%20Rated`), so `LibraryFilterChoice`
+  Plex percent-encodes some value keys (`Not%20Rated`), so `PlexCatalog.filterChoice`
   decodes them before they go back into a query. Watched = `unwatched=0` /
   `unwatchedLeaves=0`. Any filter turns off `includeCollections` folding.
 - `LibraryItemsViewModel` uses a `queryGeneration` guard so stale async page loads do
@@ -1030,7 +1031,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   on `LibraryTypeListView` (rows always open the grid).
   `.library(photoLibrary)` and `.photoAlbum(PhotoAlbumRoute)` both land on
   `PhotoBrowserView`.
-- `PhotoBrowserViewModel` walks a list of paged queries (`PlexPhotoQuery`): a library
+- `PhotoBrowserViewModel` walks a list of paged queries (`PhotoQuery`): a library
   root in **Albums** mode lists its root albums and then its loose photos, an album
   its sub-albums then its photos and clips, and **Timeline** (root only, remembered per
   library) is every photo and clip, newest first. 60 rows first, then 150 per page as

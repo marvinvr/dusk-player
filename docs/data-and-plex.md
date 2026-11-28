@@ -374,16 +374,41 @@ Pitfalls:
 - Be intentional about cache policy; `MediaService` uses `AppImageCache.shared`.
 
 ## Library, Search, Hubs, And Detail Endpoints
-File: `MediaService+Library.swift`.
+Files: the facade routes in `MediaService+Library.swift`, `+Collections`,
+`+People`, `+Extras`, `+Photos`, `+Ratings`; the Plex requests in
+`Providers/Plex/PlexCatalog.swift` (`CatalogProviding`, docs/jellyfin/04 §9) and
+`PlexUserRating.swift` (`UserRatingProviding`). The facade builds both facets
+with itself as transport (`catalog(on:)`, `plexCatalog(on:)`, `userRating(on:)`;
+`PlexCatalogTransport`) until P0-16 routes through `session.provider`. Hidden
+libraries, merging, alternates and the next/previous episode walk stay in the
+facade.
+
+Sorts and filters are neutral (`LibrarySortOption`, `LibraryFilter`,
+`LibraryFilterField`/`LibraryFilterChoice` in `Domain/LibraryBrowse.swift` and
+`Providers/Core/CatalogProviding.swift`). `PlexCatalog` maps them:
+`sortValue` (`titleSort`, `addedAt:desc`, …; `LibrarySortOption.plexValue` for
+callers that send their own request), `queryFilters` (collection, genre, the
+watch-state parameter by library kind, picked values, toggles as `=1`,
+`includeCollections=1` for folding), the `offeredFilters` list, and the fixed
+sort lists (`sortFields(for:)`). The grid (`LibraryItemsViewModel`) uses the
+neutral routes (`libraryItems(in:…)`, `libraryLetterCounts`,
+`librarySortFields`, `libraryFilterFields`, `libraryFilterChoices`); the
+recommendation shelves, Siri, video channels and the genre menu still pass Plex
+strings through `getLibraryItems` / `getLibraryItemCount` /
+`getLibraryFilters` / `getLibraryFilterValues`, which forward unchanged to
+`PlexCatalog.raw…`.
 
 Library:
 - `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
-- `getLibraryItems(sectionId:start:size:sort:filters:)` ->
-  `/library/sections/{sectionId}/all` with Plex pagination.
+- `getLibraryItems(sectionId:start:size:sort:filters:)` /
+  `libraryItems(in:start:size:sort:filter:)` ->
+  `/library/sections/{sectionId}/all` with Plex pagination; filter parameters
+  are sent in key order.
 - `getLibraryItemCount(sectionId:filters:)` reads `totalSize`/`size` from a
   one-item page.
 - `getLibraryFilters(sectionId:)` and `getLibraryFilterValues(path:)` decode
-  filter directories.
+  filter directories (the genre menu); `libraryFilterFields` /
+  `libraryFilterChoices` are the same reads as the sheet's neutral fields.
 - `getLibraryCollections(sectionId:)` -> `/library/sections/{sectionId}/collection`
   filter values, decoded as `[MediaCollection]` (key + title). Fetch a
   collection's items with `getLibraryItems(filters: ["collection": key])`.
@@ -412,7 +437,7 @@ Plex collections (`MediaService+Collections.swift`, movie and TV libraries):
   the titles themselves. Per-collection display modes are not read.
 - Search still sends `includeCollections=0`.
 
-First characters (`getLibraryFirstCharacters`): `/library/sections/{id}/firstCharacter`
+First characters (`libraryLetterCounts`, `[LibraryLetterCount]`): `/library/sections/{id}/firstCharacter`
 answers `Directory` rows `{key: "A", size: 2029}` in ascending title-sort order (only
 letters that have titles; "#" for digits/symbols) and honours the same filters as
 `/all` (type, unwatched, genre, collection). Cheap (<1 s on 60k titles); cumulative
@@ -567,7 +592,8 @@ Subtitle search and download (`MediaService+Subtitles.swift`):
   hide the entry point instead of surfacing a 403.
 
 Where to edit:
-- Browse/library/detail endpoints: `MediaService+Library.swift`.
+- Browse/library/detail endpoints: `Providers/Plex/PlexCatalog.swift`, routed from
+  `MediaService+Library.swift` (and `+Collections`, `+People`, `+Extras`, `+Photos`).
 - Cast/person endpoints: `MediaService+People.swift`; account/history endpoints:
   `MediaService+History.swift`.
 - Direct play/transcode/remux URLs and stream selection:

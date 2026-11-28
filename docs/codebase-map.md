@@ -179,7 +179,8 @@ Libraries:
   when there is more than one.
 - `LibraryItemsViewModel` owns paged item loading, sorting, genre filtering, and
   optional collection scoping (`LibraryCollectionItemsView`, a video library's
-  channel filter). Plex collections of movie/TV libraries are
+  channel filter). It asks for neutral sorts and filters (`Domain/LibraryBrowse.swift`,
+  `LibraryFilter`); `Providers/Plex/PlexCatalog` maps them onto Plex's query. Plex collections of movie/TV libraries are
   `LibraryCollectionsView`/`LibraryCollectionsViewModel` (paged grid) and
   `Detail/CollectionDetailView` + model (`Detail/CollectionSort`: per-collection sort,
   device-side fallback); `Libraries/LibrarySortMenu` holds the sort menu and browse chip

@@ -1,7 +1,8 @@
 import Foundation
 
-/// The A–Z jump of a title-sorted library grid, built from Plex's
-/// `firstCharacter` counts: where in the sorted list each letter starts.
+/// The A–Z jump of a title-sorted library grid, built from the server's
+/// per-character counts (`CatalogProviding.letterCounts`): where in the sorted
+/// list each letter starts.
 struct LibraryLetterIndex: Equatable, Sendable {
     struct Entry: Identifiable, Hashable, Sendable {
         let label: String
@@ -20,8 +21,8 @@ struct LibraryLetterIndex: Equatable, Sendable {
     private static let letters = (UnicodeScalar("A").value...UnicodeScalar("Z").value)
         .compactMap { UnicodeScalar($0).map { String(Character($0)) } }
 
-    /// - Parameter characters: Plex's rows, in ascending title-sort order.
-    init(characters: [PlexFirstCharacter], descending: Bool) {
+    /// - Parameter characters: The server's rows, in ascending title-sort order.
+    init(characters: [LibraryLetterCount], descending: Bool) {
         let rows = characters.filter { $0.size > 0 }
             .map { (key: Self.label(forKey: $0.key), size: $0.size) }
         totalCount = rows.reduce(0) { $0 + $1.size }
@@ -35,7 +36,7 @@ struct LibraryLetterIndex: Equatable, Sendable {
         let sizes = Dictionary(rows.map { ($0.key, $0.size) }, uniquingKeysWith: +)
 
         // Plain Latin libraries get the full alphabet, absent letters dimmed,
-        // with "#" wherever Plex sorts it; anything else lists Plex's own keys.
+        // with "#" wherever the server sorts it; anything else lists its own keys.
         var seen: Set<String> = []
         let keys = rows.map(\.key).filter { seen.insert($0).inserted }
         let ascendingLabels: [String]
@@ -55,8 +56,8 @@ struct LibraryLetterIndex: Equatable, Sendable {
         entries = descending ? ascending.reversed() : ascending
     }
 
-    /// Plex keys numbers and symbols inconsistently ("#", "%23", the symbol
-    /// itself); every key that is not a single letter becomes one "#".
+    /// Servers key numbers and symbols inconsistently (Plex: "#", "%23", the
+    /// symbol itself); every key that is not a single letter becomes one "#".
     private static func label(forKey key: String) -> String {
         let decoded = key.removingPercentEncoding ?? key
         guard decoded.count == 1, let character = decoded.first, character.isLetter else { return "#" }

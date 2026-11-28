@@ -489,6 +489,20 @@ arguments.
 | `items(matching: ExternalIDs, kind)` | `/library/all?guid=` | search + `ProviderIds` check | §6.2 |
 | `playbackHistory(limit)` | `/status/sessions/history/all` | `/Items?sortBy=DatePlayed&isPlayed=true` | feeds the recommendation engines unchanged |
 
+**Phase 0 state (P0-07).** `CatalogProviding` / `UserRatingProviding` are
+filled in and `PlexCatalog` / `PlexUserRating` carry today's requests unchanged.
+Deviations from the table: search is `searchGroups(query) -> [HomeRow]` (the
+server's per-kind groups) so the facade's hidden-library filter keeps working on
+rows before they become `SearchSection`s; the letter table is
+`[LibraryLetterCount]`; channel collections are `channelCollections(libraryID)`.
+The photo timeline needed no move: Plex's `clusterZoomLevel=1` only widens the
+type filter beyond loose root photos, and the grid has always shown one flat
+newest-first list, so there is no server grouping to replace (a Jellyfin
+`photoPage(.timeline)` returns the same flat list). `trailer`,
+`items(matching:)` and `playbackHistory` are not declared yet. Callers outside
+the catalog's files that still pass Plex sort strings or filter parameters go
+through `PlexCatalog.raw…` routes (listed in `docs/data-and-plex.md`).
+
 **Ratings.** `Rating { source: .critic | .audience | .community | .user, style, value, scale }`
 where `style` carries the presentation Plex's `ratingImage` implies
 (`.rottenTomatoesCritic`, `.rottenTomatoesAudience`, `.imdb`, `.tmdb`,
