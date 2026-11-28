@@ -58,7 +58,7 @@ struct PlexItemMapperTests {
     func hub() throws {
         let dto = try decode(PlexHubDTO.self, """
         { "title": "Movies", "key": "/hubs/x", "type": "movie", "hubIdentifier": "movie.recentlyadded.2",
-          "size": 2, "more": 1, "librarySectionID": 2,
+          "size": 2, "more": true, "librarySectionID": 2,
           "Metadata": [{ "ratingKey": "1", "key": "/k/1", "type": "movie", "title": "A" }],
           "Directory": [{ "title": "Suggestion", "nested": [1, "x", null, { "a": true }] },
                         { "ratingKey": "2", "key": "/k/2", "type": "show", "title": "B" }] }
