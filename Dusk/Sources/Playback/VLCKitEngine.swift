@@ -350,6 +350,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var subtitleStyle: SubtitleStyle = .default
     private let subtitleLiftAnimator = SubtitleLiftAnimator()
     private var subtitleRenderHeight: Double = 0
+    /// The Up Next poster's clearance while it is up, kept so a subtitle track
+    /// switch under the poster can lift or lower again.
+    @ObservationIgnored private var subtitleClearance: SubtitleClearance?
+    /// The SPU index the current lift was worked out for.
+    @ObservationIgnored private var subtitleClearanceTrackIndex: Int32?
     /// The text style (system caption style + Dusk's size step) the currently
     /// open media was started with. VLCKit 3.x's text renderer only reads its
     /// options when an input attaches, so a mismatch here means the session
@@ -1086,6 +1091,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private func reconcileSubtitleSelection() {
         guard state == .playing || state == .paused else { return }
         let currentIndex = mediaPlayer.currentVideoSubTitleIndex
+        if subtitleClearance != nil, currentIndex != subtitleClearanceTrackIndex {
+            applySubtitleClearance()
+        }
         // Observe automatic/default/forced selections as well as picker intent.
         // An explicit Off request wins over a stale observed selection.
         if useNativeOutputForSubtitlesIfNeeded(index: requestedSubtitleIndex ?? currentIndex) {
@@ -1835,12 +1843,26 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func setSubtitleClearance(_ clearance: SubtitleClearance?) {
+        subtitleClearance = clearance
+        applySubtitleClearance()
+    }
+
+    private func applySubtitleClearance() {
+        let clearance = subtitleClearance
         let videoSize = mediaPlayer.videoSize
-        let target = clearance?.lift(
+        let drawnIndex = mediaPlayer.currentVideoSubTitleIndex
+        subtitleClearanceTrackIndex = drawnIndex
+        var target = clearance?.lift(
             videoSize: videoSize,
             fillsContainer: false,
             restingCueBottom: Self.restingSubtitleBottom
         ) ?? 0
+        if target > 0, let codec = libassSubtitleCodec(atIndex: drawnIndex) {
+            vlcKitEngineLogger.notice(
+                "VLCKit not lifting subtitles over Up Next: \(codec, privacy: .public) track is placed by libass"
+            )
+            target = 0
+        }
         // Going back down the render surface has not changed, so the last known
         // height carries the lift all the way to zero.
         if let clearance {
@@ -1856,6 +1878,21 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// of the picture height above the picture's bottom. It sits lower on a
     /// wide picture, so this errs on the low side and lifts slightly further.
     private static let restingSubtitleBottom = 0.03
+
+    /// The codec when the SPU track at `index` is ASS/SSA, which libass draws
+    /// as bitmaps already placed on the frame. `sub-margin` moves all of them
+    /// alike, so a lift pushed typeset signs up into top-pinned lines (#84);
+    /// libvlc cannot tell them apart from bottom dialogue, so those tracks
+    /// are never lifted.
+    private func libassSubtitleCodec(atIndex index: Int32) -> String? {
+        guard index >= 0 else { return nil }
+        let modelID = modelIDsByTrackID["spu/\(index)"]
+        let codecs = [
+            availableSubtitleTracks.first { $0.id == modelID }?.codec,
+            externalSubtitleAttachments.first { $0.esIndex == Int(index) }?.codec,
+        ]
+        return codecs.compactMap { $0 }.first { ["ssa", "ass"].contains($0.lowercased()) }
+    }
 
     /// `sub-margin` counts pixels of the surface subtitles are rendered on:
     /// libvlc draws them at the picture's on-screen size, or at the video's own

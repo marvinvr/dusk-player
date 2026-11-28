@@ -2237,7 +2237,12 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   off or a silent stretch show no change, and a cue starting under the poster
   is already above it. VLCKit steps libvlc's live `sub-margin` on the vout
   (`DuskVLCTextRenderer`; render pixels, so `max(video height, picture height on
-  screen)`). AVPlayer cannot move a cue on screen: a rule's line position and
+  screen)`). ASS/SSA tracks are never lifted on VLCKit: libass hands libvlc
+  bitmaps already placed on the frame and `sub-margin` moves every one of them,
+  so typeset signs rode up into top-pinned lines (#84 follow-up). The engine
+  checks the drawn track's codec (libvlc's `ssa`, or the sidecar's Plex codec)
+  and re-checks when the drawn track changes under the poster; bottom ASS
+  dialogue may then sit behind the poster. AVPlayer cannot move a cue on screen: a rule's line position and
   `suppressesPlayerRendering` only apply from the next cue, and tx3g ignores
   rules. So while lifted, `LiftedCueOverlay` draws the cues from an
   `AVPlayerItemLegibleOutput` as plain text in the caption style. Taking over drops
