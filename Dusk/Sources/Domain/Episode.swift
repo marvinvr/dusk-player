@@ -2,12 +2,12 @@ import Foundation
 
 /// An episode within a TV season.
 /// Returned from `GET /library/metadata/{seasonRatingKey}/children`.
-struct Episode: Codable, Sendable, Identifiable {
+struct Episode: Sendable, Identifiable {
     /// Server-scoped identity; see `MediaItemID`.
     var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
-    /// Stamped by `ServerPool.decoder(for:)`; never part of the Plex payload,
-    /// so it is excluded from `CodingKeys` and dropped when re-encoded.
+    /// Stamped by the provider's mapper (`PlexItemMapper`); never part of the
+    /// server payload.
     let serverID: String?
 
     let itemID: String
@@ -46,44 +46,6 @@ struct Episode: Codable, Sendable, Identifiable {
     // Timestamps
     let addedAt: Int?
     let updatedAt: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", key, title
-        case index, parentIndex
-        case parentID = "parentRatingKey", parentTitle
-        case grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb
-        case summary, contentRating, originallyAvailableAt, year
-        case thumb, art
-        case duration, playCount = "viewCount", resumeOffsetMs = "viewOffset", lastPlayedAt = "lastViewedAt"
-        case addedAt, updatedAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        serverID = decoder.duskServerID
-        itemID = try container.decode(String.self, forKey: .itemID)
-        key = try container.decode(String.self, forKey: .key)
-        title = try container.decode(String.self, forKey: .title)
-        index = try container.decodeIfPresent(Int.self, forKey: .index)
-        parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
-        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
-        parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
-        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
-        grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
-        grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
-        summary = try container.decodeIfPresent(String.self, forKey: .summary)
-        contentRating = try container.decodeIfPresent(String.self, forKey: .contentRating)
-        originallyAvailableAt = try container.decodeIfPresent(String.self, forKey: .originallyAvailableAt)
-        year = try container.decodeIfPresent(Int.self, forKey: .year)
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        art = try container.decodeIfPresent(String.self, forKey: .art)
-        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
-        resumeOffsetMs = try container.decodeIfPresent(Int.self, forKey: .resumeOffsetMs)
-        lastPlayedAt = try container.decodeIfPresent(Int.self, forKey: .lastPlayedAt)
-        addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
-        updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
-    }
 }
 
 extension Episode {

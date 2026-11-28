@@ -823,9 +823,14 @@ always carries the server.
 
 - `Domain/MediaItemID.swift` defines `CodingUserInfoKey.duskServerID`,
   `Decoder.duskServerID`, and `MediaItemID { serverID, itemID }` (Codable key
-  `ratingKey`). Each model's
-  `init(from:)` reads `decoder.duskServerID` and stamps it, so nested items are
-  stamped automatically. Do not add post-decode copy helpers or wrappers.
+  `ratingKey`). Item-family values (items, details, seasons, episodes,
+  libraries, hub rows) are decoded as Plex DTOs (`Providers/Plex/DTO/`) and
+  built by `PlexItemMapper`, which takes the fetched server's id and stamps it
+  on everything it builds, nested items included. Their remaining direct
+  `Decodable` conformances (`Providers/Plex/PlexItemDecodingBridge.swift`) are
+  transitional forwarders that map with `decoder.duskServerID`. Other models'
+  `init(from:)` still read `decoder.duskServerID` themselves. Do not add
+  post-decode copy helpers or wrappers.
 - `MediaItem.id`, `MediaDetails.id`, `Episode.id`, and `Season.id` are
   `MediaItemID`; `==`/`hash` include the server. `Library.id` is
   `"<serverID>|<key>"`. `AppNavigationRoute` carries a `MediaItemID`.
