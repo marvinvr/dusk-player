@@ -196,9 +196,11 @@ struct TrueHDAudioRoutingTests {
 
     @Test(arguments: [6, 8])
     func convertedDecisionRequiresCompatibleSurround(channels: Int) {
+        // The Plex mapper's reading of each per-track decision string.
+        let track = PlexTranscodeDecisionDTO.track
         var decision = StreamDecisions(
-            container: "mp4", video: .copy, videoCodec: "hevc",
-            audio: .convert, audioCodec: "eac3", audioChannels: channels
+            container: "mp4", video: track("copy"), videoCodec: "hevc",
+            audio: track("transcode"), audioCodec: "eac3", audioChannels: channels
         )
         #expect(decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.audioCodec = "truehd"
@@ -206,16 +208,16 @@ struct TrueHDAudioRoutingTests {
         decision.audioCodec = "aac"
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.audioCodec = "eac3"
-        decision.audio = .copy
+        decision.audio = track("copy")
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
-        decision.audio = .convert
+        decision.audio = track("transcode")
         decision.container = "mpegts"
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.container = "mp4"
         decision.audioChannels = 2
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.audioChannels = channels
-        decision.video = .convert
+        decision.video = track("transcode")
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
     }
 
@@ -223,14 +225,15 @@ struct TrueHDAudioRoutingTests {
         // PMS can retain the previously selected embedded SRT in its Off
         // decision as ignore/embedded. It is not being burned into the video.
         // The Plex mapper's reading of each decision/location pair.
+        let track = PlexTranscodeDecisionDTO.track
         let subtitle = PlexTranscodeDecisionDTO.subtitle(decision:location:)
         var decision = StreamDecisions(
-            container: "mp4", video: .copy, videoCodec: "hevc",
-            audio: .copy, audioCodec: "eac3",
+            container: "mp4", video: track("copy"), videoCodec: "hevc",
+            audio: track("copy"), audioCodec: "eac3",
             subtitle: subtitle("ignore", "embedded")
         )
         #expect(decision.isLosslessRemux)
-        decision.audio = .convert
+        decision.audio = track("transcode")
         decision.audioChannels = 6
         #expect(decision.isConvertedAudioRemux(sourceChannels: 6))
         decision.subtitle = subtitle("burn", "embedded")

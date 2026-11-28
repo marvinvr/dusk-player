@@ -275,9 +275,12 @@ struct PlexPlayback: PlaybackProviding {
             timeoutInterval: nil,
             serverID: targetID
         )
-        let items = try router.decodeJSON(MetadataResponse<MediaDetails>.self, from: data, serverID: targetID)
+        let items = try router.decodeJSON(MetadataResponse<PlexMediaDetailsDTO>.self, from: data, serverID: targetID)
             .MediaContainer.Metadata ?? []
-        return Self.prerollItems(in: items, featureRatingKey: itemID)
+        return Self.prerollItems(
+            in: items.map { PlexItemMapper.map($0, serverID: targetID) },
+            featureRatingKey: itemID
+        )
     }
 
     /// Everything the queue puts in front of the movie. Only clips count: a
