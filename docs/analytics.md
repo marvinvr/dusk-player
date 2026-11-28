@@ -18,7 +18,7 @@ privacy policy makes:
 - **Closed vocabulary.** Only `AnalyticsEventName` cases can be reported.
   `AnalyticsEvent` cannot be constructed from a free-form string, so the set of
   things Dusk *can* say is reviewable in one file.
-- **Nothing Plex-derived, ever.** No titles, ratings keys, library names, server
+- **Nothing server-derived, ever.** No titles, ratings keys, library names, server
   identifiers, search terms, playback positions, or download state. This is the
   rule most likely to be broken by accident when adding an event. The single
   carve-out is the technical profile on error reports (container, codecs, HDR
@@ -194,7 +194,7 @@ check that you passed an `Error` or nothing — never a string.
 1. Add a case to `AnalyticsEventName` with a doc comment explaining it, and give
    it a `path` if `/supporter` is wrong for it.
 2. Report it with `analytics?.record(AnalyticsEvent(.case, [...]))`.
-3. Check it against the rules above — particularly "nothing Plex-derived".
+3. Check it against the rules above — particularly "nothing server-derived".
 4. If it reports something the privacy policy does not already cover, update the
    policy and `product-and-scope.md` in the same change.
 

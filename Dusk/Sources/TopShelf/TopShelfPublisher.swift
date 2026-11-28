@@ -16,7 +16,7 @@ private let topShelfLogger = Logger(
 /// Home calls `publish` every time its rows change; this writes
 /// `TopShelfSnapshot` plus the artwork into the App Group container and asks
 /// tvOS to reload the Top Shelf. It only uses what Home already fetched: the
-/// one Plex request of its own is each tile's artwork, made off the main actor
+/// one server request of its own is each tile's artwork, made off the main actor
 /// and skipped when the file is already cached. Artwork is stored as plain
 /// files, so the extension never needs a token. `clear` runs whenever the signed-in identity goes away (sign-out,
 /// Plex Home switch): the shelf must never show the previous profile's items.
@@ -176,7 +176,7 @@ final class TopShelfPublisher {
     }
 
     /// The tile's artwork, or the show's poster for a season whose own poster
-    /// Plex lists but cannot serve (same stand-in as Home's poster cards).
+    /// the server lists but cannot serve (same stand-in as Home's poster cards).
     private nonisolated static func artwork(for entry: Entry, media: MediaService) async throws -> Data {
         do {
             return try await media.imageData(for: entry.imageURL)
@@ -211,7 +211,7 @@ private extension TopShelfPublisher {
 
     struct Entry: Sendable {
         let item: TopShelfSnapshot.Item
-        /// Authenticated Plex URLs; only ever used by the app.
+        /// Authenticated server URLs; only ever used by the app.
         let imageURL: URL
         let fallbackImageURL: URL?
         /// The image is an unwatched episode's own still and Blur Unwatched

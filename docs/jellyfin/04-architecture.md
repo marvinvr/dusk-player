@@ -905,7 +905,13 @@ for every text track.
 ## 16. Seerr and Trakt
 
 **Seerr.** `SeerrService` stops reading `activeAccountToken` and asks the
-binding account for `SeerrAuthProviding.authenticate(with: SeerrPublicSettings)`:
+binding account's `SeerrAuthProviding` (built since P0-18; the facade's
+`MediaService.seerrAuth` until the account layer holds the credential). The
+facet describes the sign-in and `SeerrService` sends it, because every Seerr
+request needs that service's cookies, XSRF token and certificate pins:
+`accepts(SeerrPublicSettings)` (checked before anything is sent) and
+`login() -> SeerrLogin?` (path + JSON body, nil without a credential), re-sent
+as is on a 401:
 
 - Plex account: `POST api/v1/auth/plex` with the token, as today. Requires a
   Plex-backed Seerr.
@@ -927,7 +933,12 @@ binding account for `SeerrAuthProviding.authenticate(with: SeerrPublicSettings)`
 
 **Trakt.** `TraktHistoryMapper` takes `ExternalIDs` and `MediaKind`; legacy
 `com.plexapp.agents.*` parsing moves into the Plex mapper that fills
-`ExternalIDs`. Tokens stay keyed by profile scope.
+`ExternalIDs`. Tokens stay keyed by profile scope. Not done in Phase 0 (P0-18
+only moved the mapper into its own file): a legacy episode guid is a show id
+plus season and episode numbers, which `ExternalIDs` cannot hold, so the move
+needs a neutral shape for it, the Plex item mapper (P0-07) and the caller in
+`PlaybackCoordinator+Timeline` (P0-10). Until then the mapper still takes the
+scalar `guid`.
 
 ## 17. Account-level features
 
@@ -951,9 +962,11 @@ live on the server" still holds wherever a server can hold them.
   link stays `dusk://play|open?server=&item=&type=` with `MediaKind` raw
   values (identical strings). Images are still pre-downloaded through
   `ImageProviding.data`, so no credential is ever in the App Group.
-- **Siri.** `PlexTitleEntity` is renamed in Swift only; **its App Intents
-  type identifier and the entity id string form are frozen**, because
-  shortcuts users built reference them. The catalog uses
+- **Siri.** **The App Intents type identifier of `PlexTitleEntity` and the
+  entity id string form are frozen**, because shortcuts users built reference
+  them. App Intents derives that identifier from the Swift type name, so the
+  type keeps its `Plex` name (P0-18): the boundary check (§5.4) exempts
+  `PlexTitleEntity` and `PlexTitleEntityQuery`. The catalog uses
   `catalog.items(sort: .lastPlayed / .addedAt)`.
 - **iCloud KVS.** Only IPTV resume points, not scoped by server. No change.
 - **Analytics.** The rule becomes "nothing server-derived, ever". One new

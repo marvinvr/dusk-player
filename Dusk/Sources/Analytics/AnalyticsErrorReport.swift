@@ -31,7 +31,7 @@ enum AnalyticsErrorCategory: String, CaseIterable, Sendable {
     case engineFallback = "engine_fallback"
     /// The ladder had nowhere left to go: the error screen stays up.
     case engineFallbackFailed = "engine_fallback_failed"
-    /// Plex refused or failed a transcode/stream session. `reason` names which.
+    /// The server refused or failed a transcode/stream session. `reason` names which.
     case transcodeFailed = "transcode_failed"
     /// A download ended in the failed state. `reason`: the stage.
     case downloadFailed = "download_failed"
@@ -203,7 +203,7 @@ struct AnalyticsErrorCause: Sendable, Equatable {
 }
 
 /// The anonymous technical profile of what was playing. Every field is a
-/// bucket or an allowlisted token, never a value read verbatim from Plex.
+/// bucket or an allowlisted token, never a value read verbatim from a server.
 struct AnalyticsMediaProfile: Sendable, Equatable {
     var engine: String?
     var delivery: String?
@@ -231,7 +231,7 @@ struct AnalyticsErrorReport: Sendable, Equatable {
     var count: Int?
     /// `playback_stream_error` only.
     var outcome: AnalyticsStreamOutcome?
-    /// `major.minor.patch` of the Plex Media Server involved, when known.
+    /// `major.minor.patch` of the media server involved, when known.
     var serverVersion: String?
     /// `connection_failed` only: candidate classes tried / failed, sorted,
     /// comma-separated (`AnalyticsErrorSanitizer.connectionClasses`).
@@ -552,7 +552,7 @@ enum AnalyticsErrorSanitizer {
         }
     }
 
-    /// The technical profile of a playing item, from Plex metadata only
+    /// The technical profile of a playing item, from server metadata only
     /// through the allowlists above.
     static func profile(
         engine: PlaybackEngineType?,
@@ -635,7 +635,7 @@ enum ErrorReporter {
     /// The technical profile of whatever is playing right now, read when a
     /// playback report is made. Supplied by the coordinator.
     static var playbackProfile: (@MainActor () -> AnalyticsMediaProfile?)?
-    /// The raw Plex version of the server the current playback comes from.
+    /// The raw version string of the server the current playback comes from.
     static var playbackServerVersion: (@MainActor () -> String?)?
 
     static func report(_ report: AnalyticsErrorReport) {

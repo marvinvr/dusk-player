@@ -112,7 +112,7 @@ final class SeerrService {
         guard !isConnecting else { return }
         guard let profileID = media.activeProfileID,
               let serverID = media.seerrBindingServerID,
-              let plexToken = media.activeAccountToken else {
+              let login = media.seerrAuth.login() else {
             throw SeerrServiceError.notConnected
         }
 
@@ -128,14 +128,13 @@ final class SeerrService {
             cookies: &cookies
         )
 
-        let body = try encoder.encode(SeerrPlexLoginBody(authToken: plexToken))
         let user: SeerrUser
         do {
             user = try await send(
                 baseURL: baseURL,
                 method: "POST",
-                path: "api/v1/auth/plex",
-                body: body,
+                path: login.path,
+                body: login.body,
                 cookies: &cookies
             )
         } catch let error as SeerrServiceError {
@@ -179,10 +178,10 @@ final class SeerrService {
                 session: session,
                 delegate: sessionDelegate
             )
-            // A fresh Seerr has no media server yet. Its first Plex sign-in
-            // creates the admin, so `initialized` is not required here.
-            guard resolved.settings.acceptsPlexLogin else {
-                throw SeerrServiceError.plexLoginUnavailable
+            // A fresh Seerr has no media server yet. Its first sign-in creates
+            // the admin, so `initialized` is not required here.
+            guard media.seerrAuth.accepts(resolved.settings) else {
+                throw SeerrServiceError.mediaServerLoginUnavailable
             }
             return resolved.baseURL
         } catch let error as SeerrServiceError {
@@ -418,16 +417,15 @@ final class SeerrService {
         baseURL: URL,
         stored: inout SeerrStoredSession
     ) async throws {
-        guard let plexToken = media.activeAccountToken else {
+        guard let login = media.seerrAuth.login() else {
             throw SeerrServiceError.notConnected
         }
         stored.cookies.removeValue(forKey: "connect.sid")
-        let body = try encoder.encode(SeerrPlexLoginBody(authToken: plexToken))
         let user: SeerrUser = try await send(
             baseURL: baseURL,
             method: "POST",
-            path: "api/v1/auth/plex",
-            body: body,
+            path: login.path,
+            body: login.body,
             cookies: &stored.cookies
         )
         guard stored.cookies["connect.sid"] != nil else {
@@ -695,10 +693,6 @@ final class SeerrService {
             throw SeerrServiceError.serverError(message)
         }
     }
-}
-
-private struct SeerrPlexLoginBody: Encodable {
-    let authToken: String
 }
 
 private struct SeerrErrorResponse: Decodable {
