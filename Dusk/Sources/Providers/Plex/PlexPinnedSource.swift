@@ -187,3 +187,101 @@ struct PlexPinnedSource: Sendable, Hashable, Identifiable {
         )
     }
 }
+
+/// Pure functions that turn a new library order into the account's
+/// `pinnedSources` list for a write. Reading the list into Dusk's order is
+/// `LibraryOrderArrangement`, over `AccountLibraryLayout`.
+///
+/// The pinned list is **account-wide**: one flat array spanning every server the
+/// account can see plus the cloud providers. Dusk is connected to several of
+/// those servers at once, so the mapping is keyed on
+/// (`machineIdentifier`, `directoryID`) throughout — a `directoryID` is a
+/// per-server counter and keying on it alone silently aliases two servers'
+/// sections onto each other.
+enum PlexPinnedSourceArrangement {
+    /// Splices the connected servers' freshly reordered entries back into the
+    /// account's full pinned list.
+    ///
+    /// Every participating server's entries collapse into one contiguous block
+    /// placed where the *first* of them used to be — the whole point being that
+    /// a cross-server order is one list, not one block per server. Entries
+    /// belonging to servers that did not participate (disabled, not connected,
+    /// or whose sections could not be read) and to cloud providers are copied
+    /// verbatim, keep their relative order, and are never dropped or mutated: a
+    /// partial write would wipe the user's Plex Web sidebar.
+    static func merged(
+        existing: [PlexPinnedSource],
+        reordered: [PlexPinnedSource],
+        machineIdentifiers: Set<String>
+    ) -> [PlexPinnedSource] {
+        func isParticipating(_ source: PlexPinnedSource) -> Bool {
+            machineIdentifiers.contains(source.machineIdentifier) && source.isPMSLibrary
+        }
+
+        let others = existing.filter { !isParticipating($0) }
+
+        let insertionIndex: Int
+        if let firstIndex = existing.firstIndex(where: isParticipating) {
+            insertionIndex = existing[..<firstIndex].filter { !isParticipating($0) }.count
+        } else {
+            // Nothing pinned for these servers yet: append after everything else.
+            insertionIndex = others.count
+        }
+
+        return Array(others[..<insertionIndex]) + reordered + Array(others[insertionIndex...])
+    }
+
+    /// User order in, write order out.
+    ///
+    /// Existing entries are reused verbatim (only `title` is refreshed from the
+    /// section) so unmodeled Plex fields survive; sections that were never
+    /// pinned get a freshly built entry, which needs that section's own server
+    /// — hence `servers`, keyed by machine identifier.
+    ///
+    /// A section whose server is missing from `servers` is skipped rather than
+    /// guessed at: writing it under the wrong machine identifier would move a
+    /// different server's library in every Plex client.
+    ///
+    /// `hidden` is the set of `Library.id`s the user wants hidden; every
+    /// written entry gets `isHidden` from it. nil keeps each existing entry's
+    /// flag (new entries start visible) — never force-unhide without the user
+    /// asking, that would silently undo a choice made in another Plex client.
+    /// Hidden entries are stable-moved to the end of the block, which keeps the
+    /// write idempotent with `LibraryOrderArrangement.effectiveOrder`.
+    static func writeOrder(
+        userOrder: [Library],
+        existing: [PlexPinnedSource],
+        servers: [String: PlexServer],
+        hidden: Set<String>? = nil
+    ) -> [PlexPinnedSource] {
+        var existingByIdentity: [String: PlexPinnedSource] = [:]
+        for source in existing
+        where servers[source.machineIdentifier] != nil && source.isPMSLibrary {
+            guard let identity = identity(for: source),
+                  existingByIdentity[identity] == nil else { continue }
+            existingByIdentity[identity] = source
+        }
+
+        var seen: Set<String> = []
+        var mapped: [PlexPinnedSource] = []
+        for library in userOrder {
+            guard let serverID = library.serverID, let server = servers[serverID] else { continue }
+            guard seen.insert(library.id).inserted else { continue }
+            var source = existingByIdentity[library.id]?.updatingTitle(library.title)
+                ?? PlexPinnedSource.make(library: library, server: server)
+            if let hidden {
+                source = source.updatingHidden(hidden.contains(library.id))
+            }
+            mapped.append(source)
+        }
+
+        return mapped.filter { !$0.isHidden } + mapped.filter(\.isHidden)
+    }
+
+    /// The `(machineIdentifier, directoryID)` pair a pinned entry points at, in
+    /// the same shape as `Library.id`.
+    private static func identity(for source: PlexPinnedSource) -> String? {
+        guard let directoryID = source.directoryID else { return nil }
+        return "\(source.machineIdentifier)|\(directoryID)"
+    }
+}

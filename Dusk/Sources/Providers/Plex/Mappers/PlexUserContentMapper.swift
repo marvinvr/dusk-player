@@ -103,8 +103,8 @@ enum PlexUserContentMapper {
         )
     }
 
-    static func watchlistAvailability(_ dto: PlexWatchlistAvailabilityDTO) -> PlexWatchlistAvailability {
-        PlexWatchlistAvailability(title: dto.title, offerType: dto.offerType)
+    static func watchlistAvailability(_ dto: PlexWatchlistAvailabilityDTO) -> WatchlistAvailability {
+        WatchlistAvailability(title: dto.title, offerType: dto.offerType)
     }
 
     // MARK: Subtitle search

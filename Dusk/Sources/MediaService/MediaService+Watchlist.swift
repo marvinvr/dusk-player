@@ -1,36 +1,21 @@
 import Foundation
 import OSLog
 
-/// The account's Plex Watchlist, on plex.tv's Discover provider.
-///
-/// Undocumented but stable (every Plex client, Overseerr/Seerr and Kometa use
-/// it). Verified against a real account on 2026-10-25:
-/// - `GET /library/sections/watchlist/all?sort=watchlistedAt:desc`, paged with
-///   `X-Plex-Container-Start/Size`, `totalSize` in the container;
-/// - `PUT /actions/addToWatchlist?itemID=` / `removeFromWatchlist`, both
-///   idempotent (200 with an empty container either way);
-/// - `GET /library/metadata/{itemID}` carries the `Guid` array (tmdb/imdb);
-/// - `GET /library/metadata/{itemID}/availabilities` lists services.
-///
-/// The itemID is the hex id that ends a modern server item's `plex://`
-/// guid, so a server item needs no lookup to be added. Matching the other
-/// way asks each connected server `/library/all?guid=plex://…`.
+/// The account's watchlist, routed to the account's `WatchlistProviding`
+/// (docs/jellyfin/04-architecture.md §17; Plex: `PlexWatchlist`, plex.tv
+/// Discover). Matching each title to a copy on a connected server asks each
+/// server `/library/all?guid=plex://…`.
 ///
 /// Everything here degrades to "no Watchlist": a failure is logged by outcome
 /// only and never surfaces on Home.
 extension MediaService {
-    static var discoverBase: String {
-        #if DEBUG
-        if let override = ScreenshotMode.discoverBase { return override }
-        #endif
-        return "https://discover.provider.plex.tv"
+    /// The signed-in account's watchlist facet. One Plex account until the
+    /// account layer (P0-16) and Jellyfin (J-01) add others; built here like
+    /// `accountPreferences`.
+    var watchlistProvider: (any WatchlistProviding)? {
+        PlexWatchlist(client: client, transport: self)
     }
 
-    /// plex.tv is a nicety for Home: a LAN-only session must not wait on it.
-    private static let watchlistRequestTimeout: TimeInterval = 8
-    private static let watchlistPageSize = 100
-    /// Large watchlists stop here; Home shows the newest ones anyway.
-    private static let watchlistMaxEntries = 500
     /// How long a loaded list is reused when Home reloads.
     private static let watchlistMaxAge: TimeInterval = 120
     /// How long "this title is not on that server" is believed before asking
@@ -71,10 +56,12 @@ extension MediaService {
     }
 
     private func performWatchlistLoad(serverIDs: [String], generation: Int) async {
-        async let homeHubs = loadPlexHomeLayout()
+        let provider = watchlistProvider
+        async let homeHubs = provider?.homeLayout()
         let entries: [WatchlistEntry]
         do {
-            entries = try await fetchWatchlistEntries()
+            guard let provider else { throw PlexServiceError.notAuthenticated }
+            entries = try await provider.entries()
         } catch {
             logWatchlistFailure("list", error: error)
             _ = await homeHubs
@@ -95,48 +82,6 @@ extension MediaService {
         watchlistLogger.notice(
             "Watchlist: \(entries.count, privacy: .public) titles, \(matches.count, privacy: .public) on a server"
         )
-    }
-
-    private struct WatchlistPage: Decodable {
-        struct Container: Decodable {
-            let totalSize: Int?
-            let size: Int?
-            let Metadata: [FailableWatchlistEntry]?
-        }
-        let MediaContainer: Container
-    }
-
-    /// One undecodable entry (a type Plex added later) must not lose the list.
-    private struct FailableWatchlistEntry: Decodable {
-        let entry: PlexWatchlistEntryDTO?
-        init(from decoder: any Decoder) throws {
-            entry = try? PlexWatchlistEntryDTO(from: decoder)
-        }
-    }
-
-    private func fetchWatchlistEntries() async throws -> [WatchlistEntry] {
-        var entries: [WatchlistEntry] = []
-        var start = 0
-        while start < Self.watchlistMaxEntries {
-            let data = try await discoverRequest(
-                path: "/library/sections/watchlist/all",
-                queryItems: [
-                    URLQueryItem(name: "sort", value: "watchlistedAt:desc"),
-                    URLQueryItem(name: "includeCollections", value: "1"),
-                    URLQueryItem(name: "includeExternalMedia", value: "1"),
-                    URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
-                    URLQueryItem(name: "X-Plex-Container-Size", value: String(Self.watchlistPageSize)),
-                ]
-            )
-            let container = try decodeJSON(WatchlistPage.self, from: data).MediaContainer
-            let page = container.Metadata ?? []
-            entries += page.compactMap(\.entry).map(PlexUserContentMapper.watchlistEntry)
-                .filter { $0.type == .movie || $0.type == .show }
-            start += page.count
-            guard !page.isEmpty, start < (container.totalSize ?? 0) else { break }
-        }
-        var seen = Set<String>()
-        return entries.filter { seen.insert($0.guid).inserted }
     }
 
     // MARK: - Server matching
@@ -235,11 +180,8 @@ extension MediaService {
     func setWatchlisted(_ watchlisted: Bool, entry: WatchlistEntry, match: MediaItem? = nil) async throws {
         let snapshot = watchlist.apply(watchlisted: watchlisted, entry: entry, match: match)
         do {
-            _ = try await discoverRequest(
-                method: "PUT",
-                path: watchlisted ? "/actions/addToWatchlist" : "/actions/removeFromWatchlist",
-                queryItems: [URLQueryItem(name: "ratingKey", value: entry.itemID)]
-            )
+            guard let provider = watchlistProvider else { throw PlexServiceError.notAuthenticated }
+            try await provider.setWatchlisted(watchlisted, entry: entry)
         } catch {
             logWatchlistFailure(watchlisted ? "add" : "remove", error: error)
             watchlist.restore(snapshot)
@@ -254,76 +196,14 @@ extension MediaService {
 
     // MARK: - Details (titles not on a server)
 
-    private struct MetadataPage: Decodable {
-        struct Container: Decodable {
-            let Metadata: [PlexWatchlistEntryDTO]?
-            let Availability: [PlexWatchlistAvailabilityDTO]?
-        }
-        let MediaContainer: Container
-    }
-
     func getWatchlistMetadata(itemID: String) async throws -> WatchlistEntry? {
-        let data = try await discoverRequest(path: "/library/metadata/\(itemID)")
-        return try decodeJSON(MetadataPage.self, from: data).MediaContainer.Metadata?.first
-            .map(PlexUserContentMapper.watchlistEntry)
+        guard let provider = watchlistProvider else { throw PlexServiceError.notAuthenticated }
+        return try await provider.details(itemID: itemID)
     }
 
-    func getWatchlistAvailabilities(itemID: String) async throws -> [PlexWatchlistAvailability] {
-        let data = try await discoverRequest(path: "/library/metadata/\(itemID)/availabilities")
-        return (try decodeJSON(MetadataPage.self, from: data).MediaContainer.Availability ?? [])
-            .map(PlexUserContentMapper.watchlistAvailability)
-    }
-
-    // MARK: - Plex's Home layout
-
-    /// The rows of Plex's own Home, as Plex Web stores them. plex.tv keeps the
-    /// `experience` setting per `X-Plex-Product` (verified: Dusk's own copy
-    /// holds only the sidebar), and Plex Web's is the one where "Manage Home"
-    /// lands. nil when it is the default layout or cannot be read.
-    private func loadPlexHomeLayout() async -> [PlexHomeHubSetting]? {
-        guard let token = activeAccountToken?.nilIfEmpty,
-              let url = buildURL(
-                  base: Self.plexTVBase,
-                  path: "/api/v2/user",
-                  queryItems: [URLQueryItem(name: "includeSettings", value: "1")]
-              ) else { return nil }
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = Self.watchlistRequestTimeout
-        applyHeaders(to: &request, token: token)
-        request.setValue("Plex Web", forHTTPHeaderField: "X-Plex-Product")
-
-        guard let data = try? await executeRequest(request, retriesFreshAuthentication: false),
-              let root = try? decoder.decode(DuskJSONValue.self, from: data),
-              let setting = root["settings"]?.arrayValue?.first(where: { $0["id"]?.stringValue == "experience" }),
-              let blob = setting["value"]?.stringValue.flatMap(DuskJSONValue.decode(jsonString:)),
-              let home = blob["homeSettings"],
-              home["hasCustomizations"]?.boolValue == true,
-              let hubs = home["hubs"]?.arrayValue, !hubs.isEmpty else { return nil }
-        return hubs.compactMap(PlexHomeHubSetting.init(raw:))
-    }
-
-    // MARK: - Transport
-
-    /// A plex.tv Discover request as the active profile. A 401 here is "this
-    /// profile has no Watchlist", never a reason to re-authenticate.
-    private func discoverRequest(
-        method: String = "GET",
-        path: String,
-        queryItems: [URLQueryItem]? = nil
-    ) async throws -> Data {
-        guard let token = activeAccountToken?.nilIfEmpty else {
-            throw PlexServiceError.notAuthenticated
-        }
-        guard let url = buildURL(base: Self.discoverBase, path: path, queryItems: queryItems) else {
-            throw PlexServiceError.invalidURL
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = Self.watchlistRequestTimeout
-        applyHeaders(to: &request, token: token)
-        return try await executeRequest(request, retriesFreshAuthentication: false)
+    func getWatchlistAvailabilities(itemID: String) async throws -> [WatchlistAvailability] {
+        guard let provider = watchlistProvider else { throw PlexServiceError.notAuthenticated }
+        return try await provider.availabilities(itemID: itemID)
     }
 
     /// Outcomes only: requests carry the account token.

@@ -121,7 +121,7 @@ struct WatchlistEntry: Hashable, Sendable, Identifiable {
 
 /// `GET /library/metadata/{itemID}/availabilities`: where a title streams.
 /// Region-dependent; Dusk shows the service names only, no deep links.
-struct PlexWatchlistAvailability: Hashable, Sendable {
+struct WatchlistAvailability: Hashable, Sendable {
     let title: String?
     let offerType: String?
 

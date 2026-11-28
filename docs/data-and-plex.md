@@ -496,6 +496,15 @@ the user's library order is **not** a PMS setting. It lives on plex.tv, per Plex
 account, in the `experience` user setting. Order, pinning, and hiding are all the
 same array: `sidebarSettings.pinnedSources`. Array position is the order.
 
+The facade routes to the account's `AccountPreferencesProviding`
+(`Providers/Plex/PlexAccountPreferences.swift`, through `PlexAccountTransport`):
+one read (`libraryLayout()`) or one read-then-write (`saveLibraryLayout`). The
+store holds only the neutral `AccountLibraryLayout` (server, library key, hidden,
+in account order); `LibraryOrderArrangement` applies it to the sections. The raw
+blob and `PlexPinnedSource` entries stay inside the provider, which re-reads them
+for every write (`PlexPinnedSourceArrangement` builds the new list). The facade
+picks the servers whose pins may be rewritten; the provider may only drop more.
+
 - Read: `GET /api/v2/user?includeSubscriptions=1&includeProviders=1&includeSettings=1&includeSharedSettings=1`
   with the account token. `settings` -> the entry with `id == "experience"` ->
   `value` is a **stringified** JSON document -> decode it, then read
@@ -513,14 +522,16 @@ same array: `sidebarSettings.pinnedSources`. Array position is the order.
   `com.plexapp.plugins.library` for real PMS libraries.
 - `sourceType` maps from the section type: movie->movies, show->tv, artist->music,
   photo->photos, clip->videos.
-- Effective order (`LibraryOrderArrangement.effectiveOrder`): take the entries for
-  **every enabled server's** machine id that are PMS libraries and not hidden, in
-  array order, map (`machineIdentifier`, `directoryID`) to the section, then
+- Effective order (`LibraryOrderArrangement.effectiveOrder`, over the
+  `AccountLibraryLayout` that `PlexExperienceSettings.layout` makes of the PMS-library
+  entries): take the entries for **every enabled server's** machine id that are not
+  hidden, in array order, map (`machineIdentifier`, `directoryID`) to the section, then
   append every section the array does not mention (server priority first, then
   the server's own order). No entries at all means plain `/library/sections`
   order per server. The pairing must include the machine id: `directoryID` is a
   per-server counter, so keying on it alone aliases two servers' sections.
-- Merge on write (`LibraryOrderArrangement.merged(existing:reordered:machineIdentifiers:)`):
+- Merge on write (`PlexPinnedSourceArrangement.merged(existing:reordered:machineIdentifiers:)`,
+  in `Providers/Plex/PlexPinnedSource.swift`):
   the participating servers' entries collapse into **one** contiguous block placed
   where the first of them was — the user's order is one cross-server list, not one
   block per server. Entries for cloud providers, disabled servers, servers that are
@@ -534,7 +545,8 @@ same array: `sidebarSettings.pinnedSources`. Array position is the order.
   write would unpin that server's libraries in every Plex client.
   `LibraryOrderStore.machineIdentifiers` is the set that answered **with at least
   one section** and `failedServerIDs` the set that failed; the write path
-  intersects them. A server that answered with *nothing* is in neither: it has no
+  intersects them (the facade does this and hands the provider the set, which may
+  only narrow it to servers still in the pool). A server that answered with *nothing* is in neither: it has no
   pins to write, and an empty answer is also what a still-scanning or half-started
   server returns, so it must not be able to delete what the account has pinned
   for it.
@@ -622,8 +634,10 @@ Where to edit:
   (routes) and `Providers/Plex/PlexHomeRows.swift` (the Plex requests), rows
   mapped by `Providers/Plex/Mappers/PlexHubMapper.swift`.
 - Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
-- Account-level plex.tv settings (library order): `MediaService+LibraryOrder.swift`,
-  with the shared state in `LibraryOrderStore.swift`.
+- Account-level plex.tv settings (library order, language defaults):
+  `MediaService+LibraryOrder.swift` / `+LanguageDefaults.swift` route to
+  `Providers/Plex/PlexAccountPreferences.swift`, with the shared state in
+  `LibraryOrderStore.swift`.
 - New response shapes: a DTO in `Dusk/Sources/Providers/Plex/DTO/` plus its
   mapping in `Providers/Plex/Mappers/`; the domain type gets a memberwise
   initialiser, not `Decodable`.
@@ -778,10 +792,12 @@ Files: `Providers/Plex/PlexPlayback.swift` (requests), routed by
 - Never log raw playback URLs; use `sanitizedPlaybackURLString(for:)`.
 
 ## Plex Watchlist (plex.tv Discover)
-File: `MediaService+Watchlist.swift`, models `Domain/Watchlist.swift`
-(`WatchlistEntry`, `PlexWatchlistAvailability`, `PlexHomeHubSetting`), shared
-state `MediaService/WatchlistStore.swift` (`media.watchlist`).
-- Account-level, on `https://discover.provider.plex.tv` (`MediaService.discoverBase`,
+File: `MediaService+Watchlist.swift` (load, server matching, optimistic edits),
+routed to `WatchlistProviding` = `Providers/Plex/PlexWatchlist.swift` (the
+Discover and plex.tv calls); models `Domain/Watchlist.swift` (`WatchlistEntry`,
+`WatchlistAvailability`, `PlexHomeHubSetting`), shared state
+`MediaService/WatchlistStore.swift` (`media.watchlist`).
+- Account-level, on `https://discover.provider.plex.tv` (`PlexWatchlist.discoverBase`,
   the mock's `/discover` prefix in screenshot mode), with the active profile's token.
   Verified on a real account 2026-10-25: `GET /library/sections/watchlist/all?sort=watchlistedAt:desc`
   (paged, `totalSize`), `PUT /actions/addToWatchlist|removeFromWatchlist?ratingKey=`

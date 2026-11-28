@@ -287,7 +287,8 @@ Settings:
   same write.
 - `MediaService/LibraryOrderStore` is the single source of that order, and of which
   libraries are hidden, for the whole app; `MediaService+LibraryOrder.swift` owns the
-  plex.tv read/write. `MediaService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
+  load and write queue, routed to `AccountPreferencesProviding`
+  (`Providers/Plex/PlexAccountPreferences`, the plex.tv read/write). `MediaService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
   or `loadedHiddenLibraryFilter()` to wait for the load) drops hidden libraries' items
   wherever libraries mix: Home merge, `search`, `getHubItems`, `getPersonMedia`,
   `HomeRecommendationEngine` (visible sections), `SiriTitleCatalog`. Its `.home` /
@@ -312,7 +313,8 @@ Playlists:
 Watchlist:
 
 - `MediaService.watchlist` (`WatchlistStore`) is the account's Plex Watchlist and its
-  server matches; `MediaService+Watchlist` loads/edits it (plex.tv Discover).
+  server matches; `MediaService+Watchlist` loads/edits it through the account's
+  `WatchlistProviding` (`Providers/Plex/PlexWatchlist`, plex.tv Discover).
 - Home's row is `Home/HomeWatchlistShelf` placed by `HomeWatchlistPlacement`;
   `Features/Watchlist` has the bookmark/menu actions and the off-server page.
   See `docs/ui-features.md` → "Watchlist".

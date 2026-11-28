@@ -4,14 +4,15 @@ import Foundation
 /// combination.
 ///
 /// Holds every connected server's `/library/sections` list and the account's
-/// `pinnedSources` list from plex.tv, and combines them into the effective
+/// library layout (`AccountLibraryLayout`, plex.tv `pinnedSources` for Plex),
+/// and combines them into the effective
 /// order every screen in Dusk uses. `MediaService+LibraryOrder` owns all
 /// networking and is the only thing allowed to mutate the store; everything
 /// else reads `orderedSections` / `visibleSections` /
 /// `orderedSectionIdentities` / `hiddenLibraryFilter`.
 ///
 /// It is also the single source of which libraries are hidden: the account's
-/// `pinnedSources[].isHidden` flags, nothing stored in Dusk.
+/// hidden flags (`pinnedSources[].isHidden` on Plex), nothing stored in Dusk.
 ///
 /// The cache is keyed by `"<connected serverIDs in priority order>|<profileID>"`:
 /// the pinned list is per Plex account *token* (Plex Home members each have
@@ -44,16 +45,15 @@ final class LibraryOrderStore {
     @ObservationIgnored private var sectionsByServer: [String: [Library]] = [:]
     @ObservationIgnored private var serverOrder: [String] = []
 
-    /// The account's complete pinned list: every server plus the cloud
-    /// providers, exactly as plex.tv returned it. Never filtered down to the
-    /// connected server — the entries of other sources have to survive a write.
-    private(set) var pinnedSources: [PlexPinnedSource] = []
+    /// The account's layout as the provider last read or wrote it, entries of
+    /// every server the account knows (not only the connected ones).
+    private(set) var layout: AccountLibraryLayout = .neverCustomized
 
     private(set) var state: State = .idle
 
-    /// True when the plex.tv `experience` blob could not be read (transport or
-    /// auth failure). A missing or unparseable setting is *not* a failure: that
-    /// just means the account never customized its order.
+    /// True when the account's layout could not be read (transport or auth
+    /// failure). A missing or unparseable setting is *not* a failure: that just
+    /// means the account never customized its order.
     private(set) var orderUnavailable = false
 
     /// Machine identifiers of the servers that answered `/library/sections`
@@ -76,26 +76,21 @@ final class LibraryOrderStore {
     /// `"<sorted serverIDs>|<profileID>"` of the cached data.
     private(set) var cacheIdentity: String?
 
-    /// The whole decoded `experience` blob, kept so a write can preserve every
-    /// key Dusk does not model. nil means "the account has no experience
-    /// setting yet"; the first write then creates one.
-    @ObservationIgnored private(set) var experienceBlob: DuskJSONValue?
-
     /// In-flight combined load, so concurrent callers (Home, Libraries, the
     /// settings screen, all racing at launch) share one pair of requests.
     @ObservationIgnored var loadTask: Task<[Library], Error>?
 
-    /// Tail of the write chain. Writes are last-writer-wins on plex.tv, so they
+    /// Tail of the write chain. Writes are last-writer-wins on the account, so they
     /// are serialized locally and each one re-reads before it posts.
     @ObservationIgnored var writeTask: Task<Void, Error>?
 
-    /// The order Dusk shows: sections pinned by the account first, in the
-    /// account's sidebar order, then everything else in server-priority order.
+    /// The order Dusk shows: sections placed by the account first, in the
+    /// account's order, then everything else in server-priority order.
     /// See `LibraryOrderArrangement`.
     var orderedSections: [Library] {
         LibraryOrderArrangement.effectiveOrder(
             libraries: sections,
-            pinnedSources: pinnedSources,
+            layout: layout,
             machineIdentifiers: machineIdentifiers
         )
     }
@@ -104,7 +99,7 @@ final class LibraryOrderStore {
     /// `LibraryOrderArrangement.hiddenIdentities`.
     var hiddenSectionIdentities: Set<String> {
         LibraryOrderArrangement.hiddenIdentities(
-            pinnedSources: pinnedSources,
+            layout: layout,
             machineIdentifiers: machineIdentifiers
         )
     }
@@ -141,8 +136,7 @@ final class LibraryOrderStore {
         sections = []
         sectionsByServer = [:]
         serverOrder = []
-        pinnedSources = []
-        experienceBlob = nil
+        layout = .neverCustomized
         machineIdentifiers = []
         failedServerIDs = []
         cacheIdentity = nil
@@ -203,17 +197,16 @@ final class LibraryOrderStore {
         rebuildSections()
     }
 
-    /// Closes a load: records the account blob and the identity the cached data
-    /// belongs to. The sections were already committed per server.
-    func finishLoading(experience: PlexExperienceSettings?, identity: String) {
+    /// Closes a load: records the account layout (nil = it could not be read)
+    /// and the identity the cached data belongs to. The sections were already
+    /// committed per server.
+    func finishLoading(layout: AccountLibraryLayout?, identity: String) {
         cacheIdentity = identity
-        if let experience {
-            pinnedSources = experience.pinnedSources
-            experienceBlob = experience.blob
+        if let layout {
+            self.layout = layout
             orderUnavailable = false
         } else {
-            pinnedSources = []
-            experienceBlob = nil
+            self.layout = .neverCustomized
             orderUnavailable = true
         }
         state = .loaded
@@ -223,10 +216,9 @@ final class LibraryOrderStore {
         sections = serverOrder.flatMap { sectionsByServer[$0] ?? [] }
     }
 
-    /// Commits a blob-only refresh, leaving `sections` alone.
-    func apply(experience: PlexExperienceSettings, identity: String) {
-        pinnedSources = experience.pinnedSources
-        experienceBlob = experience.blob
+    /// Commits a layout-only refresh, leaving `sections` alone.
+    func apply(layout: AccountLibraryLayout, identity: String) {
+        self.layout = layout
         orderUnavailable = false
         cacheIdentity = identity
         if state != .loaded, !sections.isEmpty {
@@ -234,11 +226,10 @@ final class LibraryOrderStore {
         }
     }
 
-    /// Commits the exact payload that plex.tv just accepted, so the UI settles
+    /// Commits the exact layout the account just accepted, so the UI settles
     /// on the written order without another round trip.
-    func commitWrite(pinnedSources: [PlexPinnedSource], blob: DuskJSONValue) {
-        self.pinnedSources = pinnedSources
-        experienceBlob = blob
+    func commitWrite(layout: AccountLibraryLayout) {
+        self.layout = layout
         orderUnavailable = false
     }
 
@@ -255,13 +246,32 @@ final class LibraryOrderStore {
     }
 }
 
-/// The parsed plex.tv `experience` setting.
-struct PlexExperienceSettings: Sendable {
-    /// The whole blob, or nil when the account has no `experience` setting yet
-    /// (or it was unparseable — both mean "never customized").
-    var blob: DuskJSONValue?
-    /// `sidebarSettings.pinnedSources`, in sidebar order.
-    var pinnedSources: [PlexPinnedSource]
+extension LibraryOrderStore {
+    /// Logs outcomes only. The account's layout and the request's token never
+    /// reach the log.
+    nonisolated static func logFailure(_ stage: String, error: Error) {
+        let outcome: String
+        if let serviceError = error as? PlexServiceError {
+            switch serviceError {
+            case .httpError(let statusCode):
+                outcome = "HTTP \(statusCode)"
+            case .unauthorized, .notAuthenticated:
+                outcome = "unauthorized"
+            case .networkError:
+                outcome = "network error"
+            case .decodingError:
+                outcome = "decoding error"
+            default:
+                outcome = "unavailable"
+            }
+        } else if error is CancellationError {
+            outcome = "cancelled"
+        } else {
+            outcome = "unavailable"
+        }
 
-    static let neverCustomized = PlexExperienceSettings(blob: nil, pinnedSources: [])
+        plexAuthLogger.notice(
+            "Library order \(stage, privacy: .public) failed: \(outcome, privacy: .public)"
+        )
+    }
 }
