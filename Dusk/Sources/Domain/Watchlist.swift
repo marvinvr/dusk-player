@@ -8,7 +8,7 @@ import Foundation
 /// The list payload carries no `Guid` array; only the metadata call
 /// (`PlexService.getWatchlistMetadata`) does, which is where the TMDB id for
 /// Seerr comes from.
-struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
+struct WatchlistEntry: Hashable, Sendable, Identifiable {
     let itemID: String
     let guid: String
     let type: MediaKind
@@ -24,11 +24,6 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     let guids: [PlexGuid]
 
     var id: String { guid }
-
-    enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", guid, type, title, year, thumb, art, summary, contentRating, duration, childCount
-        case guids = "Guid"
-    }
 
     init(
         itemID: String,
@@ -56,22 +51,6 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
         self.duration = duration
         self.childCount = childCount
         self.guids = guids
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        itemID = try container.decode(String.self, forKey: .itemID)
-        guid = try container.decode(String.self, forKey: .guid)
-        type = try container.decode(MediaKind.self, forKey: .type)
-        title = try container.decode(String.self, forKey: .title)
-        year = try container.decodeIfPresent(Int.self, forKey: .year)
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        art = try container.decodeIfPresent(String.self, forKey: .art)
-        summary = try container.decodeIfPresent(String.self, forKey: .summary)
-        contentRating = try container.decodeIfPresent(String.self, forKey: .contentRating)
-        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
-        guids = (try? container.decodeIfPresent([PlexGuid].self, forKey: .guids)) ?? []
     }
 
     /// Built from a server item being added, so the Home row can show it
@@ -142,7 +121,7 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
 
 /// `GET /library/metadata/{itemID}/availabilities`: where a title streams.
 /// Region-dependent; Dusk shows the service names only, no deep links.
-struct PlexWatchlistAvailability: Decodable, Hashable, Sendable {
+struct PlexWatchlistAvailability: Hashable, Sendable {
     let title: String?
     let offerType: String?
 

@@ -53,11 +53,11 @@ extension PlexService {
             serverID: targetID
         )
         let response = try decodeJSON(
-            StreamResponse<SubtitleSearchResult>.self,
+            StreamResponse<PlexSubtitleSearchResultDTO>.self,
             from: data,
             serverID: targetID
         )
-        let results = response.MediaContainer.Stream ?? []
+        let results = (response.MediaContainer.Stream ?? []).map(PlexUserContentMapper.subtitleSearchResult)
 
         plexSubtitlesLogger.debug(
             "Subtitle search for \(itemID, privacy: .public) [\(language, privacy: .public)] returned \(results.count, privacy: .public) result(s)"

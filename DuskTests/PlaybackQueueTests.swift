@@ -177,7 +177,8 @@ struct PlaybackQueueTests {
               {"ratingKey":"116969","key":"/library/metadata/116969","type":"episode","title":"Night Wild","grandparentTitle":"Amber Garden","index":1,"parentIndex":1}
             ]}}
             """.utf8)
-        let entries = try JSONDecoder().decode(MetadataResponse<PlaylistEntry>.self, from: data).MediaContainer.Metadata ?? []
+        let entries = (try JSONDecoder().decode(MetadataResponse<PlexPlaylistEntryDTO>.self, from: data).MediaContainer.Metadata ?? [])
+            .map(PlexUserContentMapper.playlistEntry)
         #expect(entries.map(\.playlistItemID) == [10, nil])
         #expect(entries[1].item.type == .episode)
         #expect(entries.map(\.id).count == Set(entries.map(\.id)).count)
@@ -191,13 +192,17 @@ struct PlaybackQueueTests {
               {"ratingKey":"7","key":"/playlists/7/items","type":"playlist","title":"Songs","smart":"0","playlistType":"audio","leafCount":3}
             ]}}
             """.utf8)
-        let playlists = try JSONDecoder().decode(MetadataResponse<Playlist>.self, from: data).MediaContainer.Metadata ?? []
+        let playlists = (try JSONDecoder().decode(MetadataResponse<PlexPlaylistDTO>.self, from: data).MediaContainer.Metadata ?? [])
+            .map { PlexUserContentMapper.playlist($0, serverID: "srv") }
         #expect(playlists[0].smart)
         #expect(playlists[0].summary == nil)
         #expect(playlists[0].duration == 40_000)
         #expect(playlists[0].isVideo)
         #expect(!playlists[1].smart)
         #expect(!playlists[1].isVideo)
+        // The mapper stamps the server the payload came from.
+        #expect(playlists.map(\.serverID) == ["srv", "srv"])
+        #expect(playlists[0].id == MediaItemID(serverID: "srv", itemID: "166489"))
     }
 
     private func decodeItems(_ rows: String) throws -> [MediaItem] {

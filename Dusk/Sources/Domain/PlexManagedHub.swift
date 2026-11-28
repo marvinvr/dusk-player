@@ -7,7 +7,7 @@ import Foundation
 /// The identifier is the row kind, not the row: `movie.curated` here is
 /// `movie.curated.2.1` ("Oh, The Horror!") in `GET /hubs`. See
 /// `matches(hubIdentifier:sectionID:)`.
-struct PlexManagedHub: Decodable, Sendable, Hashable, Identifiable {
+struct PlexManagedHub: Sendable, Hashable, Identifiable {
     let identifier: String
     let title: String
     let promotedToRecommended: Bool
@@ -15,10 +15,6 @@ struct PlexManagedHub: Decodable, Sendable, Hashable, Identifiable {
     let promotedToSharedHome: Bool
 
     var id: String { identifier }
-
-    enum CodingKeys: String, CodingKey {
-        case identifier, title, promotedToRecommended, promotedToOwnHome, promotedToSharedHome
-    }
 
     init(
         identifier: String,
@@ -32,20 +28,6 @@ struct PlexManagedHub: Decodable, Sendable, Hashable, Identifiable {
         self.promotedToRecommended = promotedToRecommended
         self.promotedToOwnHome = promotedToOwnHome
         self.promotedToSharedHome = promotedToSharedHome
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        identifier = try container.decode(String.self, forKey: .identifier)
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? identifier
-        func flag(_ key: CodingKeys) -> Bool {
-            (try? container.decodeIfPresent(Bool.self, forKey: key))
-                ?? (try? container.decodeIfPresent(Int.self, forKey: key)).map { $0 != 0 }
-                ?? false
-        }
-        promotedToRecommended = flag(.promotedToRecommended)
-        promotedToOwnHome = flag(.promotedToOwnHome)
-        promotedToSharedHome = flag(.promotedToSharedHome)
     }
 
     func withOwnHome(_ onHome: Bool) -> PlexManagedHub {

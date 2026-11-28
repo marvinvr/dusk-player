@@ -28,8 +28,8 @@ struct PlexExtrasTests {
     private func decodeExtras() throws -> [Extra] {
         let data = Data(payload.utf8)
         let items = try JSONDecoder().decode(MetadataResponse<MediaItem>.self, from: data).MediaContainer.Metadata ?? []
-        let fields = try JSONDecoder().decode(MetadataResponse<PlexExtraFields>.self, from: data).MediaContainer.Metadata ?? []
-        return Extra.extras(items: items, fields: fields)
+        let fields = try JSONDecoder().decode(MetadataResponse<PlexExtraFieldsDTO>.self, from: data).MediaContainer.Metadata ?? []
+        return PlexUserContentMapper.extras(items: items, fields: fields)
     }
 
     @Test func extrasKeepPlexOrderAndDropNonClips() throws {

@@ -13,12 +13,15 @@ import Foundation
 extension PlexService {
     /// Video playlists on one server, in the server's order (title).
     func getPlaylists(serverID: String) async throws -> [Playlist] {
-        let playlists: [Playlist] = try await fetchMetadata(
+        let targetID = try resolveServerID(serverID)
+        let playlists: [PlexPlaylistDTO] = try await fetchMetadata(
             path: "/playlists",
             queryItems: [URLQueryItem(name: "playlistType", value: "video")],
-            serverID: serverID
+            serverID: targetID
         )
-        return playlists.filter(\.isVideo)
+        return playlists
+            .map { PlexUserContentMapper.playlist($0, serverID: targetID) }
+            .filter(\.isVideo)
     }
 
     /// Video playlists from every connected server, streamed as each answers.
@@ -31,11 +34,12 @@ extension PlexService {
     }
 
     func getPlaylist(itemID: String, serverID: String?) async throws -> Playlist? {
-        let playlists: [Playlist] = try await fetchMetadata(
+        let targetID = try resolveServerID(serverID)
+        let playlists: [PlexPlaylistDTO] = try await fetchMetadata(
             path: "/playlists/\(itemID)",
-            serverID: serverID
+            serverID: targetID
         )
-        return playlists.first
+        return playlists.first.map { PlexUserContentMapper.playlist($0, serverID: targetID) }
     }
 
     /// Every entry of a playlist, in playlist order, paged through.
@@ -52,9 +56,10 @@ extension PlexService {
                 ],
                 serverID: targetID
             )
-            let container = try decodeJSON(MetadataResponse<PlaylistEntry>.self, from: data, serverID: targetID)
+            // Stamped decoder: each entry's nested `MediaItem` reads the server from it.
+            let container = try decodeJSON(MetadataResponse<PlexPlaylistEntryDTO>.self, from: data, serverID: targetID)
                 .MediaContainer
-            let page = container.Metadata ?? []
+            let page = (container.Metadata ?? []).map(PlexUserContentMapper.playlistEntry)
             entries += page
             let total = container.totalSize ?? container.size ?? entries.count
             if page.isEmpty || page.count < pageSize || entries.count >= total { break }
@@ -76,11 +81,12 @@ extension PlexService {
             ],
             serverID: serverID
         )
-        guard let playlist = try decodeJSON(MetadataResponse<Playlist>.self, from: data, serverID: serverID)
+        guard let playlist = try decodeJSON(MetadataResponse<PlexPlaylistDTO>.self, from: data, serverID: serverID)
             .MediaContainer.Metadata?.first else {
             throw PlexServiceError.decodingError("Plex did not return the new playlist.")
         }
-        return playlist
+        // The server `decodeJSON` stamped: an empty id falls back to the primary.
+        return PlexUserContentMapper.playlist(playlist, serverID: serverID.nilIfEmpty ?? pool.primary?.serverID)
     }
 
     /// Appends items (a show or season adds all its episodes).

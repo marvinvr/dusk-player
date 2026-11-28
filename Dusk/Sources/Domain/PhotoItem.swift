@@ -7,7 +7,7 @@ import Foundation
 /// and a photo both arrive as `type: "photo"` (only an album's `key` ends in
 /// `/children`), and `MediaItem` keeps photos as `.unknown`, which is what keeps
 /// them off Home, Search and the detail routes.
-struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
+struct PhotoItem: Sendable, Identifiable, Hashable {
     enum Kind: Sendable {
         case album
         case photo
@@ -16,7 +16,7 @@ struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
 
     var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
-    /// Stamped by `ServerPool.decoder(for:)`, like `MediaItem.serverID`.
+    /// Stamped by the provider mapper, like `MediaItem.serverID`.
     let serverID: String?
     let itemID: String
     let key: String
@@ -42,78 +42,12 @@ struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
     /// Place names, only present when the server saves location names.
     let places: [String]
 
-    enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", key, type, title, thumb, composite
-        case originallyAvailableAt, addedAt, year, duration
-        case media = "Media"
-        case places = "Place"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        serverID = decoder.duskServerID
-        itemID = try container.decode(String.self, forKey: .itemID)
-        key = try container.decode(String.self, forKey: .key)
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        composite = try container.decodeIfPresent(String.self, forKey: .composite)
-        originallyAvailableAt = try container.decodeIfPresent(String.self, forKey: .originallyAvailableAt)
-        addedAt = try? container.decodeIfPresent(Int.self, forKey: .addedAt)
-        year = try? container.decodeIfPresent(Int.self, forKey: .year)
-        duration = try? container.decodeIfPresent(Int.self, forKey: .duration)
-
-        switch try container.decodeIfPresent(String.self, forKey: .type) {
-        case "photo":
-            kind = key.hasSuffix("/children") ? .album : .photo
-        case "clip":
-            kind = .clip
-        default:
-            kind = nil
-        }
-
-        // Media fields vary by server and file type, so nothing in here may
-        // fail the whole page.
-        let media = (try? container.decodeIfPresent([PhotoMedia].self, forKey: .media))?.first
-        width = media?.width
-        height = media?.height
-        partKey = media?.parts.first?.key
-        make = media?.make
-        model = media?.model
-        places = (try? container.decodeIfPresent([Tag].self, forKey: .places))?.map(\.tag) ?? []
-    }
-
     static func == (lhs: PhotoItem, rhs: PhotoItem) -> Bool {
         lhs.id == rhs.id
     }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
-    }
-}
-
-private struct PhotoMedia: Decodable {
-    let width: Int?
-    let height: Int?
-    let make: String?
-    let model: String?
-    let parts: [PhotoPart]
-
-    struct PhotoPart: Decodable {
-        let key: String?
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case width, height, make, model
-        case parts = "Part"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        width = try? container.decodeIfPresent(Int.self, forKey: .width)
-        height = try? container.decodeIfPresent(Int.self, forKey: .height)
-        make = try? container.decodeIfPresent(String.self, forKey: .make)
-        model = try? container.decodeIfPresent(String.self, forKey: .model)
-        parts = (try? container.decodeIfPresent([PhotoPart].self, forKey: .parts)) ?? []
     }
 }
 

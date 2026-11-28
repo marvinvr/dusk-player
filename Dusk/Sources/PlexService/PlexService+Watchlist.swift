@@ -108,9 +108,9 @@ extension PlexService {
 
     /// One undecodable entry (a type Plex added later) must not lose the list.
     private struct FailableWatchlistEntry: Decodable {
-        let entry: WatchlistEntry?
+        let entry: PlexWatchlistEntryDTO?
         init(from decoder: any Decoder) throws {
-            entry = try? WatchlistEntry(from: decoder)
+            entry = try? PlexWatchlistEntryDTO(from: decoder)
         }
     }
 
@@ -130,7 +130,8 @@ extension PlexService {
             )
             let container = try decodeJSON(WatchlistPage.self, from: data).MediaContainer
             let page = container.Metadata ?? []
-            entries += page.compactMap(\.entry).filter { $0.type == .movie || $0.type == .show }
+            entries += page.compactMap(\.entry).map(PlexUserContentMapper.watchlistEntry)
+                .filter { $0.type == .movie || $0.type == .show }
             start += page.count
             guard !page.isEmpty, start < (container.totalSize ?? 0) else { break }
         }
@@ -255,8 +256,8 @@ extension PlexService {
 
     private struct MetadataPage: Decodable {
         struct Container: Decodable {
-            let Metadata: [WatchlistEntry]?
-            let Availability: [PlexWatchlistAvailability]?
+            let Metadata: [PlexWatchlistEntryDTO]?
+            let Availability: [PlexWatchlistAvailabilityDTO]?
         }
         let MediaContainer: Container
     }
@@ -264,11 +265,13 @@ extension PlexService {
     func getWatchlistMetadata(itemID: String) async throws -> WatchlistEntry? {
         let data = try await discoverRequest(path: "/library/metadata/\(itemID)")
         return try decodeJSON(MetadataPage.self, from: data).MediaContainer.Metadata?.first
+            .map(PlexUserContentMapper.watchlistEntry)
     }
 
     func getWatchlistAvailabilities(itemID: String) async throws -> [PlexWatchlistAvailability] {
         let data = try await discoverRequest(path: "/library/metadata/\(itemID)/availabilities")
-        return try decodeJSON(MetadataPage.self, from: data).MediaContainer.Availability ?? []
+        return (try decodeJSON(MetadataPage.self, from: data).MediaContainer.Availability ?? [])
+            .map(PlexUserContentMapper.watchlistAvailability)
     }
 
     // MARK: - Plex's Home layout

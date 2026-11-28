@@ -21,7 +21,8 @@ extension PlexService {
             path: "/hubs/sections/\(sectionId)/manage",
             serverID: serverID
         )
-        return try decodeJSON(ManagedHubResponse.self, from: data).MediaContainer.Hub ?? []
+        return (try decodeJSON(ManagedHubResponse.self, from: data).MediaContainer.Hub ?? [])
+            .map(PlexUserContentMapper.managedHub)
     }
 
     /// Plex Web sends all three flags on every change, so the other two are
@@ -86,6 +87,6 @@ private struct ManagedHubResponse: Decodable {
     let MediaContainer: Container
 
     struct Container: Decodable {
-        let Hub: [PlexManagedHub]?
+        let Hub: [PlexManagedHubDTO]?
     }
 }
