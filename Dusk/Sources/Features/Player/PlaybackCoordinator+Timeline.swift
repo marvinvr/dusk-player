@@ -52,7 +52,7 @@ extension PlaybackCoordinator {
             case .playing: plexState = .playing
             case .paused: plexState = .paused
             case .loading:
-                // Report "buffering" (see submitTimeline's mapping) instead of
+                // Report "buffering" (`PlaybackReport.State.buffering`) instead of
                 // dropping the tick, so Plex keeps the session and any server
                 // transcoder alive while the engine opens or refills. Local
                 // downloads keep the old drop behavior: their ticks feed the
@@ -86,23 +86,44 @@ extension PlaybackCoordinator {
         if activeLiveTVContext == nil, !isPlayingIPTVCatchUp,
            !hasScrobbled, durationMs > 0, timeMs > Int(Double(durationMs) * 0.9) {
             hasScrobbled = true
-            reportFinishedToTrakt()
-            if activePlaybackUsesLocalDownload {
-                offlinePlaybackSyncManager?.recordProgress(
-                    serverID: activePlaybackServerID,
-                    itemID: itemID,
-                    viewOffsetMs: timeMs,
-                    durationMs: durationMs,
-                    state: plexState
-                )
-                Task {
-                    await offlinePlaybackSyncManager?.syncPendingActions()
-                }
-            } else {
-                let serverID = activePlaybackServerID
-                Task {
-                    try? await media.scrobble(itemID: itemID, serverID: serverID)
-                }
+            recordFinishedPlayback(
+                itemID: itemID,
+                timeMs: timeMs,
+                durationMs: durationMs,
+                state: plexState
+            )
+        }
+    }
+
+    /// Dusk's 90 % rule fired: the item is finished. Hands it to Trakt and
+    /// marks it watched — in the offline queue for a local download, otherwise
+    /// on the server the session plays from, unless that server marks it
+    /// played itself from the stopped report
+    /// (`PlaybackTraits.serverAppliesWatchedThreshold`), where a second write
+    /// would count the play twice. The caller sets `hasScrobbled`.
+    func recordFinishedPlayback(
+        itemID: String,
+        timeMs: Int,
+        durationMs: Int,
+        state: PlaybackState
+    ) {
+        reportFinishedToTrakt()
+        if activePlaybackUsesLocalDownload {
+            offlinePlaybackSyncManager?.recordProgress(
+                serverID: activePlaybackServerID,
+                itemID: itemID,
+                viewOffsetMs: timeMs,
+                durationMs: durationMs,
+                state: state
+            )
+            Task {
+                await offlinePlaybackSyncManager?.syncPendingActions()
+            }
+        } else {
+            let serverID = activePlaybackServerID
+            guard !media.serverAppliesWatchedThreshold(serverID: serverID) else { return }
+            Task {
+                try? await media.setWatched(true, itemID: itemID, serverID: serverID)
             }
         }
     }
@@ -120,8 +141,8 @@ extension PlaybackCoordinator {
         timeMs: Int,
         durationMs: Int
     ) {
-        // IPTV is not a Plex session: no timeline, no offline sync. Without
-        // this a nil server ID would fall back to the primary server.
+        // IPTV is not a server session: no report, no offline sync. Without
+        // this its nil server ID would route the report to the primary server.
         guard activeLiveTVContext?.isIPTV != true, !isPlayingIPTVCatchUp else { return }
         if activePlaybackUsesLocalDownload {
             offlinePlaybackSyncManager?.recordProgress(
@@ -135,22 +156,19 @@ extension PlaybackCoordinator {
                 await offlinePlaybackSyncManager?.syncPendingActions()
             }
         } else {
-            let sessionIdentifier = activePlaybackSessionIdentifier
-            let timelineKey = activeLiveTVContext?.sessionPath
-            // Only the server this session plays from: the same rating key is a
+            // Only the server this session plays from: the same item id is a
             // different title everywhere else, so a fan-out would corrupt watch
             // state on every other server.
-            let serverID = activePlaybackServerID
+            let report = PlaybackReport(
+                item: MediaItemID(serverID: activePlaybackServerID, itemID: itemID),
+                state: PlaybackReport.State(state),
+                positionMs: timeMs,
+                durationMs: durationMs,
+                sessionID: activePlaybackSessionIdentifier,
+                liveSessionPath: activeLiveTVContext?.sessionPath
+            )
             Task {
-                await media.reportTimeline(
-                    itemID: itemID,
-                    key: timelineKey,
-                    state: state,
-                    timeMs: timeMs,
-                    durationMs: durationMs,
-                    sessionIdentifier: sessionIdentifier,
-                    serverID: serverID
-                )
+                await media.report(report)
             }
         }
     }

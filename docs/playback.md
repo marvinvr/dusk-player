@@ -244,6 +244,13 @@ so the whole live HUD is derived from one instant.
 - Those two are the only watch-state fan-outs. Timeline reporting and scrobbles
   during playback stay on `activePlaybackServerID`, because those describe one
   file being played, not a statement the user made about the content.
+- Reports are neutral `PlaybackReport`s (`Providers/Core/UserDataProviding.swift`):
+  `reportTimelineOrQueueOfflineSync` builds one per tick and
+  `MediaService.report(_:)` sends it to the item's server's `UserDataProviding`
+  (Plex: `/:/timeline`, same query as before). The 90 % rule stays Dusk's:
+  `recordFinishedPlayback` (Trakt + the watched write) skips the server write
+  when `MediaService.serverAppliesWatchedThreshold(serverID:)` says the server
+  marks the item played itself (never for Plex).
 
 ## Delivery Ladder and Session Hygiene
 
@@ -2983,7 +2990,8 @@ Plex clients do. There is no app setting: the server decides.
 - Concrete playback: `AVPlayerEngine.swift`, `VLCKitEngine.swift`, and the
   platform `VLCKitRenderer*.swift` files.
 - Plex playback calls: `MediaService+Streams.swift` (URLs, decisions) and
-  `MediaService+WatchState.swift` (timeline, watched); metadata shape/fetching:
+  `MediaService+WatchState.swift` (reports, watched; routed to
+  `Providers/Plex/PlexUserData.swift`); metadata shape/fetching:
   `MediaService+Library.swift` and `MediaDetails.swift`.
 - Dolby Atmos / spatial audio, HDR and Dolby Vision remux: eligibility in
   `StreamResolver` (`spatialAudioRemuxBlocker`, `hdrVideoRemuxBlocker`,

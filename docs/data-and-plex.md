@@ -613,7 +613,9 @@ Where to edit:
   `MediaService+History.swift`.
 - Direct play/transcode/remux URLs and stream selection:
   `MediaService+Streams.swift`; playback progress and watch state:
-  `MediaService+WatchState.swift`.
+  `MediaService+WatchState.swift` routes them to the server's
+  `UserDataProviding`, whose Plex requests (`/:/timeline`, `/:/scrobble`,
+  `/:/unscrobble`) live in `Providers/Plex/PlexUserData.swift`.
 - Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`
   (routes) and `Providers/Plex/PlexHomeRows.swift` (the Plex requests), rows
   mapped by `Providers/Plex/Mappers/PlexHubMapper.swift`.
