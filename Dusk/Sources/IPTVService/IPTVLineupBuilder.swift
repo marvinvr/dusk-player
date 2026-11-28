@@ -130,34 +130,74 @@ enum IPTVLineupBuilder {
 
 extension LiveChannel {
     init(iptvID: String, number: String?, title: String, logo: String?, playable: IPTVPlayableChannel) {
-        id = iptvID
-        gridKey = iptvID
-        vcn = number
-        isHD = false
-        thumb = logo
-        self.title = title
-        callSign = nil
-        language = nil
-        alternateIdentifiers = []
-        iptv = playable
+        self.init(
+            id: iptvID,
+            gridKey: iptvID,
+            vcn: number,
+            isHD: false,
+            thumb: logo,
+            title: title,
+            callSign: nil,
+            language: nil,
+            alternateIdentifiers: [],
+            iptv: playable
+        )
     }
 
     var isIPTV: Bool { iptv != nil }
 }
 
+extension LiveProgram {
+    /// XMLTV `title` is the show and `sub-title` the episode, while Plex puts
+    /// the episode in `title` and the show in `grandparentTitle`; mapped so
+    /// the shared guide reads both the same way.
+    init(iptv programme: IPTVProgramme, channel: LiveChannel) {
+        let start = Int(programme.start.timeIntervalSince1970)
+        let title: String
+        let grandparentTitle: String?
+        if let subtitle = programme.subtitle?.nilIfEmpty, subtitle != programme.title {
+            title = subtitle
+            grandparentTitle = programme.title.nilIfEmpty
+        } else {
+            title = programme.title
+            grandparentTitle = nil
+        }
+        self.init(
+            itemID: "iptv-\(channel.id)-\(start)",
+            key: nil,
+            guid: nil,
+            title: title,
+            summary: programme.summary,
+            thumb: programme.iconURL?.absoluteString,
+            art: nil,
+            grandparentTitle: grandparentTitle,
+            parentTitle: nil,
+            type: .unknown,
+            duration: Int(programme.stop.timeIntervalSince(programme.start) * 1000),
+            airings: [LiveAiring(
+                beginsAt: programme.start.timeIntervalSince1970,
+                endsAt: programme.stop.timeIntervalSince1970,
+                channel: channel
+            )]
+        )
+    }
+}
+
 extension LiveAiring {
     init(beginsAt: TimeInterval, endsAt: TimeInterval, channel: LiveChannel) {
-        id = nil
-        self.beginsAt = beginsAt
-        self.endsAt = endsAt
-        channelID = nil
-        channelIdentifier = channel.id
-        channelThumb = channel.thumb
-        channelTitle = channel.title
-        channelVCN = channel.vcn
-        channelCallSign = nil
-        gridKey = channel.gridKey
-        videoResolution = nil
+        self.init(
+            id: nil,
+            beginsAt: beginsAt,
+            endsAt: endsAt,
+            channelID: nil,
+            channelIdentifier: channel.id,
+            channelThumb: channel.thumb,
+            channelTitle: channel.title,
+            channelVCN: channel.vcn,
+            channelCallSign: nil,
+            gridKey: channel.gridKey,
+            videoResolution: nil
+        )
     }
 }
 

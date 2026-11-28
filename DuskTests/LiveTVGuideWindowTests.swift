@@ -17,10 +17,10 @@ struct LiveTVGuideWindowTests {
     }
 
     private func program(_ title: String, from begin: Date, to end: Date) throws -> LiveProgram {
-        try JSONDecoder().decode(LiveProgram.self, from: Data("""
+        try PlexLiveTVMapper.program(JSONDecoder().decode(PlexLiveProgramDTO.self, from: Data("""
         { "ratingKey": "\(title)", "title": "\(title)",
           "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
-        """.utf8))
+        """.utf8)))
     }
 
     @Test func nowStartsAtNowAndLooksAheadAcrossMidnight() {
@@ -58,9 +58,9 @@ struct LiveTVGuideWindowTests {
     @Test func restrictionDropsEndedAndOutOfWindowPrograms() throws {
         let now = date(2, 20, 30)
         let window = LiveTVGuideWindow.forDayOffset(0, now: now, calendar: calendar)
-        let channels = try JSONDecoder().decode([LiveChannel].self, from: Data("""
+        let channels = try JSONDecoder().decode([PlexLiveChannelDTO].self, from: Data("""
         [{ "id": "c1", "gridKey": "g1" }]
-        """.utf8))
+        """.utf8)).map(PlexLiveTVMapper.channel)
         let programs = try [
             program("ended", from: date(2, 19), to: date(2, 20)),
             program("airing", from: date(2, 20), to: date(2, 21)),
@@ -85,9 +85,9 @@ struct LiveTVGuideWindowTests {
     /// be listed once.
     @Test func midnightSpanningProgramFromTwoGridsIsListedOnce() throws {
         let spanning = try program("late", from: date(2, 23), to: date(3, 1))
-        let channels = try JSONDecoder().decode([LiveChannel].self, from: Data("""
+        let channels = try JSONDecoder().decode([PlexLiveChannelDTO].self, from: Data("""
         [{ "id": "c1", "gridKey": "g1" }]
-        """.utf8))
+        """.utf8)).map(PlexLiveTVMapper.channel)
         let lineup = LiveTVLineup(
             provider: LiveTVProvider(
                 identifier: "p", providerIdentifier: "p", title: "Live TV", dvrID: 1, gridKey: "/grid"

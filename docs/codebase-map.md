@@ -152,8 +152,10 @@ Live TV:
   channels, and owns the selected date's guide.
 - `LiveTVView` renders current, past, and future schedule metadata. Only an
   airing program starts playback; arbitrary past guide entries are not recordings.
-- `PlexService+LiveTV` owns provider/channel/grid/tune endpoints and
-  `LiveTV.swift` owns their response shapes.
+- `PlexService+LiveTV` owns provider/channel/grid/tune endpoints. Their
+  response shapes are `Providers/Plex/DTO/PlexLiveTVDTO.swift`, mapped onto
+  the `Live*` domain types (`Domain/LiveTV.swift`, no decoding) by
+  `Providers/Plex/Mappers/PlexLiveTVMapper.swift`.
 
 Libraries:
 

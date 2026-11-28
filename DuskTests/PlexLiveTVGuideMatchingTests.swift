@@ -16,11 +16,11 @@ struct PlexLiveTVGuideMatchingTests {
     )
 
     private func channels(_ json: String) throws -> [LiveChannel] {
-        try JSONDecoder().decode([LiveChannel].self, from: Data(json.utf8))
+        try JSONDecoder().decode([PlexLiveChannelDTO].self, from: Data(json.utf8)).map(PlexLiveTVMapper.channel)
     }
 
     private func programs(_ json: String) throws -> [LiveProgram] {
-        try JSONDecoder().decode([LiveProgram].self, from: Data(json.utf8))
+        try JSONDecoder().decode([PlexLiveProgramDTO].self, from: Data(json.utf8)).map(PlexLiveTVMapper.program)
     }
 
     private func titles(_ lineup: LiveTVLineup) -> [[String]] {

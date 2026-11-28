@@ -566,7 +566,11 @@ Where to edit:
 
 ## Live TV And Guide Endpoints
 
-Files: `PlexService+LiveTV.swift` and `LiveTV.swift`.
+Files: `PlexService+LiveTV.swift`, `Domain/LiveTV.swift` (the `Live*` models,
+memberwise only), `Providers/Plex/DTO/PlexLiveTVDTO.swift` (every Live TV
+response shape and its lenient decoding) and
+`Providers/Plex/Mappers/PlexLiveTVMapper.swift` (DTO → `Live*`, including the
+id/time fallbacks, tune media and the server id on `LiveTVProvider`).
 
 - Live TV uses one server only (v1): the highest-priority connected server
   whose `/media/providers` lists an EPG provider. Every connected server is
