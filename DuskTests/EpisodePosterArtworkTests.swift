@@ -6,13 +6,13 @@ import Testing
 /// season poster, then the show's, so the art changes per season.
 @Suite("Episode poster artwork")
 struct EpisodePosterArtworkTests {
-    private func item(_ fields: [String: Any]) throws -> PlexItem {
+    private func item(_ fields: [String: Any]) throws -> MediaItem {
         var json: [String: Any] = ["ratingKey": "1", "key": "/library/metadata/1", "title": "Item"]
         json.merge(fields) { _, new in new }
         let data = try JSONSerialization.data(withJSONObject: json)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "server"
-        return try decoder.decode(PlexItem.self, from: data)
+        return try decoder.decode(MediaItem.self, from: data)
     }
 
     @Test("An episode shows its season poster, the show poster stands by")

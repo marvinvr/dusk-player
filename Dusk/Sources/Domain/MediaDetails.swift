@@ -9,9 +9,9 @@ private let plexMediaLogger = Logger(
 /// Full metadata for a Plex item including the media/part/stream hierarchy.
 /// Returned from `GET /library/metadata/{ratingKey}`. Used by StreamResolver
 /// to determine which playback engine to use and to construct the direct play URL.
-struct PlexMediaDetails: Decodable, Sendable, Identifiable {
-    /// Server-scoped identity; see `PlexItemID`.
-    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+struct MediaDetails: Decodable, Sendable, Identifiable {
+    /// Server-scoped identity; see `MediaItemID`.
+    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
     /// Machine identifier of the server this payload came from, stamped by
     /// `ServerPool.decoder(for:)`.
@@ -19,7 +19,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
 
     let ratingKey: String
     let key: String
-    let type: PlexMediaType
+    let type: MediaKind
     /// Plex marks video clips with `subtype == "clip"` even when `type` is `movie`.
     let subtype: String?
     /// The library section the item belongs to, as a string key usable with the
@@ -27,7 +27,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let librarySectionID: String?
     let librarySectionTitle: String?
     let title: String
-    /// Plex edition name; see `PlexItem.editionTitle`.
+    /// Plex edition name; see `MediaItem.editionTitle`.
     let editionTitle: String?
     let summary: String?
     let year: Int?
@@ -51,8 +51,8 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     /// The signed-in user's own rating, 0–10 (Plex stores half stars).
     let userRating: Double?
     /// Every source the agent found (IMDb, Rotten Tomatoes, TMDB, …); newer
-    /// servers only. See `PlexRating.sources(for:)`.
-    let ratings: [PlexRating]
+    /// servers only. See `Rating.sources(for:)`.
+    let ratings: [Rating]
 
     // Production
     let studio: String?
@@ -73,21 +73,21 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let grandparentThumb: String?
 
     // Metadata tags
-    let genres: [PlexTag]?
-    let directors: [PlexTag]?
-    let writers: [PlexTag]?
-    let roles: [PlexRole]?
+    let genres: [Tag]?
+    let directors: [Tag]?
+    let writers: [Tag]?
+    let roles: [Person]?
     /// Collections the item belongs to. Video clip libraries carry one per
     /// channel, which drives the "More from this channel" row.
-    let collections: [PlexTag]?
-    /// Plex's scalar guid (`plex://…` on modern servers). See `PlexContentKey`.
+    let collections: [Tag]?
+    /// Plex's scalar guid (`plex://…` on modern servers). See `ContentKey`.
     let guid: String?
     let guids: [PlexGuid]
-    let markers: [PlexMarker]
+    let markers: [Marker]
 
     /// The media versions for this item. A single item can have multiple
     /// versions (e.g. different resolutions or codecs).
-    var media: [PlexMedia]
+    var media: [MediaVersion]
 
     enum CodingKeys: String, CodingKey {
         case ratingKey, key, type, subtype, librarySectionID, librarySectionTitle, title, editionTitle, summary, year, guid
@@ -112,7 +112,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         serverID = decoder.duskServerID
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         key = try container.decode(String.self, forKey: .key)
-        type = try container.decode(PlexMediaType.self, forKey: .type)
+        type = try container.decode(MediaKind.self, forKey: .type)
         subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
         // Plex serializes librarySectionID as a number; tolerate strings too.
         if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .librarySectionID) {
@@ -122,7 +122,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         }
         librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
         title = try container.decode(String.self, forKey: .title)
-        editionTitle = PlexItem.trimmedEditionTitle(try container.decodeIfPresent(String.self, forKey: .editionTitle))
+        editionTitle = MediaItem.trimmedEditionTitle(try container.decodeIfPresent(String.self, forKey: .editionTitle))
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
         year = try container.decodeIfPresent(Int.self, forKey: .year)
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
@@ -138,7 +138,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         ratingImage = try? container.decodeIfPresent(String.self, forKey: .ratingImage)
         audienceRatingImage = try? container.decodeIfPresent(String.self, forKey: .audienceRatingImage)
         userRating = try? container.decodeIfPresent(Double.self, forKey: .userRating)
-        ratings = (try? container.decodeIfPresent([PlexRating].self, forKey: .ratings)) ?? []
+        ratings = (try? container.decodeIfPresent([Rating].self, forKey: .ratings)) ?? []
         studio = try container.decodeIfPresent(String.self, forKey: .studio)
         originallyAvailableAt = try container.decodeIfPresent(String.self, forKey: .originallyAvailableAt)
         childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
@@ -151,22 +151,22 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
         grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
-        genres = try container.decodeIfPresent([PlexTag].self, forKey: .genres)
-        directors = try container.decodeIfPresent([PlexTag].self, forKey: .directors)
-        writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
-        roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
-        collections = try container.decodeIfPresent([PlexTag].self, forKey: .collections)
+        genres = try container.decodeIfPresent([Tag].self, forKey: .genres)
+        directors = try container.decodeIfPresent([Tag].self, forKey: .directors)
+        writers = try container.decodeIfPresent([Tag].self, forKey: .writers)
+        roles = try container.decodeIfPresent([Person].self, forKey: .roles)
+        collections = try container.decodeIfPresent([Tag].self, forKey: .collections)
         guid = try container.decodeIfPresent(String.self, forKey: .guid)
         guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
-        markers = (try container.decodeIfPresent([PlexMarker].self, forKey: .markers) ?? [])
+        markers = (try container.decodeIfPresent([Marker].self, forKey: .markers) ?? [])
             .sorted { $0.startTimeOffset < $1.startTimeOffset }
-        media = try container.decodeIfPresent([PlexMedia].self, forKey: .media) ?? []
+        media = try container.decodeIfPresent([MediaVersion].self, forKey: .media) ?? []
     }
 }
 
-extension PlexMediaDetails {
+extension MediaDetails {
     /// Whether the item is a video clip (e.g. from an "Other Videos" library).
-    /// Mirrors `PlexItem.isClip`.
+    /// Mirrors `MediaItem.isClip`.
     var isClip: Bool {
         subtype == "clip" || type == .clip
     }
@@ -174,7 +174,7 @@ extension PlexMediaDetails {
     /// A copy whose video streams in `partID` of `mediaID` carry
     /// `sampleEntry` as their `codecID`, so every later engine decision for
     /// the session sees what the file probe found.
-    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: Int, partID: Int) -> PlexMediaDetails {
+    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: Int, partID: Int) -> MediaDetails {
         var copy = self
         for mediaIndex in copy.media.indices where copy.media[mediaIndex].id == mediaID {
             for partIndex in copy.media[mediaIndex].parts.indices
@@ -189,7 +189,7 @@ extension PlexMediaDetails {
     }
 }
 
-private extension KeyedDecodingContainer where Key == PlexMediaDetails.CodingKeys {
+private extension KeyedDecodingContainer where Key == MediaDetails.CodingKeys {
     func decodePlexImageURLIfPresent(type: String, explicitKey: Key, arrayKey: Key) throws -> String? {
         if let explicitValue = try decodeIfPresent(String.self, forKey: explicitKey) {
             return explicitValue
@@ -200,7 +200,7 @@ private extension KeyedDecodingContainer where Key == PlexMediaDetails.CodingKey
     }
 }
 
-struct PlexMarker: Codable, Sendable, Identifiable, Equatable {
+struct Marker: Codable, Sendable, Identifiable, Equatable {
     let id: Int
     let type: String
     let startTimeOffset: Int
@@ -277,7 +277,7 @@ struct PlexScrubPreviewSource: Sendable {
 
 /// A single media version of a Plex item.
 /// One item can have multiple media entries (e.g. 1080p and 4K versions).
-struct PlexMedia: Codable, Sendable, Identifiable {
+struct MediaVersion: Codable, Sendable, Identifiable {
     let id: Int
 
     let container: String?
@@ -293,7 +293,7 @@ struct PlexMedia: Codable, Sendable, Identifiable {
     let duration: Int?
     let optimizedForStreaming: Int?
 
-    var parts: [PlexMediaPart]
+    var parts: [MediaPart]
 
     /// Whether this version has at least one part Plex still reports as present.
     var hasAvailablePart: Bool {
@@ -302,7 +302,7 @@ struct PlexMedia: Codable, Sendable, Identifiable {
 
     /// The first part Plex still reports as present, falling back to the first
     /// part when nothing is explicitly flagged.
-    var firstAvailablePart: PlexMediaPart? {
+    var firstAvailablePart: MediaPart? {
         parts.first { $0.isAvailable } ?? parts.first
     }
 
@@ -327,7 +327,7 @@ struct PlexMedia: Codable, Sendable, Identifiable {
         bitrate: Int?,
         duration: Int?,
         optimizedForStreaming: Int?,
-        parts: [PlexMediaPart]
+        parts: [MediaPart]
     ) {
         self.id = id
         self.container = container
@@ -360,7 +360,7 @@ struct PlexMedia: Codable, Sendable, Identifiable {
         bitrate = try container.decodeIfPresent(Int.self, forKey: .bitrate)
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
         optimizedForStreaming = try container.decodeIfPresent(Int.self, forKey: .optimizedForStreaming)
-        parts = try container.decodeIfPresent([PlexMediaPart].self, forKey: .parts) ?? []
+        parts = try container.decodeIfPresent([MediaPart].self, forKey: .parts) ?? []
     }
 }
 
@@ -368,7 +368,7 @@ struct PlexMedia: Codable, Sendable, Identifiable {
 
 /// A single file part. Most items have exactly one part, but multi-file
 /// items (e.g. split DVDs) can have multiple.
-struct PlexMediaPart: Codable, Sendable, Identifiable {
+struct MediaPart: Codable, Sendable, Identifiable {
     let id: Int
 
     /// Relative path used to construct the direct play URL:
@@ -389,7 +389,7 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
     let accessible: Bool?
     let exists: Bool?
 
-    var streams: [PlexStream]
+    var streams: [MediaStream]
 
     /// Treat a part as unavailable only when Plex explicitly flags it missing;
     /// absent flags mean "assume available" so we never hide good versions.
@@ -414,7 +414,7 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
         audioProfile: String?,
         accessible: Bool?,
         exists: Bool?,
-        streams: [PlexStream]
+        streams: [MediaStream]
     ) {
         self.id = id
         self.key = key
@@ -452,7 +452,7 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
     /// sent back to Plex as a stream selection.
     private static func decodeStreams(
         _ container: KeyedDecodingContainer<CodingKeys>
-    ) throws -> [PlexStream] {
+    ) throws -> [MediaStream] {
         guard let entries = try container.decodeIfPresent([LenientStream].self, forKey: .streams) else {
             return []
         }
@@ -492,7 +492,7 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
 /// One `Stream` entry that never fails to decode: holds the stream when it is
 /// valid, otherwise whatever is readable for logging.
 private struct LenientStream: Decodable {
-    let stream: PlexStream?
+    let stream: MediaStream?
     let streamType: Int?
     let codec: String?
     let failure: String?
@@ -503,7 +503,7 @@ private struct LenientStream: Decodable {
 
     init(from decoder: Decoder) throws {
         do {
-            stream = try PlexStream(from: decoder)
+            stream = try MediaStream(from: decoder)
             streamType = nil
             codec = nil
             failure = nil
@@ -527,7 +527,7 @@ enum PlexStreamType: Int, Codable, Sendable {
 }
 
 /// A single audio, video, or subtitle track within a media part.
-struct PlexStream: Codable, Sendable, Identifiable {
+struct MediaStream: Codable, Sendable, Identifiable {
     let id: Int
     let streamType: PlexStreamType
     let codec: String?

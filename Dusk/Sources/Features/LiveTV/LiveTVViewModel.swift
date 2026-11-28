@@ -4,14 +4,14 @@ import Foundation
 /// in one place on purpose: see `Result.capturing`.
 private struct LiveTVRecordingLookup: Sendable {
     let guid: String
-    let outcome: Result<PlexItem?, any Error>
+    let outcome: Result<MediaItem?, any Error>
 }
 
 /// One day's answer in the ranged guide fetch's task group (see
 /// `LiveTVRecordingLookup`).
 private struct LiveTVGuideDayFetch: Sendable {
     let day: Date
-    let outcome: Result<[PlexLiveProgram], any Error>
+    let outcome: Result<[LiveProgram], any Error>
 }
 
 @MainActor
@@ -21,14 +21,14 @@ final class LiveTVViewModel {
     /// The user's IPTV sources, shown after the Plex channels.
     private let iptvService: IPTVService?
 
-    private(set) var provider: PlexLiveTVProvider?
-    private(set) var channels: [PlexLiveChannel] = []
+    private(set) var provider: LiveTVProvider?
+    private(set) var channels: [LiveChannel] = []
     /// The DVR's tuner devices. Empty until the server has said (the guide
     /// then shows Plex as one section).
     private(set) var devices: [PlexLiveTVDevice] = []
     private var hasLoadedDevices = false
-    private(set) var lineup: PlexLiveTVLineup?
-    private(set) var nowPlayingLineup: PlexLiveTVLineup?
+    private(set) var lineup: LiveTVLineup?
+    private(set) var nowPlayingLineup: LiveTVLineup?
     /// The day last picked in the day menu: 0 is today, 1 and up days after
     /// it, -1 and down days before it (only offered while some channel has
     /// catch-up, `pastDayCount`). Only scrolls the guide: every section, Plex
@@ -42,11 +42,11 @@ final class LiveTVViewModel {
 
     /// The full guide as fetched; `lineup` is it with what ended more than
     /// `nowLookback` ago dropped.
-    private var fetchedLineup: PlexLiveTVLineup?
+    private var fetchedLineup: LiveTVLineup?
     /// Plex airings by the local day (midnight) they were asked for. Today
     /// and tomorrow refresh every `refreshInterval`; the days after that
     /// (as far as the server has a guide) every `farRefreshInterval`.
-    private var plexAirings: [Date: [PlexLiveProgram]] = [:]
+    private var plexAirings: [Date: [LiveProgram]] = [:]
     /// When today and tomorrow were last fetched.
     private var loadedAt: Date?
     /// When the days after tomorrow were last fetched.
@@ -62,7 +62,7 @@ final class LiveTVViewModel {
     private var discoveredProfileID: String?
     /// Library copies (DVR recordings) of past Plex airings, by guid: what
     /// makes a past Plex programme playable.
-    private(set) var plexRecordings: [String: PlexItem] = [:]
+    private(set) var plexRecordings: [String: MediaItem] = [:]
     /// Guids already asked about, hit or miss, so a guide refresh does not
     /// ask again.
     private var checkedRecordingGuids: Set<String> = []
@@ -166,7 +166,7 @@ final class LiveTVViewModel {
     }
 
     /// The provider, discovering it first when no pass has found one yet.
-    private func resolveProvider() async throws -> PlexLiveTVProvider? {
+    private func resolveProvider() async throws -> LiveTVProvider? {
         resetIfProfileChanged()
         if let provider { return provider }
         if case .inconclusive(let error) = await discoverOnce(), provider == nil {
@@ -289,7 +289,7 @@ final class LiveTVViewModel {
     /// nothing at all (not even an airing running through it), the guide
     /// reaches `maxGuideDays`, or it holds `maxGuideAirings`. A failed day
     /// keeps what it had.
-    private func fetchFarDays(provider: PlexLiveTVProvider, today: Date) async {
+    private func fetchFarDays(provider: LiveTVProvider, today: Date) async {
         guard !usesPerChannelGuide else { return }
         var offset = 2
         var reachedEnd = false
@@ -318,7 +318,7 @@ final class LiveTVViewModel {
 
     /// Each of `days` as one ranged grid request, a few at a time. Days that
     /// failed are missing from the answer; only all of them failing throws.
-    private func fetchAirings(provider: PlexLiveTVProvider, days: [Date]) async throws -> [Date: [PlexLiveProgram]] {
+    private func fetchAirings(provider: LiveTVProvider, days: [Date]) async throws -> [Date: [LiveProgram]] {
         let plexService = plexService
         let windows = days.map { LiveTVGuideWindow(start: $0, end: Self.day(1, after: $0)) }
         let results = await withTaskGroup(of: LiveTVGuideDayFetch.self) { group in
@@ -334,7 +334,7 @@ final class LiveTVViewModel {
             for await result in group { results.append(result) }
             return results
         }
-        var airings: [Date: [PlexLiveProgram]] = [:]
+        var airings: [Date: [LiveProgram]] = [:]
         var firstError: (any Error)?
         for result in results {
             let day = result.day
@@ -349,7 +349,7 @@ final class LiveTVViewModel {
 
     /// The old way, for a server whose grid ignores the time range: one
     /// `date=` request per channel and day.
-    private func fetchPerChannelGuide(provider: PlexLiveTVProvider, days: [Date], now: Date) async throws {
+    private func fetchPerChannelGuide(provider: LiveTVProvider, days: [Date], now: Date) async throws {
         let fetched = try await plexService.getLiveTVGuide(provider: provider, channels: channels, dates: days)
         plexAirings = [Calendar.current.startOfDay(for: now): fetched.guides.flatMap(\.programs)]
         loadedAt = now
@@ -357,8 +357,8 @@ final class LiveTVViewModel {
         publishLineup(provider: provider, now: now)
     }
 
-    private func publishLineup(provider: PlexLiveTVProvider, now: Date) {
-        let fetched = PlexLiveTVLineup(
+    private func publishLineup(provider: LiveTVProvider, now: Date) {
+        let fetched = LiveTVLineup(
             provider: provider,
             channels: channels,
             programs: plexAirings.keys.sorted().flatMap { plexAirings[$0] ?? [] }
@@ -384,7 +384,7 @@ final class LiveTVViewModel {
     /// recording is the only way a past airing plays.
     private func findRecordings(now: Date = .now) async {
         guard let lineup, let provider else { return }
-        var pending: [PlexLiveProgram] = []
+        var pending: [LiveProgram] = []
         var seen = Set<String>()
         for guide in lineup.guides {
             for program in guide.programs {
@@ -426,13 +426,13 @@ final class LiveTVViewModel {
     }
 
     /// The library copy a past Plex airing plays from, if any.
-    func recording(for program: PlexLiveProgram) -> PlexItem? {
+    func recording(for program: LiveProgram) -> MediaItem? {
         program.guid.flatMap { plexRecordings[$0] }
     }
 
     /// Whether a programme that has ended can be played: an IPTV channel
     /// with catch-up covering it, or a Plex airing with a recording.
-    func canReplay(_ program: PlexLiveProgram, on channel: PlexLiveChannel, now: Date = .now) -> Bool {
+    func canReplay(_ program: LiveProgram, on channel: LiveChannel, now: Date = .now) -> Bool {
         guard let beginsAt = program.beginsAt, let endsAt = program.endsAt, endsAt <= now else { return false }
         if let iptv = channel.iptv {
             return iptv.canCatchUp(start: beginsAt, end: endsAt, now: now)
@@ -490,7 +490,7 @@ final class LiveTVViewModel {
 
     /// Image URLs for one lineup's rows: IPTV art is absolute, Plex art is
     /// asked of the DVR's server.
-    func imageURL(for lineup: PlexLiveTVLineup) -> (String?, Int, Int) -> URL? {
+    func imageURL(for lineup: LiveTVLineup) -> (String?, Int, Int) -> URL? {
         guard lineup.provider.isIPTV else { return imageURL(for:width:height:) }
         let plexService = plexService
         return { path, width, height in
@@ -520,7 +520,7 @@ final class LiveTVViewModel {
 
     /// The stretch a Plex section draws: its whole guide, like an IPTV
     /// source, opening no earlier than `guideWindow`.
-    static func timelineWindow(of lineup: PlexLiveTVLineup, now: Date = .now) -> LiveTVGuideWindow {
+    static func timelineWindow(of lineup: LiveTVLineup, now: Date = .now) -> LiveTVGuideWindow {
         let whole = LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now)
         return LiveTVGuideWindow(start: max(whole.start, guideWindow(now: now).start), end: whole.end)
     }

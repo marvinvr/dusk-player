@@ -36,7 +36,7 @@ struct TraktHistoryEntry: Codable, Sendable, Hashable, Identifiable {
 /// Plex metadata → `TraktHistoryEntry`. Pure, so it is unit tested.
 enum TraktHistoryMapper {
     static func entry(
-        type: PlexMediaType,
+        type: MediaKind,
         guid: String?,
         guids: [PlexGuid],
         watchedAt: Date,

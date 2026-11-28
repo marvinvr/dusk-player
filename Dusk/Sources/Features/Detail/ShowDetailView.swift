@@ -17,7 +17,7 @@ struct ShowDetailView: View {
     private let minimumColumnCount = 2
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
@@ -71,7 +71,7 @@ struct ShowDetailView: View {
     }
 
     @ViewBuilder
-    private func contentView(_ details: PlexMediaDetails) -> some View {
+    private func contentView(_ details: MediaDetails) -> some View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -134,7 +134,7 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func heroSection(
-        _ details: PlexMediaDetails,
+        _ details: MediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
         containerHeight: CGFloat,
@@ -163,7 +163,7 @@ struct ShowDetailView: View {
     }
 
     @ViewBuilder
-    private func metadataTagline(_ details: PlexMediaDetails) -> some View {
+    private func metadataTagline(_ details: MediaDetails) -> some View {
         let parts = [
             details.year.map(String.init),
             details.editionTitle,
@@ -180,14 +180,14 @@ struct ShowDetailView: View {
     }
 
     @ViewBuilder
-    private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+    private func heroMetadata(_ details: MediaDetails) -> some View {
         if let genres = viewModel.genreText {
             Text(genres)
                 .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
-        DetailRatingsLine(ratings: PlexRating.sources(for: details), userRating: userRating.value)
+        DetailRatingsLine(ratings: Rating.sources(for: details), userRating: userRating.value)
 
         if let studio = details.studio {
             Text(studio)
@@ -215,7 +215,7 @@ struct ShowDetailView: View {
                     DetailRateHeroButton(model: userRating, id: id)
                 }
                 AddToPlaylistHeroButton(target: viewModel.details.flatMap(AddToPlaylistTarget.init(details:)))
-                WatchlistHeroButton(entry: viewModel.details.flatMap(PlexWatchlistEntry.init(details:)))
+                WatchlistHeroButton(entry: viewModel.details.flatMap(WatchlistEntry.init(details:)))
             }
         }
         .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
@@ -359,7 +359,7 @@ struct ShowDetailView: View {
 
     /// The Mac spells the unwatched count out in the card subtitle
     /// (`seasonSubtitle`) instead of the corner badge.
-    private func seasonCardUnwatchedBadge(_ season: PlexSeason) -> Int? {
+    private func seasonCardUnwatchedBadge(_ season: Season) -> Int? {
         #if os(macOS)
         nil
         #else
@@ -368,7 +368,7 @@ struct ShowDetailView: View {
     }
 
     @ViewBuilder
-    private func seasonContextMenu(_ season: PlexSeason) -> some View {
+    private func seasonContextMenu(_ season: Season) -> some View {
         let downloadState = downloadManager.downloadState(for: DownloadScope(id: season.id, type: .season))
 
         if !season.isFullyWatched {

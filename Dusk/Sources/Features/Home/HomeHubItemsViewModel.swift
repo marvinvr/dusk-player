@@ -3,15 +3,15 @@ import Foundation
 @MainActor
 @Observable
 final class HomeHubItemsViewModel {
-    let hub: PlexHub
+    let hub: HomeRow
 
     private let plexService: PlexService
 
-    private(set) var items: [PlexItem] = []
+    private(set) var items: [MediaItem] = []
     private(set) var isLoading = false
     private(set) var error: String?
 
-    init(hub: PlexHub, plexService: PlexService) {
+    init(hub: HomeRow, plexService: PlexService) {
         self.hub = hub
         self.plexService = plexService
     }
@@ -48,7 +48,7 @@ final class HomeHubItemsViewModel {
         isLoading = false
     }
 
-    func setWatched(_ watched: Bool, for item: PlexItem) async {
+    func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
             try await plexService.setWatchedAcrossServers(watched, id: item.id)
             await reloadItems()
@@ -57,15 +57,15 @@ final class HomeHubItemsViewModel {
         }
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func progress(for item: PlexItem) -> Double? {
+    func progress(for item: MediaItem) -> Double? {
         item.posterProgress
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.standardPosterSubtitle
     }
 

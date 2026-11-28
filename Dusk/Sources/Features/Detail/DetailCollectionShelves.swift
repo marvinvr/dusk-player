@@ -2,10 +2,10 @@ import SwiftUI
 
 /// One collection an item belongs to, with the collection's other titles.
 struct DetailCollectionShelf: Identifiable, Sendable {
-    let collection: PlexItem
-    let items: [PlexItem]
+    let collection: MediaItem
+    let items: [MediaItem]
 
-    var id: PlexItemID { collection.id }
+    var id: MediaItemID { collection.id }
 }
 
 /// Loads the "Part of <collection>" rows of a movie or show detail page.
@@ -35,9 +35,9 @@ final class DetailCollectionShelvesModel {
     }
 
     func load(
-        itemID: PlexItemID,
+        itemID: MediaItemID,
         sectionID: String?,
-        tags: [PlexTag]
+        tags: [Tag]
     ) async {
         guard let sectionID, !tags.isEmpty else {
             shelves = []
@@ -86,14 +86,14 @@ final class DetailCollectionShelvesModel {
 /// The "Part of <collection>" rows under a movie or show's detail content.
 /// Each row ends in "Show All", which opens the collection page.
 struct DetailCollectionShelves: View {
-    let itemID: PlexItemID
+    let itemID: MediaItemID
     let sectionID: String?
-    let tags: [PlexTag]
+    let tags: [Tag]
     private let plexService: PlexService
 
     @State private var model: DetailCollectionShelvesModel
 
-    init(itemID: PlexItemID, sectionID: String?, tags: [PlexTag]?, plexService: PlexService) {
+    init(itemID: MediaItemID, sectionID: String?, tags: [Tag]?, plexService: PlexService) {
         self.itemID = itemID
         self.sectionID = sectionID
         self.tags = tags ?? []
@@ -104,7 +104,7 @@ struct DetailCollectionShelves: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
             ForEach(model.shelves) { shelf in
-                PlexItemPosterCarouselSection(
+                MediaItemPosterCarouselSection(
                     title: "Part of \(shelf.collection.title)",
                     items: shelf.items,
                     horizontalPadding: DuskPosterMetrics.detailHorizontalPadding,

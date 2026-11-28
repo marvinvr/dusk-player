@@ -114,7 +114,7 @@ struct DolbyVisionConfiguration: Sendable, Equatable {
         self.convertedFromProfile = convertedFromProfile
     }
 
-    init?(stream: PlexStream) {
+    init?(stream: MediaStream) {
         guard let profile = stream.doviProfile, (0...127).contains(profile) else { return nil }
         self.profile = profile
         self.level = stream.doviLevel.flatMap { (1...63).contains($0) ? $0 : nil }
@@ -198,7 +198,7 @@ struct DolbyVisionConfiguration: Sendable, Equatable {
 
     /// The level Dolby's pixel-rate table gives the stream, for when Plex
     /// omits `DOVILevel`.
-    private static func fallbackLevel(for stream: PlexStream) -> Int {
+    private static func fallbackLevel(for stream: MediaStream) -> Int {
         let width = Double(stream.width ?? 3840)
         let height = Double(stream.height ?? 2160)
         let frameRate = stream.frameRate ?? 24
@@ -226,7 +226,7 @@ enum RemuxVariantCodecs {
     /// The full attribute value, or nil when the video is not HEVC Main/Main
     /// 10 or the remux audio has no known codec string (a wrong or partial
     /// declaration is worse than none).
-    static func codecs(video: PlexStream, audioCodec: String?, hasAudio: Bool) -> String? {
+    static func codecs(video: MediaStream, audioCodec: String?, hasAudio: Bool) -> String? {
         guard let videoCodec = hevcCodec(for: video) else { return nil }
         guard hasAudio else { return videoCodec }
         guard let audio = audioCodecString(audioCodec) else { return nil }
@@ -235,7 +235,7 @@ enum RemuxVariantCodecs {
 
     /// `hvc1.2.4.L153.b0` (Main 10) / `hvc1.1.6.L120.b0` (Main); `hev1` when
     /// the source's sample entry is `hev1`/`dvhe`, which a remux keeps.
-    static func hevcCodec(for stream: PlexStream) -> String? {
+    static func hevcCodec(for stream: MediaStream) -> String? {
         guard stream.streamType == .video, stream.codec?.lowercased() == "hevc" else { return nil }
         let profile: String
         // Every Dolby Vision profile Dusk signals is Main 10 ("main 10").
@@ -266,7 +266,7 @@ enum RemuxVariantCodecs {
 
     /// Lowest level whose MaxLumaPs/MaxLumaSr fit the stream, for when Plex
     /// reports no level.
-    private static func fallbackLevel(for stream: PlexStream) -> Int {
+    private static func fallbackLevel(for stream: MediaStream) -> Int {
         let pictureSize = Double(stream.width ?? 3840) * Double(stream.height ?? 2160)
         let sampleRate = pictureSize * (stream.frameRate ?? 24)
         let limits: [(level: Int, pictureSize: Double, sampleRate: Double)] = [

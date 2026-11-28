@@ -8,20 +8,20 @@ final class EpisodeDetailViewModel {
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     /// Server-scoped identity of the episode; every request goes to its server.
-    let id: PlexItemID
+    let id: MediaItemID
 
     var ratingKey: String { id.ratingKey }
 
-    private(set) var details: PlexMediaDetails?
-    private var seasonDetails: PlexMediaDetails?
-    private var showDetails: PlexMediaDetails?
+    private(set) var details: MediaDetails?
+    private var seasonDetails: MediaDetails?
+    private var showDetails: MediaDetails?
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var isUsingCachedData = false
     private(set) var offlineStateVersion = 0
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
@@ -59,7 +59,7 @@ final class EpisodeDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 targetWatched,
-                id: PlexItemID(serverID: serverID, ratingKey: details.ratingKey)
+                id: MediaItemID(serverID: serverID, ratingKey: details.ratingKey)
             )
             await reload()
         } catch {
@@ -80,8 +80,8 @@ final class EpisodeDetailViewModel {
         MediaTextFormatter.seasonEpisodeLabel(season: details?.parentIndex, episode: nil)
     }
 
-    var seasonID: PlexItemID? {
-        details?.parentRatingKey.map { PlexItemID(serverID: serverID, ratingKey: $0) }
+    var seasonID: MediaItemID? {
+        details?.parentRatingKey.map { MediaItemID(serverID: serverID, ratingKey: $0) }
     }
 
     var episodeLabel: String? {
@@ -92,8 +92,8 @@ final class EpisodeDetailViewModel {
         details?.grandparentTitle
     }
 
-    var showID: PlexItemID? {
-        details?.grandparentRatingKey.map { PlexItemID(serverID: serverID, ratingKey: $0) }
+    var showID: MediaItemID? {
+        details?.grandparentRatingKey.map { MediaItemID(serverID: serverID, ratingKey: $0) }
     }
 
     var formattedDuration: String? {
@@ -185,7 +185,7 @@ final class EpisodeDetailViewModel {
         }
     }
 
-    private func isWatched(_ details: PlexMediaDetails) -> Bool {
+    private func isWatched(_ details: MediaDetails) -> Bool {
         guard let viewCount = details.viewCount else { return false }
         return viewCount > 0
     }

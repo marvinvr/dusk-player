@@ -4,7 +4,7 @@ import Foundation
 /// `image` names the source (`imdb://image.rating`,
 /// `rottentomatoes://image.rating.ripe`, `themoviedb://image.rating`), `type`
 /// is `critic` or `audience`, `value` is on Plex's 0–10 scale.
-struct PlexRating: Decodable, Hashable, Sendable {
+struct Rating: Decodable, Hashable, Sendable {
     /// A source's official mark, in `Assets.xcassets/RatingLogos`.
     enum Logo: String, Sendable {
         case imdb = "RatingIMDb"
@@ -60,11 +60,11 @@ struct PlexRating: Decodable, Hashable, Sendable {
 
     /// The sources to show for a title: Plex's `Rating` array when the server
     /// sends one, else the two scalar ratings with their images.
-    static func sources(for details: PlexMediaDetails) -> [PlexRating] {
+    static func sources(for details: MediaDetails) -> [Rating] {
         let all = details.ratings.isEmpty
             ? [
-                details.rating.map { PlexRating(image: details.ratingImage, value: $0, type: "critic") },
-                details.audienceRating.map { PlexRating(image: details.audienceRatingImage, value: $0, type: "audience") },
+                details.rating.map { Rating(image: details.ratingImage, value: $0, type: "critic") },
+                details.audienceRating.map { Rating(image: details.audienceRatingImage, value: $0, type: "audience") },
             ].compactMap { $0 }
             : details.ratings
         var seen = Set<String>()

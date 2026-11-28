@@ -205,7 +205,7 @@ struct HomeCinematicHero: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
 
-    let items: [PlexItem]
+    let items: [MediaItem]
     let viewModel: HomeViewModel
     let containerSize: CGSize
     let topInset: CGFloat
@@ -225,18 +225,18 @@ struct HomeCinematicHero: View {
     /// tvOS: moves focus to that page's play button. Rotation and the
     /// wrap-around at either end page through it, so a page change is always
     /// the focus engine's own move and scroll.
-    var onFocusItem: ((PlexItem) -> Void)? = nil
+    var onFocusItem: ((MediaItem) -> Void)? = nil
     /// tvOS: the `storageKey` of the page on screen, whenever it changes.
     /// It follows the page scroll, so it is the page actually showing even
     /// when focus is elsewhere and the hero has been reset or refilled.
     var onVisibleItemChange: ((String?) -> Void)? = nil
-    let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
-    var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
-    var detailsAction: ((PlexItem) -> Void)? = nil
+    let primaryAction: (MediaItem, HomeCinematicHeroCallbacks) -> AnyView
+    var secondaryAction: ((MediaItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
+    var detailsAction: ((MediaItem) -> Void)? = nil
     /// iOS: long-press menu items for a page, on its artwork and (through
     /// `HomeCinematicHeroCallbacks.withContextMenu`) its button, always with
     /// `heroContextMenuPreview` as the lifted card.
-    var contextMenuActions: ((PlexItem) -> [HomeItemMenuAction])? = nil
+    var contextMenuActions: ((MediaItem) -> [HomeItemMenuAction])? = nil
 
     @State private var currentHeroIndex = Self.initialHeroIndex
     @State private var heroRotationRevision = 0
@@ -259,7 +259,7 @@ struct HomeCinematicHero: View {
     @State private var tvRestingPage = 0
     /// The page a jump left (`slideToPage`), drawn over the hero while it
     /// fades out.
-    @State private var jumpFadeItem: PlexItem?
+    @State private var jumpFadeItem: MediaItem?
     @State private var jumpFadeOpacity: Double = 0
     /// Height of a page's action row, so the fading page's text sits exactly
     /// where it did. It has no buttons of its own: they would be a second
@@ -270,7 +270,7 @@ struct HomeCinematicHero: View {
     /// The pointer is over the hero; shows `macPageChevrons`.
     @State private var isPointerOverHero = false
     /// The Mac's right-click menu for a page (`macContextMenu(_:)`).
-    var macContextMenuContent: ((PlexItem) -> AnyView)? = nil
+    var macContextMenuContent: ((MediaItem) -> AnyView)? = nil
     #endif
     @State private var preloadedHeroBackdropImages: [String: PlatformImage] = [:]
     @State private var preloadedHeroTitleImages: [String: PlatformImage] = [:]
@@ -633,7 +633,7 @@ struct HomeCinematicHero: View {
     }
     #endif
 
-    private func actionCallbacks(for item: PlexItem) -> HomeCinematicHeroCallbacks {
+    private func actionCallbacks(for item: MediaItem) -> HomeCinematicHeroCallbacks {
         var callbacks = HomeCinematicHeroCallbacks(
             pauseRotation: pauseHeroRotation,
             restartRotation: restartHeroRotation,
@@ -752,7 +752,7 @@ struct HomeCinematicHero: View {
     }
 
     private func heroSlide(
-        item: PlexItem,
+        item: MediaItem,
         heroHeight: CGFloat,
         backdropWidth: Int,
         backdropHeight: Int,
@@ -963,14 +963,14 @@ struct HomeCinematicHero: View {
     }
 
     /// The Mac's right-click menu for each page, on the artwork and the button.
-    func macContextMenu(_ content: @escaping (PlexItem) -> AnyView) -> Self {
+    func macContextMenu(_ content: @escaping (MediaItem) -> AnyView) -> Self {
         var copy = self
         copy.macContextMenuContent = content
         return copy
     }
     #endif
 
-    private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {
+    private func heroTitleBlockSpacing(for item: MediaItem) -> CGFloat {
         item.type == .movie ? layout.titleBlockSpacingMovie : layout.titleBlockSpacingOther
     }
 
@@ -1009,7 +1009,7 @@ struct HomeCinematicHero: View {
     }
 
     @ViewBuilder
-    private func heroTitle(for item: PlexItem, contentWidth: CGFloat, heroHeight: CGFloat) -> some View {
+    private func heroTitle(for item: MediaItem, contentWidth: CGFloat, heroHeight: CGFloat) -> some View {
         let logoWidth = min(contentWidth, layout.titleLogoMaxWidth)
         #if os(macOS)
         // A short window gets a smaller logo, so the text block still fits.
@@ -1025,7 +1025,7 @@ struct HomeCinematicHero: View {
     }
 
     @ViewBuilder
-    private func heroTitleArtwork(for item: PlexItem, width: CGFloat, height: CGFloat) -> some View {
+    private func heroTitleArtwork(for item: MediaItem, width: CGFloat, height: CGFloat) -> some View {
         if let image = preloadedHeroTitleImages[item.id.storageKey] {
             Image(platformImage: image)
                 .resizable()
@@ -1040,7 +1040,7 @@ struct HomeCinematicHero: View {
         }
     }
 
-    private func heroTitleFallback(for item: PlexItem) -> some View {
+    private func heroTitleFallback(for item: MediaItem) -> some View {
         // When a show/movie has no title-logo artwork, the title renders as text.
         // Force it white (rather than `Color.primary`) so it always reads against
         // the dark hero backdrop, even in Light mode. Only this fallback title is
@@ -1056,7 +1056,7 @@ struct HomeCinematicHero: View {
     }
 
     @ViewBuilder
-    private func heroActions(for item: PlexItem) -> some View {
+    private func heroActions(for item: MediaItem) -> some View {
         let callbacks = actionCallbacks(for: item)
         let primary = primaryAction(item, callbacks)
         let secondary = secondaryAction?(item, callbacks)
@@ -1080,7 +1080,7 @@ struct HomeCinematicHero: View {
         return CGSize(width: width, height: (width * 9 / 16).rounded())
     }
 
-    private func heroContextMenuPreview(for item: PlexItem) -> some View {
+    private func heroContextMenuPreview(for item: MediaItem) -> some View {
         let width = heroContextMenuPreviewSize.width
         let height = heroContextMenuPreviewSize.height
         let key = item.id.storageKey
@@ -1681,7 +1681,7 @@ struct HomeCinematicHero: View {
 
     @ViewBuilder
     private func heroBackdrop(
-        for item: PlexItem,
+        for item: MediaItem,
         width: Int,
         height: Int,
         heroHeight: CGFloat

@@ -11,7 +11,7 @@ struct PlayerControlsOverlay: View {
     /// overlay's visibility and can be driven by the remote bridge.
     let hudController: PlayerTVHUDController
     #endif
-    let mediaDetails: PlexMediaDetails?
+    let mediaDetails: MediaDetails?
     let debugInfo: PlaybackDebugInfo?
     let scrubPreviewSource: PlexScrubPreviewSource?
     let controlsTopSafeAreaInset: CGFloat
@@ -224,7 +224,7 @@ struct PlayerControlsContext {
     let isSharePlayActive: Bool
     let isStartingSharePlay: Bool
     let sharePlayParticipantCount: Int
-    let liveTVContext: PlexLivePlaybackContext?
+    let liveTVContext: LivePlaybackContext?
     /// Skip back / forward buttons (advanced playback controls).
     let showsSkipButtons: Bool
     let speedControl: PlayerSpeedControlAvailability

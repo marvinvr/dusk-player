@@ -62,7 +62,7 @@ struct HiddenLibrariesSettingsView: View {
                         title: showsServers ? group.serverName : "Libraries",
                         footer: index == groups.count - 1 ? Self.footerText : nil
                     ) {
-                        // Keyed on the library's own id: `PlexLibrary`'s
+                        // Keyed on the library's own id: `Library`'s
                         // Hashable conformance only looks at `key`, which two
                         // servers can both hand out.
                         ForEach(Array(group.libraries.enumerated()), id: \.element.id) { index, library in
@@ -132,7 +132,7 @@ struct HiddenLibrariesSettingsView: View {
 
     private func visibilityBinding(
         _ viewModel: LibraryOrderSettingsViewModel,
-        for library: PlexLibrary
+        for library: Library
     ) -> Binding<Bool> {
         Binding(
             get: { !viewModel.isHidden(library) },

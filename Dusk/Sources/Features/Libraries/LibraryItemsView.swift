@@ -8,7 +8,7 @@ struct LibraryItemsView: View {
     private let minimumColumnCount = 2
     private let controlCornerRadius: CGFloat = 18
 
-    @FocusState private var focusedItemID: PlexItemID?
+    @FocusState private var focusedItemID: MediaItemID?
     /// The latest A–Z jump; a newer one (scrubbing) supersedes it.
     @State private var jumpTask: Task<Void, Never>?
     @State private var isJumping = false
@@ -36,14 +36,14 @@ struct LibraryItemsView: View {
     @State private var revealsLetterIndex = false
     @State private var recentFocusMoves: [Date] = []
     /// The grid card that had focus last; still set while the strip has it.
-    @State private var lastFocusedItemID: PlexItemID?
+    @State private var lastFocusedItemID: MediaItemID?
     @State private var letterIndexHideTask: Task<Void, Never>?
     #endif
 
     init(
-        library: PlexLibrary,
+        library: Library,
         plexService: PlexService,
-        collection: PlexLibraryCollection? = nil,
+        collection: MediaCollection? = nil,
         initialGenre: LibraryGenreOption? = nil
     ) {
         _viewModel = State(initialValue: LibraryItemsViewModel(
@@ -280,7 +280,7 @@ struct LibraryItemsView: View {
     }
 
     #if os(tvOS)
-    private var lastFocusedItem: PlexItem? {
+    private var lastFocusedItem: MediaItem? {
         guard let lastFocusedItemID else { return nil }
         return viewModel.items.first { $0.id == lastFocusedItemID }
     }
@@ -640,7 +640,7 @@ struct LibraryItemsView: View {
 
     private func posterGrid(_ layout: AdaptivePosterGridLayout) -> some View {
         viewModel.gridColumnCount = layout.columns.count
-        return PlexItemPosterGrid(
+        return MediaItemPosterGrid(
             items: viewModel.items,
             layout: layout,
             rowSpacing: gridRowSpacing,
@@ -658,7 +658,7 @@ struct LibraryItemsView: View {
             focusedItemID: $focusedItemID,
             isScrollTargetLayout: true
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }

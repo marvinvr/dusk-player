@@ -119,10 +119,10 @@ enum DownloadStatus: String, Codable, Sendable {
 /// server. The server travels with the rating key because the same key means a
 /// different title on every other server the account has connected.
 struct DownloadScope: Hashable, Sendable {
-    let id: PlexItemID
-    let type: PlexMediaType
+    let id: MediaItemID
+    let type: MediaKind
 
-    init(id: PlexItemID, type: PlexMediaType) {
+    init(id: MediaItemID, type: MediaKind) {
         self.id = id
         self.type = type
     }
@@ -171,7 +171,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var serverID: String
     var serverName: String?
     let ratingKey: String
-    let type: PlexMediaType
+    let type: MediaKind
     /// Whether the item is a video clip (Plex reports clips as `type == "movie"`
     /// with `subtype == "clip"`). Drives 16:9 artwork and the `.downloadedVideo`
     /// route. Defaults to false so records persisted before the flag existed
@@ -201,23 +201,23 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// media/part IDs above remain stable even when the prepared file expires.
     var convertedMediaData: Data? = nil
 
-    var convertedMedia: PlexMedia? {
-        convertedMediaData.flatMap { try? JSONDecoder().decode(PlexMedia.self, from: $0) }
+    var convertedMedia: MediaVersion? {
+        convertedMediaData.flatMap { try? JSONDecoder().decode(MediaVersion.self, from: $0) }
     }
 
     /// The converted file plus the source part's external subtitle sidecars.
     /// Plex's audio/video and embedded subtitle metadata describe the original
     /// file and would mislabel the MKV's own tracks; sidecars can still mount.
-    func convertedMediaVersion(sourcePart: PlexMediaPart?) -> (media: PlexMedia, part: PlexMediaPart)? {
+    func convertedMediaVersion(sourcePart: MediaPart?) -> (media: MediaVersion, part: MediaPart)? {
         guard let media = convertedMedia, let converted = media.parts.first else { return nil }
         let sidecars = sourcePart?.streams.filter { $0.streamType == .subtitle && $0.key != nil } ?? []
-        let part = PlexMediaPart(
+        let part = MediaPart(
             id: converted.id, key: converted.key, file: converted.file, size: converted.size,
             container: converted.container, duration: converted.duration,
             videoProfile: converted.videoProfile, audioProfile: converted.audioProfile,
             accessible: converted.accessible, exists: converted.exists, streams: sidecars
         )
-        return (PlexMedia(
+        return (MediaVersion(
             id: media.id, container: media.container, videoCodec: media.videoCodec, audioCodec: media.audioCodec,
             videoResolution: media.videoResolution, videoProfile: media.videoProfile, audioProfile: media.audioProfile,
             audioChannels: media.audioChannels, width: media.width, height: media.height, bitrate: media.bitrate,
@@ -268,8 +268,8 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     }
 
     /// Server-scoped identity of the downloaded item, for playback and lookups.
-    var itemID: PlexItemID {
-        PlexItemID(serverID: serverID, ratingKey: ratingKey)
+    var itemID: MediaItemID {
+        MediaItemID(serverID: serverID, ratingKey: ratingKey)
     }
 
     var displayTitle: String {
@@ -297,7 +297,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// The source part's external subtitles that can be saved for offline
     /// playback: text sidecars only. Bitmap sidecars (VobSub) and unknown
     /// codecs are left on the server.
-    static func offlineSubtitleStreams(in sourcePart: PlexMediaPart?) -> [PlexStream] {
+    static func offlineSubtitleStreams(in sourcePart: MediaPart?) -> [MediaStream] {
         (sourcePart?.streams ?? []).filter {
             $0.streamType == .subtitle && $0.key?.nilIfEmpty != nil
                 && SubtitleTextDecoder.fileExtension(for: $0.codec) != nil
@@ -315,7 +315,7 @@ extension DownloadedMediaRecord {
         serverID = try container.decode(String.self, forKey: .serverID)
         serverName = try container.decodeIfPresent(String.self, forKey: .serverName)
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
-        type = try container.decode(PlexMediaType.self, forKey: .type)
+        type = try container.decode(MediaKind.self, forKey: .type)
         isClip = try container.decodeIfPresent(Bool.self, forKey: .isClip) ?? false
         title = try container.decode(String.self, forKey: .title)
         subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
@@ -374,8 +374,8 @@ struct DownloadedShowSummary: Identifiable, Hashable {
         DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
     }
 
-    var itemID: PlexItemID {
-        PlexItemID(serverID: serverID, ratingKey: ratingKey)
+    var itemID: MediaItemID {
+        MediaItemID(serverID: serverID, ratingKey: ratingKey)
     }
 
     var subtitle: String {

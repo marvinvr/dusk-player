@@ -9,7 +9,7 @@ struct PreferredVersionSelectionTests {
     private let fullHD = Self.version(id: 2, resolution: "1080", width: 1920, height: 1080, bitrate: 12_000, size: 12_000_000_000)
     private let hd = Self.version(id: 3, resolution: "720", width: 1280, height: 720, bitrate: 4_000, size: 3_000_000_000)
 
-    private func pick(_ versions: [PlexMedia], _ preference: PreferredMediaVersion, max: MaxResolution = .tenEightyP) -> Int? {
+    private func pick(_ versions: [MediaVersion], _ preference: PreferredMediaVersion, max: MaxResolution = .tenEightyP) -> Int? {
         StreamResolver.selectMediaVersion(
             from: versions,
             preferredMaxResolution: max,
@@ -56,7 +56,7 @@ struct PreferredVersionSelectionTests {
     }
 
     @Test func smallestFileSumsMultiPartVersions() {
-        let split = PlexMedia(
+        let split = MediaVersion(
             id: 8, container: "mkv", videoCodec: "h264", audioCodec: "aac", videoResolution: "720",
             videoProfile: nil, audioProfile: nil, audioChannels: 2, width: 1280, height: 720,
             bitrate: 1_000, duration: nil, optimizedForStreaming: nil,
@@ -96,8 +96,8 @@ struct PreferredVersionSelectionTests {
         bitrate: Int?,
         size: Int?,
         exists: Bool? = nil
-    ) -> PlexMedia {
-        PlexMedia(
+    ) -> MediaVersion {
+        MediaVersion(
             id: id, container: "mkv", videoCodec: "hevc", audioCodec: "eac3", videoResolution: resolution,
             videoProfile: nil, audioProfile: nil, audioChannels: 6, width: width, height: height,
             bitrate: bitrate, duration: 7_200_000, optimizedForStreaming: nil,
@@ -105,8 +105,8 @@ struct PreferredVersionSelectionTests {
         )
     }
 
-    private static func part(id: Int, size: Int?, exists: Bool? = nil) -> PlexMediaPart {
-        PlexMediaPart(
+    private static func part(id: Int, size: Int?, exists: Bool? = nil) -> MediaPart {
+        MediaPart(
             id: id, key: "/library/parts/\(id)/file.mkv", file: nil, size: size, container: "mkv",
             duration: nil, videoProfile: nil, audioProfile: nil, accessible: nil, exists: exists, streams: []
         )

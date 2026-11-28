@@ -17,9 +17,9 @@ struct PlaylistsView: View {
 struct PlaylistsRootContent: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
-    @State private var renaming: PlexPlaylist?
+    @State private var renaming: Playlist?
     @State private var renameText = ""
-    @State private var deleting: PlexPlaylist?
+    @State private var deleting: Playlist?
     @State private var actionError: String?
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.gridHorizontalPadding
@@ -41,7 +41,7 @@ struct PlaylistsRootContent: View {
                     }
                 case .loaded:
                     FeatureEmptyStateView(
-                        systemImage: PlexLibraryType.playlists.systemImage,
+                        systemImage: LibraryKind.playlists.systemImage,
                         title: "No playlists",
                         message: "Long-press any movie or episode and choose Add to Playlist."
                     )
@@ -115,7 +115,7 @@ struct PlaylistsRootContent: View {
         }
     }
 
-    private func card(_ playlist: PlexPlaylist, width: CGFloat) -> some View {
+    private func card(_ playlist: Playlist, width: CGFloat) -> some View {
         let side = Int(width.rounded(.up))
         return PosterNavigationCard(
             route: .playlist(id: playlist.id),
@@ -159,7 +159,7 @@ struct PlaylistsRootContent: View {
 
     /// `12 items · 18 h`, `· Smart` for smart playlists, and the server's
     /// name only when playlists come from more than one server.
-    private func subtitle(for playlist: PlexPlaylist) -> String? {
+    private func subtitle(for playlist: Playlist) -> String? {
         var parts: [String] = []
         if let count = playlist.leafCount {
             parts.append(count == 1 ? "1 item" : "\(count) items")
@@ -176,7 +176,7 @@ struct PlaylistsRootContent: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    private func play(_ playlist: PlexPlaylist, shuffled: Bool) async {
+    private func play(_ playlist: Playlist, shuffled: Bool) async {
         do {
             guard let queue = try await actions.queue(for: playlist, shuffled: shuffled).queue else {
                 actionError = "“\(playlist.title)” has nothing Dusk can play."
@@ -188,7 +188,7 @@ struct PlaylistsRootContent: View {
         }
     }
 
-    private func rename(_ playlist: PlexPlaylist, to title: String) async {
+    private func rename(_ playlist: Playlist, to title: String) async {
         do {
             _ = try await actions.rename(playlist, to: title)
         } catch {
@@ -196,7 +196,7 @@ struct PlaylistsRootContent: View {
         }
     }
 
-    private func delete(_ playlist: PlexPlaylist) async {
+    private func delete(_ playlist: Playlist) async {
         do {
             try await actions.delete(playlist)
         } catch {

@@ -3,7 +3,7 @@ import Foundation
 /// A collection inside a library section, loaded from the section's
 /// `collection` filter values (e.g. one collection per channel in an
 /// "Other Videos" library).
-struct PlexLibraryCollection: Sendable, Hashable, Identifiable {
+struct MediaCollection: Sendable, Hashable, Identifiable {
     /// Collection tag ids are per-server, so the server belongs in the identity.
     var id: String {
         guard let serverID else { return key }
@@ -25,7 +25,7 @@ struct PlexLibraryCollection: Sendable, Hashable, Identifiable {
     }
 }
 
-extension PlexLibraryCollection {
+extension MediaCollection {
     /// Builds a collection from a `/library/sections/{id}/collection` filter
     /// Directory entry. Depending on server version the entry's key is a plain
     /// tag id, an `.../all?collection=<id>` fast key, or a path ending in the

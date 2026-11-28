@@ -47,7 +47,7 @@ extension PlexService {
     /// in their identifier are not reliably the section (`movie.curated.2.1`),
     /// so the section comes from the row's titles when they say, else every
     /// library on that server is asked.
-    func managedHomeRows(for hub: PlexHub) async -> [PlexManagedHomeRow] {
+    func managedHomeRows(for hub: HomeRow) async -> [PlexManagedHomeRow] {
         var rows: [PlexManagedHomeRow] = []
         for source in hub.sources where canManageHomeRows(serverID: source.serverID) {
             let representative = source.serverID == hub.sources.first?.serverID
@@ -76,7 +76,7 @@ extension PlexService {
     /// Whether Home may offer to hide a row, without asking any server yet.
     /// Account-wide rows (`home.*`: Continue Watching, the type-wide Recently
     /// Added) are not in any library's list.
-    func canHideHomeRow(_ hub: PlexHub) -> Bool {
+    func canHideHomeRow(_ hub: HomeRow) -> Bool {
         guard let identifier = hub.hubIdentifier, !identifier.hasPrefix("home.") else { return false }
         return hub.sources.contains { canManageHomeRows(serverID: $0.serverID) }
     }

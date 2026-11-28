@@ -9,8 +9,8 @@ import Foundation
 /// for the same reason — two servers' "1423" are not the same show.
 struct RecommendationTasteSignal: Sendable {
     let identity: String
-    let id: PlexItemID
-    let type: PlexMediaType?
+    let id: MediaItemID
+    let type: MediaKind?
     var weight: Double
     var lastViewedAt: Int
 
@@ -50,9 +50,9 @@ enum RecommendationGenreScoring {
     }
 
     static func scoreGenres(
-        fromRecentlyViewedItems items: [PlexItem],
+        fromRecentlyViewedItems items: [MediaItem],
         minimumScore: Double = 0.25,
-        genresForItem: (PlexItem) -> [LibraryGenreOption]
+        genresForItem: (MediaItem) -> [LibraryGenreOption]
     ) -> [RecommendationScoredGenre] {
         guard !items.isEmpty else { return [] }
 
@@ -162,24 +162,24 @@ struct RecommendationSeededRandomizer {
 
 /// The titles a recommendation pass has already used.
 ///
-/// Tracks both the exact copy (`PlexItemID`) and the *content* (`PlexContentKey`)
+/// Tracks both the exact copy (`MediaItemID`) and the *content* (`ContentKey`)
 /// because shelves now draw from several servers at once: without the content
 /// key the same film sitting on two servers would fill two slots of the same
 /// row, which is precisely the duplication merging is supposed to remove.
 struct RecommendationSeenTitles {
-    private var ids: Set<PlexItemID> = []
-    private var contentKeys: Set<PlexContentKey> = []
+    private var ids: Set<MediaItemID> = []
+    private var contentKeys: Set<ContentKey> = []
 
     init() {}
 
-    func contains(_ item: PlexItem) -> Bool {
+    func contains(_ item: MediaItem) -> Bool {
         ids.contains(item.id) || contentKeys.contains(item.contentKey)
             || !item.movieContentKeys.isDisjoint(with: contentKeys)
     }
 
     /// Returns false when the title was already used.
     @discardableResult
-    mutating func insert(_ item: PlexItem) -> Bool {
+    mutating func insert(_ item: MediaItem) -> Bool {
         let alreadySeen = contains(item)
         ids.insert(item.id)
         contentKeys.insert(item.contentKey)
@@ -187,7 +187,7 @@ struct RecommendationSeenTitles {
         return !alreadySeen
     }
 
-    mutating func formUnion(_ items: some Sequence<PlexItem>) {
+    mutating func formUnion(_ items: some Sequence<MediaItem>) {
         for item in items {
             insert(item)
         }
@@ -200,7 +200,7 @@ enum RecommendationCandidateSupport {
         return metadataKey.split(separator: "/").last.map(String.init)
     }
 
-    static func isCompleted(_ item: PlexItem) -> Bool {
+    static func isCompleted(_ item: MediaItem) -> Bool {
         switch item.type {
         case .show, .season:
             if let leafCount = item.leafCount,

@@ -182,7 +182,7 @@ struct PlaybackNowPlayingTests {
         let json = episode
             ? #"{"ratingKey":"1","key":"/library/metadata/1","type":"episode","title":"Episode Title","grandparentTitle":"Example Show","parentIndex":2,"index":3,"duration":120000}"#
             : #"{"ratingKey":"2","key":"/library/metadata/2","type":"movie","title":"Movie Title","year":2026,"duration":120000}"#
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(json.utf8))
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data(json.utf8))
         controller.beginSession(
             details: details, engine: engine, plexService: PlexService(),
             skipBackwardInterval: 10, skipForwardInterval: 30

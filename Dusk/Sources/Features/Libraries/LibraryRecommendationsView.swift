@@ -27,7 +27,7 @@ struct LibraryRecommendationsView: View {
     private let continueWatchingAspectRatio: CGFloat = 16.0 / 9.0
 
     init(
-        library: PlexLibrary,
+        library: Library,
         plexService: PlexService,
         navigationTitle: String
     ) {
@@ -42,7 +42,7 @@ struct LibraryRecommendationsView: View {
     }
 
     init(
-        libraries: [PlexLibrary],
+        libraries: [Library],
         plexService: PlexService,
         navigationTitle: String,
         browseTargets: [LibraryBrowseTarget],
@@ -330,7 +330,7 @@ struct LibraryRecommendationsView: View {
     }
 
     private var continueWatchingSection: some View {
-        PlexItemActionCarouselSection(
+        MediaItemActionCarouselSection(
             title: viewModel.continueWatchingTitle,
             items: viewModel.continueWatching,
             action: { play($0) },
@@ -344,7 +344,7 @@ struct LibraryRecommendationsView: View {
             progress: { viewModel.progress(for: $0) },
             isUnwatchedEpisodeImage: { $0.landscapeImageIsUnwatchedEpisodeStill }
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -360,7 +360,7 @@ struct LibraryRecommendationsView: View {
 
     @ViewBuilder
     private func personalizedShelfSection(_ shelf: LibraryPersonalizedShelf) -> some View {
-        PlexItemPosterCarouselSection(
+        MediaItemPosterCarouselSection(
             title: shelf.title,
             items: shelf.items,
             horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
@@ -372,7 +372,7 @@ struct LibraryRecommendationsView: View {
                 viewModel.posterURL(for: item, width: width, height: height)
             }
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -385,7 +385,7 @@ struct LibraryRecommendationsView: View {
     }
 
     @ViewBuilder
-    private func hubSection(_ hub: PlexHub, items: [PlexItem]) -> some View {
+    private func hubSection(_ hub: HomeRow, items: [MediaItem]) -> some View {
         let showsShowAll = viewModel.shouldShowAll(for: hub)
 
         #if os(macOS)
@@ -403,8 +403,8 @@ struct LibraryRecommendationsView: View {
     /// A row of episodes ("New Episodes") as 16:9 stills titled "S2 E3 · Title"
     /// over the show's name: the show's poster on every card read as
     /// duplicates.
-    private func episodeHubSection(_ hub: PlexHub, items: [PlexItem], showsShowAll: Bool) -> some View {
-        PlexItemPosterCarouselSection(
+    private func episodeHubSection(_ hub: HomeRow, items: [MediaItem], showsShowAll: Bool) -> some View {
+        MediaItemPosterCarouselSection(
             title: viewModel.normalizedTitle(for: hub),
             items: items,
             posterWidth: DuskPosterMetrics.videoCarouselWidth,
@@ -418,7 +418,7 @@ struct LibraryRecommendationsView: View {
             cardTitle: { $0.macEpisodeCardTitle },
             isUnwatchedEpisodeImage: { $0.landscapeImageIsUnwatchedEpisodeStill }
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -432,8 +432,8 @@ struct LibraryRecommendationsView: View {
     #endif
 
     @ViewBuilder
-    private func posterHubSection(_ hub: PlexHub, items: [PlexItem], showsShowAll: Bool) -> some View {
-        PlexItemPosterCarouselSection(
+    private func posterHubSection(_ hub: HomeRow, items: [MediaItem], showsShowAll: Bool) -> some View {
+        MediaItemPosterCarouselSection(
             title: viewModel.normalizedTitle(for: hub),
             items: items,
             posterWidth: shelfPosterWidth,
@@ -446,7 +446,7 @@ struct LibraryRecommendationsView: View {
             },
             playThroughTitle: viewModel.isVideoLibrary ? viewModel.normalizedTitle(for: hub) : nil
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -462,7 +462,7 @@ struct LibraryRecommendationsView: View {
     private func channelShelfSection(_ row: LibraryChannelRow) -> some View {
         let shelf = row.shelf
 
-        PlexItemPosterCarouselSection(
+        MediaItemPosterCarouselSection(
             title: shelf.collection.title,
             items: shelf.items,
             posterWidth: shelfPosterWidth,
@@ -478,7 +478,7 @@ struct LibraryRecommendationsView: View {
             },
             playThroughTitle: shelf.collection.title
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -493,7 +493,7 @@ struct LibraryRecommendationsView: View {
     /// Collection posters open the collection; "Show All" the library's
     /// Collections grid.
     private func collectionShelfSection(_ shelf: LibraryCollectionShelf) -> some View {
-        PlexItemPosterCarouselSection(
+        MediaItemPosterCarouselSection(
             title: viewModel.title(for: shelf),
             items: shelf.items,
             horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
@@ -506,7 +506,7 @@ struct LibraryRecommendationsView: View {
     }
 
     private var rediscoverSection: some View {
-        PlexItemPosterCarouselSection(
+        MediaItemPosterCarouselSection(
             title: "Rediscover",
             items: viewModel.rediscoverItems,
             posterWidth: shelfPosterWidth,
@@ -517,7 +517,7 @@ struct LibraryRecommendationsView: View {
                 viewModel.posterURL(for: item, width: width, height: height)
             }
         ) { item in
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -556,7 +556,7 @@ struct LibraryRecommendationsView: View {
         #endif
     }
 
-    private func play(_ item: PlexItem) {
+    private func play(_ item: MediaItem) {
         Task {
             await playback.play(
                 id: item.id,
@@ -567,7 +567,7 @@ struct LibraryRecommendationsView: View {
         }
     }
 
-    private func detailsLabel(for item: PlexItem) -> String {
+    private func detailsLabel(for item: MediaItem) -> String {
         if item.isClip {
             return "Go to Video"
         }

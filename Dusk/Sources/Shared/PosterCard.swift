@@ -19,7 +19,7 @@ struct PosterArtwork: View {
     /// while an image is still loading.
     var placeholderTitle: String? = nil
     /// A watched movie, episode or video: the checkmark badge in the
-    /// top-trailing corner (`WatchedBadge`). See `PlexItem.posterShowsWatchedBadge`.
+    /// top-trailing corner (`WatchedBadge`). See `MediaItem.posterShowsWatchedBadge`.
     var showsWatchedBadge: Bool = false
 
     @Environment(\.blursUnwatchedEpisodes) private var blursUnwatchedEpisodes
@@ -299,7 +299,7 @@ extension EnvironmentValues {
     @Entry var blursUnwatchedEpisodes = false
 }
 
-extension PlexItem {
+extension MediaItem {
     /// A TV episode the user hasn't finished. In-progress counts, as in Plex's
     /// own Unwatched filter: the rest of the episode is still ahead.
     var isUnwatchedEpisode: Bool {
@@ -539,8 +539,8 @@ struct UnwatchedCountBadge: View {
     }
 }
 
-struct PlexItemContextMenuContent: View {
-    let item: PlexItem
+struct MediaItemContextMenuContent: View {
+    let item: MediaItem
     var onMarkWatched: (() -> Void)?
     var onMarkUnwatched: (() -> Void)?
     var detailsRoute: AppNavigationRoute? = nil
@@ -603,7 +603,7 @@ struct PlexItemContextMenuContent: View {
     }
 }
 
-extension PlexItem {
+extension MediaItem {
     var canMarkWatchedFromContextMenu: Bool {
         switch type {
         case .movie, .episode, .clip:
@@ -664,8 +664,8 @@ extension PlexItem {
 
     /// A relative of this item — its season or its show — always lives on the
     /// same server, so the route inherits this item's `serverID`.
-    private func relativeID(_ ratingKey: String) -> PlexItemID {
-        PlexItemID(serverID: serverID, ratingKey: ratingKey)
+    private func relativeID(_ ratingKey: String) -> MediaItemID {
+        MediaItemID(serverID: serverID, ratingKey: ratingKey)
     }
 
     // tvOS has one page per show that every episode/season/show route opens, so

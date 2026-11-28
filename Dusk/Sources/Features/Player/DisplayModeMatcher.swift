@@ -66,8 +66,8 @@ enum DisplayModeMatcher {
     /// Dolby Vision mode requested — every other path shows a DV file's
     /// HDR10/HLG base layer.
     static func apply(
-        media: PlexMedia,
-        part: PlexMediaPart,
+        media: MediaVersion,
+        part: MediaPart,
         decision: PlaybackDecision,
         dolbyVision: DolbyVisionConfiguration? = nil
     ) {
@@ -183,7 +183,7 @@ enum DisplayModeMatcher {
     /// exact 23.976 request is what makes a 24000/1001 file play without any
     /// cadence correction at all. tvOS picks the closest mode the TV actually
     /// supports, so an unsupported request degrades instead of failing.
-    private static func matchableRefreshRate(for stream: PlexStream?) -> Float? {
+    private static func matchableRefreshRate(for stream: MediaStream?) -> Float? {
         guard let frameRate = stream?.frameRate, frameRate >= 20, frameRate <= 120 else {
             return nil
         }
@@ -204,8 +204,8 @@ enum DisplayModeMatcher {
     /// dynamic range from. Only the codec, dimensions, and the three color tags
     /// matter here — this description is never used to decode anything.
     private static func makeFormatDescription(
-        media: PlexMedia,
-        videoStream: PlexStream?,
+        media: MediaVersion,
+        videoStream: MediaStream?,
         dolbyVision: DolbyVisionConfiguration?
     ) -> CMVideoFormatDescription? {
         let width = media.width ?? videoStream?.width ?? 1920
@@ -261,7 +261,7 @@ enum DisplayModeMatcher {
     // correct for the overwhelming majority of a Plex library and keeps an
     // unknown value from being reported as HDR.
 
-    private static func colorPrimaries(for stream: PlexStream?) -> CFString {
+    private static func colorPrimaries(for stream: MediaStream?) -> CFString {
         switch stream?.colorPrimaries?.lowercased() {
         case "bt2020", "bt.2020":
             kCMFormatDescriptionColorPrimaries_ITU_R_2020
@@ -276,7 +276,7 @@ enum DisplayModeMatcher {
         }
     }
 
-    private static func transferFunction(for stream: PlexStream?) -> CFString {
+    private static func transferFunction(for stream: MediaStream?) -> CFString {
         // The transfer characteristic is what actually decides SDR vs HDR here,
         // so it is read from the stream's own TRC rather than inferred from the
         // looser "is this HDR" heuristics used elsewhere.
@@ -295,7 +295,7 @@ enum DisplayModeMatcher {
         return kCMFormatDescriptionTransferFunction_ITU_R_709_2
     }
 
-    private static func yCbCrMatrix(for stream: PlexStream?) -> CFString {
+    private static func yCbCrMatrix(for stream: MediaStream?) -> CFString {
         switch stream?.colorSpace?.lowercased() {
         case let space? where space.contains("2020"):
             kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
@@ -306,7 +306,7 @@ enum DisplayModeMatcher {
         }
     }
 
-    private static func dynamicRangeLabel(for stream: PlexStream?) -> String {
+    private static func dynamicRangeLabel(for stream: MediaStream?) -> String {
         let transfer = transferFunction(for: stream)
         if CFEqual(transfer, kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ) {
             // A DV file outside a DV remux shows its HDR10 base layer.

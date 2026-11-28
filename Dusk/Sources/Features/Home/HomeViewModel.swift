@@ -12,8 +12,8 @@ import SwiftUI
 /// empty list: a server that times out during a refresh keeps the rows it last
 /// gave Home instead of dropping out of the merge for that run.
 private struct HomeServerPayload: Sendable {
-    let hubs: [PlexHub]?
-    let continueWatching: [PlexItem]?
+    let hubs: [HomeRow]?
+    let continueWatching: [MediaItem]?
     let failure: String?
 
     /// Fills in whatever this answer is missing from the server's previous one.
@@ -79,7 +79,7 @@ private func loadHomePayload(
 private func loadHomeHubs(
     _ service: PlexService,
     _ serverID: String
-) async -> Result<[PlexHub], any Error> {
+) async -> Result<[HomeRow], any Error> {
     do {
         return .success(try await service.getHubs(serverID: serverID))
     } catch {
@@ -90,7 +90,7 @@ private func loadHomeHubs(
 private func loadHomeContinueWatching(
     _ service: PlexService,
     _ serverID: String
-) async -> Result<[PlexItem], any Error> {
+) async -> Result<[MediaItem], any Error> {
     do {
         return .success(try await service.getContinueWatching(serverID: serverID))
     } catch {
@@ -104,9 +104,9 @@ final class HomeViewModel {
     /// Upper bound on cinematic hero slides. tvOS only — see `heroItems()`.
     private let heroItemLimit = 10
 
-    private(set) var hubs: [PlexHub] = []
+    private(set) var hubs: [HomeRow] = []
     private(set) var personalizedShelves: [HomePersonalizedShelf] = []
-    private(set) var continueWatching: [PlexItem] = []
+    private(set) var continueWatching: [MediaItem] = []
     /// One row per playlist pinned to Home, in pin order. See
     /// `refreshPinnedPlaylists()`.
     private(set) var pinnedPlaylistRows: [HomePinnedPlaylistRow] = []
@@ -467,7 +467,7 @@ final class HomeViewModel {
         of payloads: [HomeServerPayload?],
         maxRecentlyAddedItems: Int,
         animated: Bool
-    ) -> (hubs: [PlexHub], continueWatching: [PlexItem]) {
+    ) -> (hubs: [HomeRow], continueWatching: [MediaItem]) {
         let merged = mergedScreen(from: payloads)
         publish(
             hubs: merged.hubs,
@@ -483,9 +483,9 @@ final class HomeViewModel {
     /// again with one more answer refines the same list.
     private func mergedScreen(
         from payloads: [HomeServerPayload?]
-    ) -> (hubs: [PlexHub], continueWatching: [PlexItem]) {
-        var hubsByServer: [[PlexHub]] = []
-        var continueWatchingByServer: [[PlexItem]] = []
+    ) -> (hubs: [HomeRow], continueWatching: [MediaItem]) {
+        var hubsByServer: [[HomeRow]] = []
+        var continueWatchingByServer: [[MediaItem]] = []
         hubsByServer.reserveCapacity(payloads.count)
         continueWatchingByServer.reserveCapacity(payloads.count)
 
@@ -526,8 +526,8 @@ final class HomeViewModel {
     }
 
     private func publish(
-        hubs newHubs: [PlexHub],
-        continueWatching newContinueWatching: [PlexItem],
+        hubs newHubs: [HomeRow],
+        continueWatching newContinueWatching: [MediaItem],
         maxRecentlyAddedItems: Int,
         animated: Bool
     ) {
@@ -571,7 +571,7 @@ final class HomeViewModel {
 
     /// The Watchlist row's titles. Empty unless plex.tv answered with some:
     /// a failed or missing Watchlist is no row, never an error or a spinner.
-    var watchlistEntries: [PlexWatchlistEntry] {
+    var watchlistEntries: [WatchlistEntry] {
         plexService.watchlist.isLoaded ? plexService.watchlist.entries : []
     }
 
@@ -582,7 +582,7 @@ final class HomeViewModel {
         return HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: plexService.watchlist.homeHubs)
     }
 
-    func watchlistMatch(for entry: PlexWatchlistEntry) -> PlexItem? {
+    func watchlistMatch(for entry: WatchlistEntry) -> MediaItem? {
         plexService.watchlist.match(for: entry)
     }
 
@@ -611,7 +611,7 @@ final class HomeViewModel {
         pinnedPlaylistsTask = Task { @MainActor [weak self] in
             var rows: [HomePinnedPlaylistRow] = []
             for pin in pins {
-                let entries: [PlexPlaylistEntry]
+                let entries: [PlaylistEntry]
                 do {
                     entries = try await service.getPlaylistEntries(ratingKey: pin.id.ratingKey, serverID: pin.id.serverID)
                 } catch {
@@ -638,7 +638,7 @@ final class HomeViewModel {
         return false
     }
 
-    func setWatched(_ watched: Bool, for item: PlexItem) async {
+    func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
             try await plexService.setWatchedAcrossServers(watched, id: item.id)
             await load()
@@ -647,7 +647,7 @@ final class HomeViewModel {
         }
     }
 
-    func removeFromContinueWatching(_ item: PlexItem) async {
+    func removeFromContinueWatching(_ item: MediaItem) async {
         // Optimistically drop the item so the hero updates immediately, then
         // reconcile with the server's refreshed Continue Watching hub.
         let removedID = item.id
@@ -680,13 +680,13 @@ final class HomeViewModel {
         await load()
     }
 
-    func canHideRow(_ hub: PlexHub) -> Bool {
+    func canHideRow(_ hub: HomeRow) -> Bool {
         plexService.canHideHomeRow(hub)
     }
 
     /// Takes the row off the owner's Home on every server it comes from
     /// (`PlexService+HomeRows`). Settings › Home › Hidden Rows brings it back.
-    func hideRow(_ hub: PlexHub) async {
+    func hideRow(_ hub: HomeRow) async {
         let rowID = hub.id
         withAnimation(.easeInOut(duration: 0.3)) {
             hubs.removeAll { $0.id == rowID }
@@ -712,35 +712,35 @@ final class HomeViewModel {
         await load()
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func fallbackPosterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func fallbackPosterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.fallbackPosterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func landscapeImageURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func landscapeImageURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.landscapeImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func progress(for item: PlexItem) -> Double? {
+    func progress(for item: MediaItem) -> Double? {
         item.posterProgress
     }
 
-    func displayTitle(for item: PlexItem) -> String {
+    func displayTitle(for item: MediaItem) -> String {
         item.continueWatchingDisplayTitle
     }
 
-    func displaySubtitle(for item: PlexItem) -> String? {
+    func displaySubtitle(for item: MediaItem) -> String? {
         item.continueWatchingDisplaySubtitle
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.standardPosterSubtitle
     }
 
-    func heroItems() -> [PlexItem] {
+    func heroItems() -> [MediaItem] {
         // In-progress clips stay out of the cinematic hero rotation: their 16:9
         // frame grabs read poorly as full-bleed backdrops. They still surface in
         // the Videos tab's Continue Watching row.
@@ -758,12 +758,12 @@ final class HomeViewModel {
         #endif
     }
 
-    func heroEpisodeTitle(for item: PlexItem) -> String? {
+    func heroEpisodeTitle(for item: MediaItem) -> String? {
         guard item.type == .episode else { return nil }
         return item.title == displayTitle(for: item) ? nil : item.title
     }
 
-    func heroBackgroundURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func heroBackgroundURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         plexService.imageURL(
             for: heroBackgroundPath(for: item),
             serverID: item.serverID,
@@ -772,7 +772,7 @@ final class HomeViewModel {
         )
     }
 
-    func heroTitleLogoURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func heroTitleLogoURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         plexService.imageURL(
             for: item.clearLogo,
             serverID: item.serverID,
@@ -781,7 +781,7 @@ final class HomeViewModel {
         )
     }
 
-    func heroMetadata(for item: PlexItem) -> [String] {
+    func heroMetadata(for item: MediaItem) -> [String] {
         var parts: [String] = []
 
         switch item.type {
@@ -810,7 +810,7 @@ final class HomeViewModel {
         return parts
     }
 
-    func heroSummary(for item: PlexItem) -> String? {
+    func heroSummary(for item: MediaItem) -> String? {
         guard let summary = item.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
               !summary.isEmpty else {
             return nil
@@ -819,7 +819,7 @@ final class HomeViewModel {
         return summary
     }
 
-    func heroProgressLabel(for item: PlexItem) -> String? {
+    func heroProgressLabel(for item: MediaItem) -> String? {
         guard let duration = item.duration, duration > 0 else { return nil }
 
         if let offset = item.viewOffset, offset > 0 {
@@ -841,7 +841,7 @@ final class HomeViewModel {
         return MediaTextFormatter.playbackDuration(milliseconds: duration)
     }
 
-    func heroPrimaryActionTitle(for item: PlexItem) -> String {
+    func heroPrimaryActionTitle(for item: MediaItem) -> String {
         if let offset = item.viewOffset,
            offset > 0,
            let resumeText = MediaTextFormatter.playbackDuration(milliseconds: offset) {
@@ -851,11 +851,11 @@ final class HomeViewModel {
         return "Play"
     }
 
-    func visibleItems(in hub: PlexHub) -> [PlexItem] {
+    func visibleItems(in hub: HomeRow) -> [MediaItem] {
         hub.items.filter { !shouldHideHomeItem($0) }
     }
 
-    func inlineItems(in hub: PlexHub, maxRecentlyAddedItems: Int) -> [PlexItem] {
+    func inlineItems(in hub: HomeRow, maxRecentlyAddedItems: Int) -> [MediaItem] {
         let items = visibleItems(in: hub)
 
         guard isRecentlyAddedHub(hub) else { return items }
@@ -865,8 +865,8 @@ final class HomeViewModel {
     /// Plex lists a new season and a newer episode of the same show, or two of
     /// its seasons, as separate Recently Added entries. Home keeps the newest
     /// one per show, the way Plex's own clients group them.
-    private func oneCardPerShow(_ items: [PlexItem]) -> [PlexItem] {
-        var seenShows: Set<PlexItemID> = []
+    private func oneCardPerShow(_ items: [MediaItem]) -> [MediaItem] {
+        var seenShows: Set<MediaItemID> = []
         return items.filter { item in
             let showRatingKey: String?
             switch item.type {
@@ -876,14 +876,14 @@ final class HomeViewModel {
             default: return true
             }
             guard let showRatingKey else { return true }
-            return seenShows.insert(PlexItemID(serverID: item.serverID, ratingKey: showRatingKey)).inserted
+            return seenShows.insert(MediaItemID(serverID: item.serverID, ratingKey: showRatingKey)).inserted
         }
     }
 
     /// A merged row is pageable when any of its sources is, and its total size
     /// is the sum across servers — otherwise a row merged from two servers of
     /// six items each would never offer "Show All".
-    func shouldShowAll(for hub: PlexHub, maxRecentlyAddedItems: Int) -> Bool {
+    func shouldShowAll(for hub: HomeRow, maxRecentlyAddedItems: Int) -> Bool {
         guard isRecentlyAddedHub(hub), hub.isPageable else { return false }
 
         let visibleCount = visibleItems(in: hub).count
@@ -894,11 +894,11 @@ final class HomeViewModel {
 
     /// A hub renders as a 16:9 video carousel when every visible item in it is
     /// a clip. Mixed or non-clip hubs keep the standard 2:3 poster layout.
-    func isVideoHub(_ hub: PlexHub) -> Bool {
+    func isVideoHub(_ hub: HomeRow) -> Bool {
         visibleItems(in: hub).isAllClips
     }
 
-    func isRecentlyAddedHub(_ hub: PlexHub) -> Bool {
+    func isRecentlyAddedHub(_ hub: HomeRow) -> Bool {
         let normalizedTitle = hub.title.lowercased()
 
         guard normalizedTitle.contains("recently added") else { return false }
@@ -913,7 +913,7 @@ final class HomeViewModel {
     }
 
     private func startRecentlyAddedExpansion(
-        from baseHubs: [PlexHub],
+        from baseHubs: [HomeRow],
         generation: Int,
         maxRecentlyAddedItems: Int
     ) {
@@ -941,7 +941,7 @@ final class HomeViewModel {
     }
 
     private func startPersonalizedShelvesLoad(
-        excluding continueWatchingItems: [PlexItem],
+        excluding continueWatchingItems: [MediaItem],
         generation: Int,
         maxRecentlyAddedItems: Int
     ) {
@@ -974,10 +974,10 @@ final class HomeViewModel {
     /// following every contributing server's own hub key and re-merging. A row
     /// whose expansion comes back empty keeps the items it already had.
     private func expandedRecentlyAddedHubs(
-        from hubs: [PlexHub],
+        from hubs: [HomeRow],
         maxRecentlyAddedItems: Int
-    ) async -> [PlexHub] {
-        var expandedHubs: [PlexHub] = []
+    ) async -> [HomeRow] {
+        var expandedHubs: [HomeRow] = []
         expandedHubs.reserveCapacity(hubs.count)
 
         for hub in hubs {
@@ -1004,32 +1004,32 @@ final class HomeViewModel {
         return expandedHubs
     }
 
-    private func shouldHideHomeHub(_ hub: PlexHub) -> Bool {
+    private func shouldHideHomeHub(_ hub: HomeRow) -> Bool {
         HomeHubFilter.shouldHide(hub: hub)
     }
 
-    private func shouldHideHomeItem(_ item: PlexItem) -> Bool {
+    private func shouldHideHomeItem(_ item: MediaItem) -> Bool {
         HomeHubFilter.shouldHide(item: item)
     }
 
     /// Drops anything already in Continue Watching from the personalized rows.
     ///
-    /// Matching is on `PlexItemID` (an episode's show is identified by its
+    /// Matching is on `MediaItemID` (an episode's show is identified by its
     /// grandparent key *on that episode's server*, because rating keys alias
     /// across servers) plus the cross-server content key, so the same film in
     /// progress on one server is not recommended from another.
     private func filterPersonalizedShelves(
         _ shelves: [HomePersonalizedShelf],
-        excluding continueWatchingItems: [PlexItem],
+        excluding continueWatchingItems: [MediaItem],
         maxRecentlyAddedItems: Int
     ) -> [HomePersonalizedShelf] {
-        var excludedIDs: Set<PlexItemID> = []
-        var excludedContentKeys: Set<PlexContentKey> = []
+        var excludedIDs: Set<MediaItemID> = []
+        var excludedContentKeys: Set<ContentKey> = []
 
         for item in continueWatchingItems {
             for ratingKey in [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
                 .compactMap({ $0 }) {
-                excludedIDs.insert(PlexItemID(serverID: item.serverID, ratingKey: ratingKey))
+                excludedIDs.insert(MediaItemID(serverID: item.serverID, ratingKey: ratingKey))
             }
             excludedContentKeys.insert(item.contentKey)
             excludedContentKeys.formUnion(item.movieContentKeys)
@@ -1053,7 +1053,7 @@ final class HomeViewModel {
         }
     }
 
-    private func heroDurationText(for item: PlexItem) -> String? {
+    private func heroDurationText(for item: MediaItem) -> String? {
         guard let duration = item.duration, duration > 0 else { return nil }
 
         if let offset = item.viewOffset, offset > 0 {
@@ -1067,7 +1067,7 @@ final class HomeViewModel {
         return MediaTextFormatter.playbackDuration(milliseconds: duration)
     }
 
-    private func heroBackgroundPath(for item: PlexItem) -> String? {
+    private func heroBackgroundPath(for item: MediaItem) -> String? {
         switch item.type {
         case .episode:
             return item.grandparentArt ?? item.art ?? item.banner ?? item.thumb ?? item.grandparentThumb

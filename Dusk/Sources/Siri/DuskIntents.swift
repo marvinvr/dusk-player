@@ -18,7 +18,7 @@ struct PlexTitleEntity: AppEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Movie or Show")
     static let defaultQuery = PlexTitleEntityQuery()
 
-    /// `PlexItemID.storageKey`: server and rating key.
+    /// `MediaItemID.storageKey`: server and rating key.
     let id: String
     let kind: SiriTitleKind
     let title: String
@@ -68,7 +68,7 @@ struct PlexTitleEntity: AppEntity {
     }
 
     var candidate: SiriTitleCandidate? {
-        guard let itemID = PlexItemID(storageKey: id) else { return nil }
+        guard let itemID = MediaItemID(storageKey: id) else { return nil }
         return SiriTitleCandidate(id: itemID, kind: kind, title: title, year: year)
     }
 }
@@ -80,7 +80,7 @@ struct PlexTitleEntityQuery: EntityStringQuery {
     func entities(for identifiers: [PlexTitleEntity.ID]) async throws -> [PlexTitleEntity] {
         let catalog = SiriTitleCatalog.shared
         return identifiers.compactMap { identifier in
-            if let entry = PlexItemID(storageKey: identifier).flatMap(catalog.entry(for:)) {
+            if let entry = MediaItemID(storageKey: identifier).flatMap(catalog.entry(for:)) {
                 return PlexTitleEntity(entry)
             }
             return siri.recentlyMatched[identifier]

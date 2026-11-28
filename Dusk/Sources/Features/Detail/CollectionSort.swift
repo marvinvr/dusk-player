@@ -24,7 +24,7 @@ enum CollectionSort {
     /// missing the value are skipped, and a few inversions are tolerated
     /// (Plex's collation of titles differs slightly from ours); a server
     /// that ignored the sort leaves about half the neighbours out of order.
-    static func follows(_ items: [PlexItem], sort: LibrarySortOption) -> Bool {
+    static func follows(_ items: [MediaItem], sort: LibrarySortOption) -> Bool {
         let keys = items.compactMap { key(for: $0, field: sort.field) }
         guard keys.count > 2 else { return true }
         var inversions = 0
@@ -39,7 +39,7 @@ enum CollectionSort {
 
     /// `items` in `sort`'s order; titles missing the value go last, and
     /// ties keep the collection's order.
-    static func sorted(_ items: [PlexItem], by sort: LibrarySortOption) -> [PlexItem] {
+    static func sorted(_ items: [MediaItem], by sort: LibrarySortOption) -> [MediaItem] {
         if sort.field == .random { return items.shuffled() }
         let keyed = items.enumerated().map { (offset: $0.offset, item: $0.element, key: key(for: $0.element, field: sort.field)) }
         return keyed.sorted { lhs, rhs in
@@ -59,7 +59,7 @@ enum CollectionSort {
         .map(\.item)
     }
 
-    private static func key(for item: PlexItem, field: LibrarySortField) -> SortKey? {
+    private static func key(for item: MediaItem, field: LibrarySortField) -> SortKey? {
         switch field {
         case .title:
             return .text(titleSortKey(item.title))
@@ -122,11 +122,11 @@ struct CollectionSortStore {
         self.defaults = defaults
     }
 
-    func sort(for id: PlexItemID) -> LibrarySortOption? {
+    func sort(for id: MediaItemID) -> LibrarySortOption? {
         defaults.string(forKey: Self.key(for: id)).flatMap(LibrarySortOption.init(rawValue:))
     }
 
-    func setSort(_ sort: LibrarySortOption?, for id: PlexItemID) {
+    func setSort(_ sort: LibrarySortOption?, for id: MediaItemID) {
         if let sort {
             defaults.set(sort.rawValue, forKey: Self.key(for: id))
         } else {
@@ -134,7 +134,7 @@ struct CollectionSortStore {
         }
     }
 
-    static func key(for id: PlexItemID) -> String {
+    static func key(for id: MediaItemID) -> String {
         "\(keyPrefix)\(id.serverID ?? "")|\(id.ratingKey)"
     }
 }

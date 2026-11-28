@@ -167,8 +167,8 @@ final class PlaybackCoordinator {
     /// so none of it may be fanned out to the pool.
     var activePlaybackServerID: String?
     var activePlaybackUsesLocalDownload = false
-    var activeItemDetails: PlexMediaDetails?
-    var activeLiveTVContext: PlexLivePlaybackContext?
+    var activeItemDetails: MediaDetails?
+    var activeLiveTVContext: LivePlaybackContext?
     /// A past IPTV programme (catch-up) is playing. No live context, so the
     /// player is the ordinary on-demand one, but like a live IPTV channel
     /// nothing of it may reach Plex.
@@ -197,8 +197,8 @@ final class PlaybackCoordinator {
     /// The first and the latest item a session committed since the player cover
     /// last opened. Survives teardown so the page under the cover can follow a
     /// continuous-play run once it closes (see `advancedEpisodeOnClose`).
-    @ObservationIgnored var coverFirstCommittedItem: PlexMediaDetails?
-    @ObservationIgnored var coverLastCommittedItem: PlexMediaDetails?
+    @ObservationIgnored var coverFirstCommittedItem: MediaDetails?
+    @ObservationIgnored var coverLastCommittedItem: MediaDetails?
     /// Bumped once the player cover has finished dismissing (its `onDismiss`).
     /// `showPlayer` turns false when the dismissal starts, before tvOS hands
     /// focus back to whatever had it, so a page moving focus must wait for this.
@@ -226,7 +226,7 @@ final class PlaybackCoordinator {
     @ObservationIgnored nonisolated(unsafe) var queueLookaheadTask: Task<Void, Never>?
     /// How the queue lookahead (and a failed queue start) reads an item's
     /// metadata. A seam for tests; always the item's own server.
-    @ObservationIgnored var queueItemLookup: @MainActor (PlaybackQueueItem) async throws -> PlexMediaDetails = { _ in
+    @ObservationIgnored var queueItemLookup: @MainActor (PlaybackQueueItem) async throws -> MediaDetails = { _ in
         throw PlexServiceError.noServerConnected
     }
     /// One-shot per attempt: observes the engine after an online direct-play
@@ -348,9 +348,9 @@ final class PlaybackCoordinator {
 
     /// Server-scoped identity of what is playing, for call sites that route by
     /// item rather than by rating key.
-    var activeItemID: PlexItemID? {
+    var activeItemID: MediaItemID? {
         guard let ratingKey else { return nil }
-        return PlexItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
+        return MediaItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
     }
 
     var canSharePlayCurrentPlayback: Bool {
@@ -418,7 +418,7 @@ final class PlaybackCoordinator {
     /// copy is the same length (see `runPlaybackAttempt`), so callers that know
     /// the item's duration should pass it.
     func play(
-        id: PlexItemID,
+        id: MediaItemID,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
         placeholder: PlaybackPlaceholder? = nil,
@@ -454,9 +454,9 @@ final class PlaybackCoordinator {
     }
 
     func playLiveTV(
-        channel: PlexLiveChannel,
-        program: PlexLiveProgram?,
-        lineup: PlexLiveTVLineup,
+        channel: LiveChannel,
+        program: LiveProgram?,
+        lineup: LiveTVLineup,
         allowsDirectPlay: Bool = true
     ) async {
         if let stream = channel.iptv {
@@ -521,7 +521,7 @@ final class PlaybackCoordinator {
                 partID: tune.part.id,
                 sanitizedPlaybackURL: plexService.sanitizedPlaybackURLString(for: tune.playbackURL)
             )
-            let liveContext = PlexLivePlaybackContext(
+            let liveContext = LivePlaybackContext(
                 lineup: lineup,
                 channel: channel,
                 program: program,
@@ -593,8 +593,8 @@ final class PlaybackCoordinator {
     /// Returns false when the programme cannot be played back.
     @discardableResult
     func playIPTVCatchUp(
-        channel: PlexLiveChannel,
-        program: PlexLiveProgram,
+        channel: LiveChannel,
+        program: LiveProgram,
         startPosition: TimeInterval? = nil
     ) async -> Bool {
         guard let live = channel.iptv,
@@ -616,10 +616,10 @@ final class PlaybackCoordinator {
     /// player (HUD, live seek bar, channel switching, audio tracks, AirPlay);
     /// nothing is reported to Plex, Trakt or the offline sync.
     private func playIPTV(
-        channel: PlexLiveChannel,
+        channel: LiveChannel,
         stream: IPTVPlayableChannel,
-        program: PlexLiveProgram?,
-        lineup: PlexLiveTVLineup?,
+        program: LiveProgram?,
+        lineup: LiveTVLineup?,
         startPosition: TimeInterval? = nil
     ) async {
         sharePlayController.leave()
@@ -672,7 +672,7 @@ final class PlaybackCoordinator {
         // A catch-up programme has no live context: it plays in the
         // on-demand player.
         let liveContext = lineup.flatMap { lineup in
-            isCatchUp ? nil : PlexLivePlaybackContext(
+            isCatchUp ? nil : LivePlaybackContext(
                 lineup: lineup,
                 channel: channel,
                 program: program,
@@ -731,7 +731,7 @@ final class PlaybackCoordinator {
     }
 
     /// "Channel · Tue 18:00": which airing a catch-up session is.
-    private static func catchUpSubtitle(channel: PlexLiveChannel, program: PlexLiveProgram?) -> String {
+    private static func catchUpSubtitle(channel: LiveChannel, program: LiveProgram?) -> String {
         guard let beginsAt = program?.beginsAt else { return channel.displayTitle }
         let day = Calendar.current.isDateInToday(beginsAt)
             ? ""
@@ -819,9 +819,9 @@ final class PlaybackCoordinator {
     }
 
     private func fetchLiveTVSchedule(
-        provider: PlexLiveTVProvider,
-        channel: PlexLiveChannel
-    ) async -> [PlexLiveProgram] {
+        provider: LiveTVProvider,
+        channel: LiveChannel
+    ) async -> [LiveProgram] {
         var programs = await liveTVGuidePrograms(provider: provider, channel: channel, date: .now)
         // Plex's grid is queried a day at a time, so a session running into the
         // evening outlives today's schedule. Pull tomorrow in as well.
@@ -838,10 +838,10 @@ final class PlaybackCoordinator {
     }
 
     private func liveTVGuidePrograms(
-        provider: PlexLiveTVProvider,
-        channel: PlexLiveChannel,
+        provider: LiveTVProvider,
+        channel: LiveChannel,
         date: Date
-    ) async -> [PlexLiveProgram] {
+    ) async -> [LiveProgram] {
         let lineup = try? await plexService.getLiveTVGuide(
             provider: provider,
             channels: [channel],
@@ -856,7 +856,7 @@ final class PlaybackCoordinator {
     /// - Parameter restrictToItemServer: keeps the session on the item's own
     ///   server (SharePlay: the whole group is watching that server's copy).
     func playFromStart(
-        id: PlexItemID,
+        id: MediaItemID,
         restrictToItemServer: Bool = false,
         placeholder: PlaybackPlaceholder? = nil
     ) async {
@@ -874,7 +874,7 @@ final class PlaybackCoordinator {
     /// Screenshot mode (`ScreenshotMode`): starts at an exact position instead
     /// of the item's resume point. With `-DuskScreenshotUpNext` it then raises
     /// the full-screen Up Next screen for the following episode.
-    func playForScreenshot(id: PlexItemID, startPosition: TimeInterval?) async {
+    func playForScreenshot(id: MediaItemID, startPosition: TimeInterval?) async {
         await beginPlayback(
             id: id,
             startPositionOverride: startPosition,
@@ -895,7 +895,7 @@ final class PlaybackCoordinator {
     /// from: another server's copy of the same title has entirely different
     /// versions, so falling back would silently play something else.
     func playVersion(
-        id: PlexItemID,
+        id: MediaItemID,
         mediaID: Int,
         resumeOffsetMilliseconds: Int?,
         placeholder: PlaybackPlaceholder? = nil
@@ -913,7 +913,7 @@ final class PlaybackCoordinator {
     /// Present the cover on a loading placeholder first, then prepare the session
     /// in the background so pressing Play feels instant.
     private func beginPlayback(
-        id: PlexItemID,
+        id: MediaItemID,
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
@@ -1010,7 +1010,7 @@ final class PlaybackCoordinator {
     /// Next Episode moved it past the item the cover opened with; nil when it
     /// never left that item. Detail pages read it when `playerCoverDismissals`
     /// moves to put their episode list on it instead of where the run began.
-    var advancedEpisodeOnClose: PlexMediaDetails? {
+    var advancedEpisodeOnClose: MediaDetails? {
         guard let last = coverLastCommittedItem,
               last.type == .episode,
               let first = coverFirstCommittedItem,
@@ -1137,7 +1137,7 @@ final class PlaybackCoordinator {
         // the readiness check below rejects anything else. Falling back to this
         // participant's higher-priority server would only tear the session down.
         await playFromStart(
-            id: PlexItemID(
+            id: MediaItemID(
                 serverID: activity.serverIdentifier,
                 ratingKey: activity.ratingKey
             ),

@@ -127,7 +127,7 @@ extension PlexService {
         context: PlexDownloadQueueContext,
         queueID: String,
         itemID: String,
-        sourceMedia: PlexMedia
+        sourceMedia: MediaVersion
     ) async throws -> PlexPreparedDownload {
         let itemPath = "/downloadQueue/\(try PlexDownloadQueueResponse.id(queueID))/item/\(try PlexDownloadQueueResponse.id(itemID))"
         let data = try await downloadQueueRequest(context: context, path: itemPath + "/decision", canExpire: true)

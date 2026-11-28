@@ -94,7 +94,7 @@ struct LiveTimelineSnapshot: Equatable {
     /// The program the window was built from. Nil when the guide has no
     /// coverage for the playhead, in which case the window is the rewindable
     /// session instead.
-    let program: PlexLiveProgram?
+    let program: LiveProgram?
     /// Oldest instant the tuned session can still be rewound to, when known.
     let earliestReachableDate: Date?
 
@@ -131,7 +131,7 @@ struct LiveTimelineSnapshot: Equatable {
     }
 
     static func make(
-        context: PlexLivePlaybackContext,
+        context: LivePlaybackContext,
         position: TimeInterval,
         liveEdge: TimeInterval,
         seekableRange: ClosedRange<TimeInterval>?,
@@ -222,7 +222,7 @@ extension PlayerViewModel {
 
     /// The program the play bar is currently showing. Falls back to the program
     /// that was airing when the channel was tuned.
-    var liveProgram: PlexLiveProgram? {
+    var liveProgram: LiveProgram? {
         liveTimeline?.program ?? liveTVContext?.program
     }
 

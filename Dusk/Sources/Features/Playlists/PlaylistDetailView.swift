@@ -23,7 +23,7 @@ struct PlaylistDetailView: View {
     @State private var editMode: EditMode = .inactive
     #endif
 
-    init(id: PlexItemID, plexService: PlexService) {
+    init(id: MediaItemID, plexService: PlexService) {
         _viewModel = State(initialValue: PlaylistDetailViewModel(id: id, plexService: plexService))
     }
 
@@ -319,7 +319,7 @@ struct PlaylistDetailView: View {
     private var iosRows: some View {
         if viewModel.entries.isEmpty {
             FeatureEmptyStateView(
-                systemImage: PlexLibraryType.playlists.systemImage,
+                systemImage: LibraryKind.playlists.systemImage,
                 title: "This playlist is empty"
             )
             .frame(maxWidth: .infinity)
@@ -368,7 +368,7 @@ struct PlaylistDetailView: View {
     private var tvRows: some View {
         if viewModel.entries.isEmpty {
             FeatureEmptyStateView(
-                systemImage: PlexLibraryType.playlists.systemImage,
+                systemImage: LibraryKind.playlists.systemImage,
                 title: "This playlist is empty"
             )
             .frame(maxWidth: .infinity)
@@ -392,14 +392,14 @@ struct PlaylistDetailView: View {
     #endif
 
     @ViewBuilder
-    private func entryContextMenu(_ entry: PlexPlaylistEntry) -> some View {
+    private func entryContextMenu(_ entry: PlaylistEntry) -> some View {
         Button {
             play(viewModel.queue(startingAt: entry))
         } label: {
             Label("Play from Here", systemImage: "play.fill")
         }
 
-        PlexItemContextMenuContent(
+        MediaItemContextMenuContent(
             item: entry.item,
             onMarkWatched: {
                 Task { await viewModel.setWatched(true, for: entry) }
@@ -444,7 +444,7 @@ struct PlaylistDetailView: View {
 /// playlist gets its own row near the top of Home (`HomePinnedPlaylistShelf`).
 struct PinPlaylistToHomeButton: View {
     @Environment(PlexService.self) private var plexService
-    let playlist: PlexPlaylist
+    let playlist: Playlist
 
     var body: some View {
         let isPinned = plexService.isPlaylistPinned(playlist.id)
@@ -462,7 +462,7 @@ struct PinPlaylistToHomeButton: View {
 /// episode or the year, and the runtime. Watched items get the quiet
 /// checkmark.
 struct PlaylistEntryRow: View {
-    let item: PlexItem
+    let item: MediaItem
     let thumbnailURL: URL?
 
     private var artworkWidth: CGFloat {
@@ -537,7 +537,7 @@ struct PlaylistEntryRow: View {
 /// A focusable playlist row: lifts with a `TextPrimary` low-opacity band
 /// (STYLE §4) instead of the system button platter.
 private struct PlaylistTVEntryButton: View {
-    let item: PlexItem
+    let item: MediaItem
     let thumbnailURL: URL?
     let action: () -> Void
     @FocusState private var isFocused: Bool

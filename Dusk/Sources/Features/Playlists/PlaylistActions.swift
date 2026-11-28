@@ -9,7 +9,7 @@ struct PlaylistActions {
 
     /// The queue for a whole playlist: in order from `startIndex`, or
     /// shuffled once for the session.
-    func queue(for playlist: PlexPlaylist, entries: [PlexPlaylistEntry], startIndex: Int = 0, shuffled: Bool = false) -> PlaybackQueue? {
+    func queue(for playlist: Playlist, entries: [PlaylistEntry], startIndex: Int = 0, shuffled: Bool = false) -> PlaybackQueue? {
         let items = entries.map { PlaybackQueueItem(item: $0.item) }
         if shuffled {
             return PlaybackQueue.shuffledPlaylist(id: playlist.id, title: playlist.title, items: items)
@@ -18,13 +18,13 @@ struct PlaylistActions {
     }
 
     /// Fetches the entries first (the grid has none loaded).
-    func queue(for playlist: PlexPlaylist, shuffled: Bool) async throws -> (queue: PlaybackQueue?, entries: [PlexPlaylistEntry]) {
+    func queue(for playlist: Playlist, shuffled: Bool) async throws -> (queue: PlaybackQueue?, entries: [PlaylistEntry]) {
         let entries = try await plexService.getPlaylistEntries(ratingKey: playlist.ratingKey, serverID: playlist.serverID)
         let start = shuffled ? 0 : PlaylistActions.resumeIndex(in: entries) ?? 0
         return (queue(for: playlist, entries: entries, startIndex: start, shuffled: shuffled), entries)
     }
 
-    func rename(_ playlist: PlexPlaylist, to title: String) async throws -> PlexPlaylist {
+    func rename(_ playlist: Playlist, to title: String) async throws -> Playlist {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != playlist.title else { return playlist }
         let session = plexService.playlists.sessionGeneration
@@ -35,7 +35,7 @@ struct PlaylistActions {
         return renamed
     }
 
-    func delete(_ playlist: PlexPlaylist) async throws {
+    func delete(_ playlist: Playlist) async throws {
         let session = plexService.playlists.sessionGeneration
         try await plexService.deletePlaylist(playlist)
         plexService.playlists.remove(playlist.id, sessionGeneration: session)
@@ -44,7 +44,7 @@ struct PlaylistActions {
 
     /// Where Play / Resume starts: the first item that is not fully watched
     /// (in progress or never watched). Nil when every item is watched.
-    static func resumeIndex(in entries: [PlexPlaylistEntry]) -> Int? {
+    static func resumeIndex(in entries: [PlaylistEntry]) -> Int? {
         entries.firstIndex { entry in
             entry.item.isPartiallyWatched || !entry.item.isWatched
         }
@@ -52,14 +52,14 @@ struct PlaylistActions {
 
     /// "Resume" once anything has been watched or is in progress; plain
     /// "Play" for an untouched (or fully watched) playlist.
-    static func playButtonTitle(for entries: [PlexPlaylistEntry]) -> String {
+    static func playButtonTitle(for entries: [PlaylistEntry]) -> String {
         guard resumeIndex(in: entries) != nil else { return "Play" }
         let started = entries.contains { $0.item.isWatched || $0.item.isPartiallyWatched }
         return started ? "Resume" : "Play"
     }
 
     /// `12 items · 18 h 20 min`, then `7 watched` and `Smart` where they apply.
-    static func metadataLine(for playlist: PlexPlaylist, entries: [PlexPlaylistEntry]?, serverName: String?) -> String? {
+    static func metadataLine(for playlist: Playlist, entries: [PlaylistEntry]?, serverName: String?) -> String? {
         var parts: [String] = []
         let count = entries?.count ?? playlist.leafCount
         if let count {

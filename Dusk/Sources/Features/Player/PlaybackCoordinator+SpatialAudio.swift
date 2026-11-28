@@ -56,8 +56,8 @@ extension PlaybackCoordinator {
     func requestSpatialAudioRemux(
         ratingKey: String,
         mediaIndex: Int,
-        media: PlexMedia,
-        part: PlexMediaPart,
+        media: MediaVersion,
+        part: MediaPart,
         audioStreamID: Int?,
         subtitleStreamID: Int?,
         convertsAudio: Bool = false,
@@ -374,7 +374,7 @@ extension PlaybackCoordinator {
     }
 
     private func requestHDRServerRemux(
-        ratingKey: String, mediaIndex: Int, part: PlexMediaPart,
+        ratingKey: String, mediaIndex: Int, part: MediaPart,
         audioStreamID: Int?, subtitleStreamID: Int?,
         sessionIdentifier: String, serverID: String?, stages: [HDRRemuxFallback]
     ) async -> SpatialAudioRemux? {
@@ -742,7 +742,7 @@ extension PlaybackCoordinator {
     /// HDR setting is on (any remux of it: HDR, Atmos or converted audio);
     /// nil for every other session.
     func remuxDolbyVisionConfiguration(
-        for media: PlexMedia,
+        for media: MediaVersion,
         decision: PlaybackDecision
     ) -> DolbyVisionConfiguration? {
         guard decision.isSpatialAudio else { return nil }
@@ -759,7 +759,7 @@ extension PlaybackCoordinator {
     /// on and the conversion has not failed for this item; nil otherwise.
     /// The single place that decides; extend it rather than checking elsewhere.
     func remuxDolbyVision7Conversion(
-        for media: PlexMedia,
+        for media: MediaVersion,
         decision: PlaybackDecision
     ) -> DolbyVisionConfiguration? {
         guard decision.isSpatialAudio,
@@ -774,7 +774,7 @@ extension PlaybackCoordinator {
     /// `CODECS` for the remux variant, for when Plex's master omits it: the
     /// part's video plus the audio the remux carries (E-AC-3 when Plex
     /// converts the active stream, otherwise that stream's copied codec).
-    func remuxVariantCodecs(in part: PlexMediaPart) -> String? {
+    func remuxVariantCodecs(in part: MediaPart) -> String? {
         guard let video = part.streams.first(where: { $0.streamType == .video }) else { return nil }
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         let audioCodec: String?
@@ -791,7 +791,7 @@ extension PlaybackCoordinator {
     /// Whether the remux's audio is E-AC-3 + JOC. Only then does the session
     /// go through `RemuxHLSLoader`: claiming Atmos for a plain 5.1 E-AC-3
     /// track would mislabel it to the decoder (and to an HDMI receiver).
-    func activeAudioStreamIsDolbyAtmos(in part: PlexMediaPart) -> Bool {
+    func activeAudioStreamIsDolbyAtmos(in part: MediaPart) -> Bool {
         if let conversion = remuxAudioConversion, conversion.audioStreamID == activeAudioStreamID {
             return conversion.restoresDolbyAtmos
         }

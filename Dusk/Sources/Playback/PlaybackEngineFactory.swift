@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Usage:
 /// ```swift
-/// let details: PlexMediaDetails = ...
+/// let details: MediaDetails = ...
 /// let media = details.media[0]
 /// let engine = PlaybackEngineFactory.makeEngine(for: media)
 /// ```
@@ -42,7 +42,7 @@ enum PlaybackEngineFactory {
     ///   - forceVLCKit: User preference override to always use VLCKit.
     /// - Returns: A configured `PlaybackEngine` ready for `load(url:startPosition:)`.
     static func makeEngine(
-        for media: PlexMedia,
+        for media: MediaVersion,
         forceAVPlayer: Bool = false,
         forceVLCKit: Bool = false
     ) -> any PlaybackEngine {

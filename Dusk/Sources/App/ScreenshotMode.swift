@@ -203,12 +203,12 @@ enum ScreenshotMode {
     struct Destination {
         var tab: MainTabItem = .home
         var routes: [AppNavigationRoute] = []
-        var playID: PlexItemID?
+        var playID: MediaItemID?
         var playOffsetMilliseconds: Int?
         var sheet: Sheet?
         var addToPlaylist: AddToPlaylistTarget?
         /// Play this playlist from `playlistStart`.
-        var playlistID: PlexItemID?
+        var playlistID: MediaItemID?
         var playlistStart = 0
         /// Play this channel of the first IPTV source.
         var iptvChannelIndex: Int?
@@ -249,7 +249,7 @@ enum ScreenshotMode {
     @MainActor
     static func consumeDestination(
         plexService: PlexService,
-        libraries: [PlexLibrary],
+        libraries: [Library],
         downloadManager: DownloadManager
     ) async -> Destination? {
         guard isActive, !hasRouted, let screen,
@@ -261,15 +261,15 @@ enum ScreenshotMode {
 
         // The demo servers hand out globally unique rating keys, so an item is
         // found by asking each connected server for it.
-        var item: PlexItemID?
+        var item: MediaItemID?
         if [.playlist, .playlistPlay].contains(screen),
            let ratingKey = defaults.string(forKey: Key.item)?.nilIfEmpty,
            let primary = plexService.pool.primary?.serverID {
             // A playlist is not library metadata; the demo has one server.
-            item = PlexItemID(serverID: primary, ratingKey: ratingKey)
+            item = MediaItemID(serverID: primary, ratingKey: ratingKey)
         } else if let ratingKey = defaults.string(forKey: Key.item)?.nilIfEmpty {
             guard let serverID = await server(holding: ratingKey, plexService: plexService) else { return nil }
-            item = PlexItemID(serverID: serverID, ratingKey: ratingKey)
+            item = MediaItemID(serverID: serverID, ratingKey: ratingKey)
         }
         hasRouted = true
 
@@ -277,7 +277,7 @@ enum ScreenshotMode {
         await seedRequestedDownloads(plexService: plexService, downloadManager: downloadManager)
 
         let itemType = defaults.string(forKey: Key.itemType)
-            .flatMap { PlexMediaType(rawValue: $0) } ?? .movie
+            .flatMap { MediaKind(rawValue: $0) } ?? .movie
 
         var destination = Destination()
         switch screen {
@@ -301,7 +301,7 @@ enum ScreenshotMode {
                 ))]
             }
         case .library:
-            let type = itemType == .show ? PlexLibraryType.show : .movie
+            let type = itemType == .show ? LibraryKind.show : .movie
             destination.tab = .library(type)
             // `-DuskScreenshotLibrary <title>` picks one by name.
             let title = defaults.string(forKey: Key.library)?.nilIfEmpty
@@ -310,7 +310,7 @@ enum ScreenshotMode {
             }
         case .collections:
             // `-DuskScreenshotItemType show` for the TV library's.
-            let type = itemType == .show ? PlexLibraryType.show : .movie
+            let type = itemType == .show ? LibraryKind.show : .movie
             destination.tab = .library(type)
             if let library = libraries.first(where: { $0.libraryType == type }) {
                 destination.routes = [.libraryCollections(library)]
@@ -437,14 +437,14 @@ enum ScreenshotMode {
     }
 
     @MainActor
-    private static func downloadEntries(_ key: String, plexService: PlexService) async -> [(PlexMediaType, PlexItemID)] {
+    private static func downloadEntries(_ key: String, plexService: PlexService) async -> [(MediaKind, MediaItemID)] {
         guard let spec = defaults.string(forKey: key)?.nilIfEmpty else { return [] }
-        var entries: [(PlexMediaType, PlexItemID)] = []
+        var entries: [(MediaKind, MediaItemID)] = []
         for entry in spec.split(separator: ",") {
             let parts = entry.split(separator: "@")[0].split(separator: ":").map(String.init)
-            guard parts.count == 2, let type = PlexMediaType(rawValue: parts[0]),
+            guard parts.count == 2, let type = MediaKind(rawValue: parts[0]),
                   let serverID = await server(holding: parts[1], plexService: plexService) else { continue }
-            entries.append((type, PlexItemID(serverID: serverID, ratingKey: parts[1])))
+            entries.append((type, MediaItemID(serverID: serverID, ratingKey: parts[1])))
         }
         return entries
     }

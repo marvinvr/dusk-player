@@ -10,11 +10,11 @@ struct CollectionDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CollectionDetailViewModel
-    @FocusState private var focusedItemID: PlexItemID?
+    @FocusState private var focusedItemID: MediaItemID?
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
-    init(id: PlexItemID, plexService: PlexService) {
+    init(id: MediaItemID, plexService: PlexService) {
         _viewModel = State(initialValue: CollectionDetailViewModel(id: id, plexService: plexService))
     }
 
@@ -307,7 +307,7 @@ struct CollectionDetailView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                PlexItemPosterGrid(
+                MediaItemPosterGrid(
                     items: viewModel.items,
                     layout: layout,
                     rowSpacing: DuskPosterMetrics.gridRowSpacing,
@@ -323,7 +323,7 @@ struct CollectionDetailView: View {
                     playThroughTitle: viewModel.title,
                     focusedItemID: $focusedItemID
                 ) { item in
-                    PlexItemContextMenuContent(
+                    MediaItemContextMenuContent(
                         item: item,
                         onMarkWatched: {
                             Task { await viewModel.setWatched(true, for: item) }
@@ -352,7 +352,7 @@ struct CollectionDetailView: View {
     }
 
     /// Plays `item` and then the rest of the collection, in its order.
-    private func play(_ item: PlexItem) {
+    private func play(_ item: MediaItem) {
         Task {
             await playback.play(
                 id: item.id,

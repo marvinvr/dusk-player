@@ -30,7 +30,7 @@ struct IPTVResumeKey: Hashable, Sendable {
 
     /// A catch-up programme of an IPTV channel; nil for anything else (a
     /// live channel has no resume point).
-    init?(channel: PlexLiveChannel, program: PlexLiveProgram) {
+    init?(channel: LiveChannel, program: LiveProgram) {
         guard let live = channel.iptv, let start = program.beginsAt, let end = program.endsAt else { return nil }
         self.init(sourceIdentity: live.sourceIdentity, channelStreamURL: live.streamURL, start: start, end: end)
     }

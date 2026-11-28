@@ -2,7 +2,7 @@ import Foundation
 
 /// One page of a photo library query and the size of the whole result.
 struct PlexPhotoPage: Sendable {
-    let items: [PlexPhotoItem]
+    let items: [PhotoItem]
     let totalSize: Int?
 }
 
@@ -64,7 +64,7 @@ extension PlexService {
             queryItems: queryItems,
             serverID: targetID
         )
-        let response = try decodeJSON(MetadataResponse<PlexPhotoItem>.self, from: data, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<PhotoItem>.self, from: data, serverID: targetID)
         return PlexPhotoPage(
             items: (response.MediaContainer.Metadata ?? []).filter { $0.kind != nil },
             totalSize: response.MediaContainer.totalSize
@@ -73,7 +73,7 @@ extension PlexService {
 
     /// A square-cropped grid tile. `imageURL` asks the transcoder to fill the
     /// box (`minSize=1`), and the tile crops what overflows.
-    func photoThumbnailURL(for item: PlexPhotoItem, side: Int) -> URL? {
+    func photoThumbnailURL(for item: PhotoItem, side: Int) -> URL? {
         imageURL(
             for: item.isAlbum ? (item.composite ?? item.thumb) : item.thumb,
             serverID: item.serverID,
@@ -86,7 +86,7 @@ extension PlexService {
     /// `width`×`height` points (no `minSize`, which would overflow a portrait
     /// photo), with the transcoder applying the EXIF rotation and turning HEIC
     /// into JPEG. Clips have no transcodable original, so they use their thumb.
-    func photoDisplayURL(for item: PlexPhotoItem, width: Int, height: Int) -> URL? {
+    func photoDisplayURL(for item: PhotoItem, width: Int, height: Int) -> URL? {
         guard item.kind == .photo, let partKey = item.partKey,
               let connection = pool.connection(for: item.serverID),
               let original = transcodeSourceURLString(for: partKey, serverID: item.serverID) else {

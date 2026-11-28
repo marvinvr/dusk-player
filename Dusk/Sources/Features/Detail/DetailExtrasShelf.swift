@@ -4,13 +4,13 @@ import SwiftUI
 @MainActor
 @Observable
 final class DetailExtrasModel {
-    private(set) var extras: [PlexExtra] = []
+    private(set) var extras: [Extra] = []
 
-    @ObservationIgnored private var loadedID: PlexItemID?
+    @ObservationIgnored private var loadedID: MediaItemID?
 
     /// - Parameter delay: waited before the request, so a row that follows
     ///   focus (the tvOS episode row) does not fetch for every card zapped past.
-    func load(itemID: PlexItemID?, plexService: PlexService, delay: Duration = .zero) async {
+    func load(itemID: MediaItemID?, plexService: PlexService, delay: Duration = .zero) async {
         guard itemID != loadedID else { return }
         // Another title's extras must not linger while this one's load.
         loadedID = nil
@@ -32,13 +32,13 @@ final class DetailExtrasModel {
         extras = loaded
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         extras.first { $0.id == item.id }?.cardSubtitle
     }
 
     /// The trailer the hero's Trailer button plays: the one Plex names as the
     /// title's primary extra, else the first trailer in Plex's order.
-    func trailer(primaryExtraKey: String?) -> PlexExtra? {
+    func trailer(primaryExtraKey: String?) -> Extra? {
         let trailers = extras.filter { $0.kind == .trailer }
         if let primaryExtraKey,
            let primary = trailers.first(where: { primaryExtraKey.hasSuffix("/\($0.item.ratingKey)") }) {
@@ -47,7 +47,7 @@ final class DetailExtrasModel {
         return trailers.first
     }
 
-    func play(_ item: PlexItem, ownerTitle: String?, playback: PlaybackCoordinator) {
+    func play(_ item: MediaItem, ownerTitle: String?, playback: PlaybackCoordinator) {
         let placeholder = PlaybackPlaceholder(
             title: item.title,
             subtitle: ownerTitle ?? subtitle(for: item),
@@ -73,7 +73,7 @@ struct DetailExtrasShelf: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
 
-    let itemID: PlexItemID?
+    let itemID: MediaItemID?
     var title: String = "Extras"
     /// What the extras belong to; the player's loading screen shows it under
     /// the extra's own title.
@@ -87,7 +87,7 @@ struct DetailExtrasShelf: View {
     /// - Parameter model: pass the page's own model when its hero also reads
     ///   the extras (the Trailer button); the shelf still drives the load.
     init(
-        itemID: PlexItemID?,
+        itemID: MediaItemID?,
         title: String = "Extras",
         ownerTitle: String? = nil,
         topPadding: CGFloat = detailSectionSpacing,
@@ -107,7 +107,7 @@ struct DetailExtrasShelf: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !model.extras.isEmpty {
-                PlexItemActionCarouselSection(
+                MediaItemActionCarouselSection(
                     title: title,
                     items: model.extras.map(\.item),
                     action: play,
@@ -134,7 +134,7 @@ struct DetailExtrasShelf: View {
         }
     }
 
-    private func play(_ item: PlexItem) {
+    private func play(_ item: MediaItem) {
         model.play(item, ownerTitle: ownerTitle, playback: playback)
     }
 }

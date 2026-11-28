@@ -15,13 +15,13 @@ struct PhotoViewerView: View {
     @Environment(\.dismiss) private var dismiss
 
     let viewModel: PhotoBrowserViewModel
-    let onPlayClip: (PlexPhotoItem) -> Void
+    let onPlayClip: (PhotoItem) -> Void
 
-    @State private var currentID: PlexItemID?
+    @State private var currentID: MediaItemID?
     @State private var showsChrome = true
     @State private var isSlideshowRunning: Bool
     #if os(iOS)
-    @State private var zoomedID: PlexItemID?
+    @State private var zoomedID: MediaItemID?
     @FocusState private var isFocused: Bool
     #endif
     #if os(macOS)
@@ -36,7 +36,7 @@ struct PhotoViewerView: View {
     init(
         viewModel: PhotoBrowserViewModel,
         request: PhotoViewerRequest,
-        onPlayClip: @escaping (PlexPhotoItem) -> Void
+        onPlayClip: @escaping (PhotoItem) -> Void
     ) {
         self.viewModel = viewModel
         self.onPlayClip = onPlayClip
@@ -52,7 +52,7 @@ struct PhotoViewerView: View {
         viewModel.media.firstIndex { $0.id == currentID }
     }
 
-    private var currentItem: PlexPhotoItem? {
+    private var currentItem: PhotoItem? {
         currentIndex.map { viewModel.media[$0] }
     }
 
@@ -118,7 +118,7 @@ struct PhotoViewerView: View {
     }
 
     @ViewBuilder
-    private func page(for item: PlexPhotoItem) -> some View {
+    private func page(for item: PhotoItem) -> some View {
         if item.isClip {
             clipPage(for: item)
                 .contentShape(Rectangle())
@@ -207,7 +207,7 @@ struct PhotoViewerView: View {
     }
     #endif
 
-    private func clipPage(for item: PlexPhotoItem) -> some View {
+    private func clipPage(for item: PhotoItem) -> some View {
         ZStack {
             PhotoFitImage(thumbnailURL: thumbnailURL(for: item), displayURL: nil)
 
@@ -234,7 +234,7 @@ struct PhotoViewerView: View {
 
     // MARK: - Chrome
 
-    private func chrome(for item: PlexPhotoItem) -> some View {
+    private func chrome(for item: PhotoItem) -> some View {
         ZStack(alignment: .bottom) {
             // A soft floor so white text reads on a bright photo.
             LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
@@ -285,7 +285,7 @@ struct PhotoViewerView: View {
     }
 
     @ViewBuilder
-    private func info(for item: PlexPhotoItem) -> some View {
+    private func info(for item: PhotoItem) -> some View {
         let details = [item.displayPlace, item.displayCamera].compactMap { $0 }
 
         VStack(alignment: .leading, spacing: 4) {
@@ -373,7 +373,7 @@ struct PhotoViewerView: View {
         }
     }
 
-    private func play(_ item: PlexPhotoItem?) {
+    private func play(_ item: PhotoItem?) {
         guard let item else { return }
         onPlayClip(item)
         dismiss()
@@ -426,13 +426,13 @@ struct PhotoViewerView: View {
 
     // MARK: - Images
 
-    private func thumbnailURL(for item: PlexPhotoItem) -> URL? {
+    private func thumbnailURL(for item: PhotoItem) -> URL? {
         viewModel.thumbnailURL(for: item, side: PhotoGridMetrics.photoPreferredWidth)
     }
 
     /// Sized to the screen's long edge on both axes, so a photo in either
     /// orientation fits without another request after a rotation.
-    private func displayURL(for item: PlexPhotoItem) -> URL? {
+    private func displayURL(for item: PhotoItem) -> URL? {
         #if os(macOS)
         let bounds = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
         #else

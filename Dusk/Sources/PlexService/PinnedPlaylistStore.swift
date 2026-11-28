@@ -2,13 +2,13 @@ import SwiftUI
 
 /// The playlists pinned to Home, per Plex profile, in pin order (oldest
 /// first). Device-local like the other Home settings: Plex has no concept of
-/// a pinned playlist. Each pin carries its server (`PlexItemID`) and the
+/// a pinned playlist. Each pin carries its server (`MediaItemID`) and the
 /// title it had, so Settings › Home can list pins without asking a server.
 @MainActor
 @Observable
 final class PinnedPlaylistStore {
     struct Pin: Codable, Equatable, Identifiable, Sendable {
-        let id: PlexItemID
+        let id: MediaItemID
         var title: String
     }
 
@@ -28,18 +28,18 @@ final class PinnedPlaylistStore {
         return pins
     }
 
-    func isPinned(_ id: PlexItemID, profileID: String?) -> Bool {
+    func isPinned(_ id: MediaItemID, profileID: String?) -> Bool {
         pins(profileID: profileID).contains { $0.id == id }
     }
 
-    func pin(_ id: PlexItemID, title: String, profileID: String?) {
+    func pin(_ id: MediaItemID, title: String, profileID: String?) {
         var pins = pins(profileID: profileID)
         guard !pins.contains(where: { $0.id == id }) else { return }
         pins.append(Pin(id: id, title: title))
         save(pins, profileID: profileID)
     }
 
-    func unpin(_ id: PlexItemID, profileID: String?) {
+    func unpin(_ id: MediaItemID, profileID: String?) {
         var pins = pins(profileID: profileID)
         pins.removeAll { $0.id == id }
         save(pins, profileID: profileID)
@@ -52,7 +52,7 @@ final class PinnedPlaylistStore {
     }
 
     /// Keeps the Settings list in step with a rename seen on Home.
-    func updateTitle(_ title: String, for id: PlexItemID, profileID: String?) {
+    func updateTitle(_ title: String, for id: MediaItemID, profileID: String?) {
         var pins = pins(profileID: profileID)
         guard let index = pins.firstIndex(where: { $0.id == id }), pins[index].title != title else { return }
         pins[index].title = title
@@ -81,11 +81,11 @@ extension PlexService {
         pinnedPlaylists.pins(profileID: activeProfileID)
     }
 
-    func isPlaylistPinned(_ id: PlexItemID) -> Bool {
+    func isPlaylistPinned(_ id: MediaItemID) -> Bool {
         pinnedPlaylists.isPinned(id, profileID: activeProfileID)
     }
 
-    func setPlaylistPinned(_ pinned: Bool, id: PlexItemID, title: String) {
+    func setPlaylistPinned(_ pinned: Bool, id: MediaItemID, title: String) {
         if pinned {
             pinnedPlaylists.pin(id, title: title, profileID: activeProfileID)
         } else {

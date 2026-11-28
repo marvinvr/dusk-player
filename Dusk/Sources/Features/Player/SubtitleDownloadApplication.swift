@@ -19,7 +19,7 @@ enum SubtitleDownloadApplication {
         let isForced: Bool?
         let isHearingImpaired: Bool?
 
-        init(_ stream: PlexStream) {
+        init(_ stream: MediaStream) {
             id = stream.id
             key = stream.key
             codec = stream.codec
@@ -37,7 +37,7 @@ enum SubtitleDownloadApplication {
     ]
 
     /// Sidecar subtitle streams in `language` (all when nil).
-    static func sidecars(in streams: [PlexStream], language: String?) -> [PlexStream] {
+    static func sidecars(in streams: [MediaStream], language: String?) -> [MediaStream] {
         streams.filter { stream in
             stream.streamType == .subtitle && stream.key != nil
                 && (language == nil
@@ -49,7 +49,7 @@ enum SubtitleDownloadApplication {
     /// known) that `before` did not have with the same signature. A sidecar
     /// merely disappearing does not count: Plex can drop the old stream a
     /// moment before the new one shows up.
-    static func hasNewSidecar(before: [PlexStream], after: [PlexStream], language: String?) -> Bool {
+    static func hasNewSidecar(before: [MediaStream], after: [MediaStream], language: String?) -> Bool {
         let previous = Set(sidecars(in: before, language: nil).map(SidecarSignature.init))
         return sidecars(in: after, language: language).contains { !previous.contains(SidecarSignature($0)) }
     }

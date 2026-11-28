@@ -8,7 +8,7 @@ private let recommendationLogger = Logger(
 
 @MainActor
 struct LibraryRecommendationEngine {
-    let library: PlexLibrary
+    let library: Library
     let plexService: PlexService
     var calendar: Calendar = .autoupdatingCurrent
     var nowProvider: @Sendable () -> Date = Date.init
@@ -118,7 +118,7 @@ struct LibraryRecommendationEngine {
         // is what kept this screen on a spinner. Titles are de-duplicated
         // afterwards, in rank order, so a higher-ranked row keeps a title.
         let rankedGenres = Array(scoredGenres.prefix(shelfLimit))
-        let pools = await withTaskGroup(of: (Int, [PlexItem]).self) { group in
+        let pools = await withTaskGroup(of: (Int, [MediaItem]).self) { group in
             for (index, scoredGenre) in rankedGenres.enumerated() {
                 group.addTask {
                     let pool = (try? await loadCandidatePool(
@@ -130,7 +130,7 @@ struct LibraryRecommendationEngine {
                 }
             }
 
-            var pools = Array(repeating: [PlexItem](), count: rankedGenres.count)
+            var pools = Array(repeating: [MediaItem](), count: rankedGenres.count)
             for await (index, pool) in group {
                 pools[index] = pool
             }
@@ -171,7 +171,7 @@ struct LibraryRecommendationEngine {
     }
 
     private func scoreGenres(
-        from history: [PlexPlaybackHistoryEntry],
+        from history: [PlaybackHistoryEntry],
         availableGenres: [LibraryGenreOption]
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
@@ -185,7 +185,7 @@ struct LibraryRecommendationEngine {
     }
 
     private func scoreGenres(
-        from history: [PlexPlaybackHistoryEntry]
+        from history: [PlaybackHistoryEntry]
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
         let genresByIdentity = await signalGenres(for: signals)
@@ -199,11 +199,11 @@ struct LibraryRecommendationEngine {
     /// any row could be built.
     private func signalGenres(
         for signals: [RecommendationTasteSignal]
-    ) async -> [String: [PlexTag]] {
+    ) async -> [String: [Tag]] {
         let service = plexService
         let scored = Array(signals.prefix(RecommendationGenreScoring.maxSignals))
 
-        return await withTaskGroup(of: (String, [PlexTag]?).self) { group in
+        return await withTaskGroup(of: (String, [Tag]?).self) { group in
             for signal in scored {
                 group.addTask {
                     let details = try? await service.getMediaDetails(
@@ -214,7 +214,7 @@ struct LibraryRecommendationEngine {
                 }
             }
 
-            var genres: [String: [PlexTag]] = [:]
+            var genres: [String: [Tag]] = [:]
             for await (identity, tags) in group {
                 if let tags {
                     genres[identity] = tags
@@ -229,7 +229,7 @@ struct LibraryRecommendationEngine {
     }
 
     private func scoreGenres(
-        fromRecentlyViewedItems items: [PlexItem],
+        fromRecentlyViewedItems items: [MediaItem],
         availableGenres: [LibraryGenreOption]
     ) -> [RecommendationScoredGenre] {
         RecommendationGenreScoring.scoreGenres(fromRecentlyViewedItems: items) { item in
@@ -241,14 +241,14 @@ struct LibraryRecommendationEngine {
     }
 
     private func scoreGenres(
-        fromRecentlyViewedItems items: [PlexItem]
+        fromRecentlyViewedItems items: [MediaItem]
     ) -> [RecommendationScoredGenre] {
         RecommendationGenreScoring.scoreGenres(fromRecentlyViewedItems: items) { item in
             LibraryGenreSupport.inferredGenres(from: item.genres ?? [])
         }
     }
 
-    private func collapsedSignals(from history: [PlexPlaybackHistoryEntry]) -> [RecommendationTasteSignal] {
+    private func collapsedSignals(from history: [PlaybackHistoryEntry]) -> [RecommendationTasteSignal] {
         let now = nowProvider()
         var signalByIdentity: [String: RecommendationTasteSignal] = [:]
 
@@ -284,12 +284,12 @@ struct LibraryRecommendationEngine {
         }
     }
 
-    private func loadRecentlyViewedItems(viewedSince: Date) async throws -> [PlexItem] {
+    private func loadRecentlyViewedItems(viewedSince: Date) async throws -> [MediaItem] {
         let epochSeconds = Int(viewedSince.timeIntervalSince1970.rounded(.down))
         let pageSize = 60
         let maxPagesToInspect = 4
-        var recentItems: [PlexItem] = []
-        var watchedFallbackItems: [PlexItem] = []
+        var recentItems: [MediaItem] = []
+        var watchedFallbackItems: [MediaItem] = []
 
         for page in 0..<maxPagesToInspect {
             let items = try await plexService.getLibraryItems(
@@ -343,7 +343,7 @@ struct LibraryRecommendationEngine {
         for genre: LibraryGenreOption,
         itemsPerShelf: Int,
         preferServerGenreFilter: Bool
-    ) async throws -> [PlexItem] {
+    ) async throws -> [MediaItem] {
         if preferServerGenreFilter, let genreValue = genre.value {
             let serverFilteredCandidates = try await loadServerFilteredCandidates(
                 for: genreValue,
@@ -364,7 +364,7 @@ struct LibraryRecommendationEngine {
     private func loadServerFilteredCandidates(
         for genreValue: String,
         itemsPerShelf: Int
-    ) async throws -> [PlexItem] {
+    ) async throws -> [MediaItem] {
         let filters = ["genre": genreValue]
         let totalCount = try await plexService.getLibraryItemCount(
             sectionId: library.key,
@@ -383,7 +383,7 @@ struct LibraryRecommendationEngine {
             seed: dailySeed(for: genreValue)
         )
 
-        var pool: [PlexItem] = []
+        var pool: [MediaItem] = []
         var seen = RecommendationSeenTitles()
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
@@ -416,7 +416,7 @@ struct LibraryRecommendationEngine {
     private func loadLocallyFilteredCandidates(
         for genre: LibraryGenreOption,
         itemsPerShelf: Int
-    ) async throws -> [PlexItem] {
+    ) async throws -> [MediaItem] {
         let totalCount = try await plexService.getLibraryItemCount(
             sectionId: library.key,
             serverID: library.serverID
@@ -433,7 +433,7 @@ struct LibraryRecommendationEngine {
             seed: dailySeed(for: "\(genre.title)|local-pages")
         )
 
-        var pool: [PlexItem] = []
+        var pool: [MediaItem] = []
         var seen = RecommendationSeenTitles()
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
@@ -467,8 +467,8 @@ struct LibraryRecommendationEngine {
     /// different title on every server, so a bare key would fuse two servers'
     /// taste signals together.
     private func collapsedIdentity(
-        for entry: PlexPlaybackHistoryEntry
-    ) -> (identity: String, id: PlexItemID, type: PlexMediaType)? {
+        for entry: PlaybackHistoryEntry
+    ) -> (identity: String, id: MediaItemID, type: MediaKind)? {
         let serverID = entry.serverID
 
         switch entry.type {
@@ -478,10 +478,10 @@ struct LibraryRecommendationEngine {
                 return nil
             }
 
-            let id = PlexItemID(serverID: serverID, ratingKey: showKey)
+            let id = MediaItemID(serverID: serverID, ratingKey: showKey)
             return ("show:\(id.storageKey)", id, .show)
         case .movie, .show:
-            let id = PlexItemID(serverID: serverID, ratingKey: entry.ratingKey)
+            let id = MediaItemID(serverID: serverID, ratingKey: entry.ratingKey)
             return ("\(entry.type.rawValue):\(id.storageKey)", id, entry.type)
         default:
             return nil
@@ -493,14 +493,14 @@ struct LibraryRecommendationEngine {
     }
 
     private func shouldIncludeCandidate(
-        _ item: PlexItem,
+        _ item: MediaItem,
         seen: RecommendationSeenTitles
     ) -> Bool {
         guard !seen.contains(item) else { return false }
         return !RecommendationCandidateSupport.isCompleted(item)
     }
 
-    private func isRecommendationSignalItem(_ item: PlexItem) -> Bool {
+    private func isRecommendationSignalItem(_ item: MediaItem) -> Bool {
         switch item.type {
         case .movie, .show:
             return true
@@ -510,7 +510,7 @@ struct LibraryRecommendationEngine {
     }
 
     private func itemMatchesGenre(
-        _ item: PlexItem,
+        _ item: MediaItem,
         genre: LibraryGenreOption
     ) async -> Bool {
         if let genres = item.genres,
@@ -542,7 +542,7 @@ struct LibraryRecommendationEngine {
             .rotatedPageOrder(pageCount: pageCount, seed: seed)
     }
 
-    private func seededShuffle(_ items: [PlexItem], seed: UInt64) -> [PlexItem] {
+    private func seededShuffle(_ items: [MediaItem], seed: UInt64) -> [MediaItem] {
         RecommendationSeededRandomizer(calendar: calendar, nowProvider: nowProvider)
             .seededShuffle(items, seed: seed)
     }

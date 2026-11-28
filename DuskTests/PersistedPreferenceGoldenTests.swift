@@ -16,17 +16,17 @@ struct PersistedPreferenceGoldenTests {
 
     @Test func libraryTypeRawValues() {
         // Stored in `libraryTabOrder` / `hiddenLibraryTabs`.
-        #expect(PlexLibraryType.allCases.map(\.rawValue) == ["movie", "show", "video", "liveTV", "photo", "playlists"])
+        #expect(LibraryKind.allCases.map(\.rawValue) == ["movie", "show", "video", "liveTV", "photo", "playlists"])
     }
 
     @Test func mediaTypeRawValues() {
         // Stored in download records and deep links.
         let literals = ["movie", "show", "person", "season", "episode", "clip", "artist", "album", "track",
                         "collection", "unknown"]
-        let types: [PlexMediaType] = [.movie, .show, .person, .season, .episode, .clip, .artist, .album, .track,
+        let types: [MediaKind] = [.movie, .show, .person, .season, .episode, .clip, .artist, .album, .track,
                                       .collection, .unknown]
         #expect(types.map(\.rawValue) == literals)
-        #expect(literals.compactMap(PlexMediaType.init(rawValue:)) == types)
+        #expect(literals.compactMap(MediaKind.init(rawValue:)) == types)
     }
 
     @Test func playbackPreferenceRawValues() {

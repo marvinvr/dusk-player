@@ -71,7 +71,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Downloads appears only when visible and populated. Library-tab visibility and
   order are local `UserPreferences`; missing preferences preserve the original
   all-visible Movies / TV Shows / Videos / Live TV order.
-- Videos ("Other Videos" / clip sections, `PlexLibraryType.video`) only counts as
+- Videos ("Other Videos" / clip sections, `LibraryKind.video`) only counts as
   present once a section is known to hold items: `LibrariesViewModel` counts each
   video section (`getLibraryItemCount`) and keeps empty or not-yet-counted ones out
   of `libraries`, so an empty section never shows a Videos tab. A failed count shows
@@ -123,7 +123,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Attach `.duskAppNavigationDestinations()` inside each tab `NavigationStack`; it maps
   routes to concrete destination views with environment services.
 - Detail routing enters through `MediaDetailDestinationView`, which dispatches by
-  `PlexMediaType` and passes download/offline context through.
+  `MediaKind` and passes download/offline context through.
 - Playback presentation is centralized in `MainTabView` through
   `PlaybackCoordinator.showPlayer` and `PlayerView`; feature screens should call
   `playback.play(...)` or `playback.playVersion(...)`, not present the player.
@@ -184,21 +184,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   work as on the card. iPhone always shows the pill, setting on or off (in
   landscape the card covered the pause button); iPad and tvOS keep the card.
   The full-screen Up Next screen keeps its title and synopsis (still blurred).
-- Use `PlexItemPosterCarouselSection` for horizontal shelves and
-  `PlexItemPosterGrid` for grids. They already handle image sizing, context menus,
+- Use `MediaItemPosterCarouselSection` for horizontal shelves and
+  `MediaItemPosterGrid` for grids. They already handle image sizing, context menus,
   progress, and route creation. Watch state comes from the item Plex sent with
-  the row (no extra request): `progress` defaults to `PlexItem.posterProgress`
-  (`viewOffset`) and the checkmark to `PlexItem.posterIsWatched` (played
+  the row (no extra request): `progress` defaults to `MediaItem.posterProgress`
+  (`viewOffset`) and the checkmark to `MediaItem.posterIsWatched` (played
   movie/episode/clip, or a show/season with every episode watched), so every
   Home/library hub row and grid shows them, not only Continue Watching. For
-  movies, episodes and clips (`PlexItem.posterShowsWatchedBadge`) the cards
+  movies, episodes and clips (`MediaItem.posterShowsWatchedBadge`) the cards
   draw `WatchedBadge` on the artwork (`showsWatchedBadge`) and drop the
   subtitle checkmark; shows and seasons keep the checkmark. An availability
   badge in the same corner wins. Season episode rows (iOS) and the tvOS series
   page pass it themselves and show no text checkmark. Both take `imageAspectRatio` (default 2:3); pass
   `16.0/9.0` for clip content so the requested transcode size matches the display
   aspect — a 2:3 request would be cropped server-side.
-- Clip rendering is item-driven: `PlexItem.isClip` (item `subtype == "clip"`) and
+- Clip rendering is item-driven: `MediaItem.isClip` (item `subtype == "clip"`) and
   the `Collection.isAllClips` helper decide when a row/grid renders 16:9 with
   `DuskPosterMetrics.videoCarouselWidth`/`videoGridPreferredWidth`. Clip card
   subtitles show the full localized upload date and compact duration via the
@@ -212,7 +212,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   title. Its horizontal padding can be overridden when a page needs its shelves to
   share the system navigation title's leading edge.
 - A shelf's "Show all" destination is `ShowAllCarouselTile`, rendered by
-  `PlexItemPosterCarouselSection` / `PlexItemActionCarouselSection` as the **last
+  `MediaItemPosterCarouselSection` / `MediaItemActionCarouselSection` as the **last
   card** of the shelf on **every** platform — a dashed card sized like the shelf's
   artwork (`imageAspectRatio` aware), so the destination reads as content instead of
   a cramped header button. Pass `showAllRoute` only when the shelf is actually
@@ -284,7 +284,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Both rows lay out through `CarouselItemStack`, whose first items are eager on tvOS:
   a lazy off-screen row offers filler items, and a Down onto one lands on an arbitrary
   card (issue #50). Use it for any new tvOS row on Home.
-- Library and View All grids (`PlexItemPosterGrid`) are one `.focusSection()` per
+- Library and View All grids (`MediaItemPosterGrid`) are one `.focusSection()` per
   row on tvOS, not one `LazyVGrid`. A short last row keeps a focus guide in the
   empty columns, sized like the missing posters, so the section extends under them
   and Down from a column with no cell lands on the nearest poster in that row.
@@ -372,7 +372,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Continue-watching items drive `HomeCinematicHero`. Settings › Home Advanced ›
   Compact Continue Watching (`UserPreferences.compactHomeContinueWatching`, off by
   default) swaps the hero for `HomeContinueWatchingShelf`, the library pages'
-  `PlexItemActionCarouselSection` row, as the first shelf. Both shells then take
+  `MediaItemActionCarouselSection` row, as the first shelf. Both shells then take
   their no-hero path (iOS large "Home" title; tvOS "Home" header, no fold snapping
   or hero focus), so nothing is shown twice. Its cards show 2:3 posters (the season
   poster for episodes, see below) unless Continue Watching Artwork
@@ -428,8 +428,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (iPhone) and tvOS header subtitle are gone.
 - Within the hubs, `HomeHubArrangement.arrange(hubs:libraryOrder:)` regroups the rows
   so each library's hubs appear in the order the account gives that library.
-  `libraryOrder` is a list of **`PlexLibrary.id`** (`"<serverID>|<key>"`), and a row is
-  placed by `PlexHub.representativeLibraryID` — its own server, or the highest-priority
+  `libraryOrder` is a list of **`Library.id`** (`"<serverID>|<key>"`), and a row is
+  placed by `HomeRow.representativeLibraryID` — its own server, or the highest-priority
   source of a merged row. Never key this on the bare section key: two servers' "3"
   sections would share a block. It is a pure permutation — global rows first, then one
   block per library in library order, then rows whose section is unknown. `libraryOrder`
@@ -437,21 +437,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Recently Added hubs are expanded through `PlexService.mergedHubItems(for:size:)`,
   which pages **each contributing server's** hub key and re-merges, so shelf limits are
   intentional and "Show all" (`.hub`) shows the whole merged row rather than the
-  primary server's share of it. `PlexHub.isPageable` / `hasMoreOnAnySource` /
+  primary server's share of it. `HomeRow.isPageable` / `hasMoreOnAnySource` /
   `totalSourceSize` are the merged-row equivalents of `key` / `more` / `size`.
 - TV Recently Added rows hold seasons and episodes, not just shows: a new episode in an
-  old show arrives as that season (or episode). Poster cards (`PlexItemPosterCarouselSection`,
-  `PlexItemPosterGrid`) title them by their show (`PlexItem.posterCardTitle`) with the
+  old show arrives as that season (or episode). Poster cards (`MediaItemPosterCarouselSection`,
+  `MediaItemPosterGrid`) title them by their show (`MediaItem.posterCardTitle`) with the
   numbering underneath (`hubPosterSubtitle` on Home: "Season 6", "S6 · E3"), and a
   season whose own poster fails to load falls back to the show's (`fallbackPosterPath`
   → `DuskAsyncImage(fallbackURL:)`): Plex can send a season poster path even when the
   season has none (unconfirmed against a real PMS; the show poster also covers any other failure). Home keeps one card per show in Recently Added (`oneCardPerShow`).
-- An episode's poster (`PlexItem.preferredPosterPath`: every poster row and grid, the
+- An episode's poster (`MediaItem.preferredPosterPath`: every poster row and grid, the
   compact Continue Watching row, pinned playlists, Top Shelf) is its season's poster
   (`parentThumb`), then the show's (`grandparentThumb`), then its own still, so the art
   changes per season. A season without its own poster sends no `parentThumb` or the
   show's; a season path that fails to load falls back to the show poster the same way
-  as seasons do (`fallbackPosterPath`, also passed through `PlexItemActionCarouselSection`
+  as seasons do (`fallbackPosterPath`, also passed through `MediaItemActionCarouselSection`
   → `PosterActionCard`). 16:9 still rows, heroes and backdrops are unchanged.
 - `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS focus-driven
   paging, image preloading, title-logo fallback, pager state, and motion
@@ -806,7 +806,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Home's first paint waits (up to `HomeFirstPaintGate.patience`) for the library order,
   so a hidden library's rows never flash; a later hide/show reloads Home.
 - The server's own per-library **Visibility** (library › Advanced on the PMS, `hidden`
-  on `/library/sections` → `PlexLibrary.visibility`: 0 include, 1 exclude from home,
+  on `/library/sections` → `Library.visibility`: 0 include, 1 exclude from home,
   2 exclude from home and global search) is honoured too, but never hides the library
   itself — it stays in tabs/library lists and browses normally, like Plex Web. ≥ 1
   keeps its titles out of Home (rows, global rows, Continue Watching, hero, Top Shelf,
@@ -854,7 +854,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 ## Libraries
 
-- `LibrariesViewModel` groups Plex libraries by `PlexLibraryType`. Its `libraries`
+- `LibrariesViewModel` groups Plex libraries by `LibraryKind`. Its `libraries`
   reads through `PlexService.libraryOrder.orderedSections`, which now spans **every
   connected server** in the account's cross-server order, not raw `/library/sections`
   order. Libraries are never merged into virtual ones: two servers' "Movies" sections
@@ -879,7 +879,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     path, so a poster tapped in the grid bounced straight back to the grid.
   The list's rows open each library's recommendations. (The old combined
   `LibrariesHubView` tab is retired; every type gets its own tab.)
-- `LibraryRecommendationsViewModel` takes `libraries: [PlexLibrary]` and is the
+- `LibraryRecommendationsViewModel` takes `libraries: [Library]` and is the
   library-scoped home equivalent: `getLibraryHubs(...)` per library (fanned out, each
   routed to its own server), `HubMerge` across them, continue-watching hub extraction,
   recently-added expansion, and personalized shelves from `LibraryRecommendationEngine`
@@ -930,11 +930,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   reshuffled by Plex, so appends are de-duplicated by id (titles can be missed, never
   repeated).
 - The grid's sort is remembered per library (`LibrarySortStore`, keyed on
-  `PlexLibrary.id`, stored as `"<field>"`/`"<field>:desc"`; the old fixed names such as
+  `Library.id`, stored as `"<field>"`/`"<field>:desc"`; the old fixed names such as
   `yearDescending` still read; a field the type no longer offers falls back to its
   default).
 - The grid's **Unwatched** chip (between Genre and Sort) is a one-tap filter, remembered
-  per library (`LibraryUnwatchedFilterStore`, keyed on `PlexLibrary.id`) and applied to
+  per library (`LibraryUnwatchedFilterStore`, keyed on `Library.id`) and applied to
   that library's genre and collection grids too. `LibraryUnwatchedFilter` sends
   `unwatched=1` for movie/video sections (in-progress titles stay) and
   `unwatchedLeaves=1` for shows (listed while any episode is unwatched). Active = inverted
@@ -982,7 +982,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   transition after a programmatic shift. Lazy grids land `scrollTo` by estimate, so
   the jump scrolls twice. Known limit: a hard fling into the window top can still
   skip part of a page.
-- Infinite scroll is triggered from `PlexItemPosterGrid.onItemAppear`; keep pagination
+- Infinite scroll is triggered from `MediaItemPosterGrid.onItemAppear`; keep pagination
   logic in the view model.
 - **Plex collections** (movie/TV libraries, manual and smart): the grid shows a
   **Collections** chip (first on iPhone where the chip row scrolls, after Sort on tvOS)
@@ -995,7 +995,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (`.media(type: .collection, id:)`): backdrop hero (the collection's art, else its
   first title's), "Collection · 12 movies · 1977–2019" (year span only once every
   title is loaded; "Smart Collection" for smart ones), summary, a sort chip, then a
-  paged grid via `PlexItemPager`.
+  paged grid via `MediaItemPager`.
 - **Collection sort** (`CollectionSort`): the library grid's sort menu
   (`LibrarySortMenuSections`, Mac toolbar `LibrarySortMenuPickers`) led by
   **Collection Order**, the default, which sends no `sort=` so the server's own order
@@ -1005,7 +1005,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `collectionSort.<serverID>|<ratingKey>`; nothing stored = Collection Order). Plex is
   asked via `sort=` on `/library/metadata/{rk}/children`; if the first page is not in
   that order (`CollectionSort.follows`, ≤10 % neighbour inversions tolerated) the
-  server ignored it, so every title is loaded (`PlexItemPager.loadRemaining`) and
+  server ignored it, so every title is loaded (`MediaItemPager.loadRemaining`) and
   sorted on the device (articles stripped from titles, missing values last) for the
   rest of the screen's life. Real PMS support for `sort=` on collection children is
   unconfirmed; `scripts/mock_large_plex.py --collection-ignores-sort` exercises the
@@ -1020,7 +1020,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 ### Photos
 
-- Plex `photo` sections are `PlexLibraryType.photo` (Photos tab, hideable/reorderable
+- Plex `photo` sections are `LibraryKind.photo` (Photos tab, hideable/reorderable
   in Navigation Tabs like the others). Like "Other Videos", a photo section stays out
   of `LibrariesViewModel.libraries` until `getLibraryItemCount` says it holds
   something, so an empty one never adds a tab. Permissions need nothing extra: the
@@ -1136,10 +1136,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   and show pages (iOS `ShowDetailView`, tvOS `SeriesDetailView` with the show's extras).
 - **Ratings** (`DetailRatings.swift`): the hero metadata carries `DetailRatingsLine` —
   the user's own stars (system yellow, half stars) then each source from Plex's
-  `Rating` array (`PlexRating.sources`: IMDb 6.4, Rotten Tomatoes critic / audience %,
+  `Rating` array (`Rating.sources`: IMDb 6.4, Rotten Tomatoes critic / audience %,
   TMDB %, TVDB; falls back to `rating`/`ratingImage` + `audienceRating`/
   `audienceRatingImage`). Sources show their official logo left of the score
-  (`PlexRating.Logo`, vector PDFs in `Assets.xcassets/RatingLogos`); TVDB keeps a text
+  (`Rating.Logo`, vector PDFs in `Assets.xcassets/RatingLogos`); TVDB keeps a text
   label, and Plex's API documents no Plex rating source. Rotten Tomatoes' icon follows
   the displayed score (fresh/hot at 60%+, rotten/stale below), as its terms require.
   Never tint the logos or lower their opacity (IMDb's and Rotten Tomatoes' rules); IMDb
@@ -1319,14 +1319,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   or ErsatzTV emulation) gets one Plex section per device, headed by the device
   name, exactly like IPTV sources: `LiveTVViewModel` reads `/livetv/dvrs/{id}`
   with the channels (`PlexService.getLiveTVDevices`, best effort), and
-  `PlexLiveTVLineup.groupedByDevice` splits the lineup by
+  `LiveTVLineup.groupedByDevice` splits the lineup by
   `ChannelMapping.channelKey` (= `Channel.id`); unmapped channels keep a last
   section under the provider title, one device stays the single `plex` section.
   All device sections share the Plex day (a tvOS day cross moves the others to
   the same moment) and playing from any of them still switches within all Plex
   channels.
 - Every section (Plex and IPTV) drops filler airings before the axis is built
-  (`PlexLiveTVLineup.removingFillerAirings`): a title that runs 12 h or more at
+  (`LiveTVLineup.removingFillerAirings`): a title that runs 12 h or more at
   a stretch on a channel (a relay's "No live session" between events, straight
   from its XMLTV or through Threadfin) is placeholder, and all its airings on
   that channel become empty time, so they collapse like any empty stretch.
@@ -1358,12 +1358,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   "Not on your Plex servers · <streaming services>" and Remove/Add in the primary slot.
 - Bookmark (`WatchlistHeroButton`, `bookmark`/`bookmark.fill`, icon-only) on movie and
   show pages (iOS movie/show, tvOS movie/series) and the Seerr stand-in page; "Add
-  to/Remove from Watchlist" in `PlexItemContextMenuContent` for movies/shows with a
+  to/Remove from Watchlist" in `MediaItemContextMenuContent` for movies/shows with a
   `plex://` guid. Optimistic with rollback; the hero shows an alert on failure.
 
 ## Playlists
 
-- A data-driven destination like Live TV: `PlexLibraryType.playlists` joins the
+- A data-driven destination like Live TV: `LibraryKind.playlists` joins the
   tab list (so Settings › Navigation Tabs orders and hides it) only while
   `PlexService.playlists` (`PlaylistStore`) holds a video playlist on a
   connected server. `MainTabView` loads the store per `serverContentRevision`;
@@ -1391,7 +1391,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   optimistically and rolled back with an alert on failure.
 - Add to Playlist: `AddToPlaylistPresenter` (owned by `MainTabView`, in the
   environment) presents `AddToPlaylistSheet` for an `AddToPlaylistTarget`.
-  Entry points: `AddToPlaylistMenuButton` inside `PlexItemContextMenuContent`
+  Entry points: `AddToPlaylistMenuButton` inside `MediaItemContextMenuContent`
   (every poster grid/row), `HomeItemContextMenu`, episode rows (iOS season
   page, tvOS series page), tvOS season pills, search results; and the icon-only
   `AddToPlaylistHeroButton` (`text.badge.plus`) on movie, episode, season, show
@@ -1419,8 +1419,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   drag to reorder, tvOS Select unpins (and pops back once the list is empty).
 - Play-through lists: grids and rows of Videos libraries and their folders
   (`LibraryItemsView`, channel/hub rows of `LibraryRecommendationsView`) and
-  collection pages pass `playThroughTitle` to `PlexItemPosterGrid` /
-  `PlexItemPosterCarouselSection`. Their movies and videos then open through
+  collection pages pass `playThroughTitle` to `MediaItemPosterGrid` /
+  `MediaItemPosterCarouselSection`. Their movies and videos then open through
   `.videoInList` / `.movieInList` routes carrying a `PlaybackListContext`, and
   the page's Play starts a list queue at that item (Up Next "Next in <list>").
   Collection Play continues through the collection; Shuffle shuffles it. TV
@@ -1443,7 +1443,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   server failed and there is nothing to show; one unreachable server shows
   `ServerOutageNote` above the results. A server connecting or dropping re-runs the
   current query (`.task(id: serverContentRevision)`).
-- `SearchMediaResult.id` carries the server (`PlexItemID.storageKey`): merged results can
+- `SearchMediaResult.id` carries the server (`MediaItemID.storageKey`): merged results can
   hold the same rating key twice, and duplicate `ForEach` ids drop rows.
 - When Seerr is connected, search also performs an additive Seerr discovery
   request. Plex groups publish first; external movies/shows are deduplicated and
@@ -1451,8 +1451,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   breaks Plex search.
 - Presentation is platform-adaptive so search feels native everywhere. tvOS and iPad
   (`userInterfaceIdiom == .pad`) render each result group as a
-  `PlexItemPosterCarouselSection` (the same poster carousels Home uses for hubs); iPhone
-  renders each group as a titled `PlexItemPosterGrid` section (matching the library grid).
+  `MediaItemPosterCarouselSection` (the same poster carousels Home uses for hubs); iPhone
+  renders each group as a titled `MediaItemPosterGrid` section (matching the library grid).
   Plex `/hubs/search` returns one hub per media type, which maps cleanly onto a carousel
   row or a grid section.
 - All platforms reuse the shared `FeatureStateViews` for empty/loading/error/no-result

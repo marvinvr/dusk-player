@@ -14,7 +14,7 @@ struct HomeItemContextMenu: View {
     @Environment(AddToPlaylistPresenter.self) private var playlistPresenter: AddToPlaylistPresenter?
     @Environment(PlaybackCoordinator.self) private var playback
 
-    let item: PlexItem
+    let item: MediaItem
     let detailsLabel: String
     let onMarkWatched: () -> Void
     let onMarkUnwatched: () -> Void
@@ -339,14 +339,14 @@ extension View {
 struct HomeContinueWatchingShelf: View {
     @Environment(UserPreferences.self) private var preferences
     let viewModel: HomeViewModel
-    let detailsLabel: (PlexItem) -> String
+    let detailsLabel: (MediaItem) -> String
     let onSelectRoute: (AppNavigationRoute) -> Void
-    let play: (PlexItem) -> Void
+    let play: (MediaItem) -> Void
 
     var body: some View {
         if !viewModel.continueWatching.isEmpty {
             let showsStill = preferences.continueWatchingArtwork == .episodeStill
-            PlexItemActionCarouselSection(
+            MediaItemActionCarouselSection(
                 title: "Continue Watching",
                 items: viewModel.continueWatching,
                 action: play,

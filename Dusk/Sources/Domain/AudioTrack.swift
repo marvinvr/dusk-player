@@ -53,7 +53,7 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
 
 extension AudioTrack {
     /// Create from a Plex audio stream.
-    init(stream: PlexStream) {
+    init(stream: MediaStream) {
         self.id = stream.id
         self.displayTitle = stream.displayTitle ?? stream.language ?? "Unknown"
         self.language = stream.language

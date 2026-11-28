@@ -76,7 +76,7 @@ extension PlaybackCoordinator {
     /// choice saved by another client or a bulk tool such as PASTA. The first
     /// write for a part holds the original; later ones are rebuilds.
     func noteAutomaticServerSelectionWrite(
-        part: PlexMediaPart,
+        part: MediaPart,
         audioStreamID: Int?,
         subtitleStreamID: Int?,
         serverID: String?
@@ -135,7 +135,7 @@ struct ServerStreamSelectionRestore: Equatable, Sendable {
     var isEmpty: Bool { audioStreamID == nil && subtitleStreamID == nil }
 
     @MainActor
-    init(part: PlexMediaPart, writtenAudioStreamID: Int?, writtenSubtitleStreamID: Int?, serverID: String?) {
+    init(part: MediaPart, writtenAudioStreamID: Int?, writtenSubtitleStreamID: Int?, serverID: String?) {
         partID = part.id
         self.serverID = serverID
         let originalAudio = PlayerViewModel.serverSelectedStreamID(of: .audio, inPart: part)

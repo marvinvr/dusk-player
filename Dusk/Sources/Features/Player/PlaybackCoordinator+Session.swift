@@ -41,7 +41,7 @@ extension PlaybackCoordinator {
     /// — otherwise it starts from whatever position that server itself knows.
     @discardableResult
     func runPlaybackAttempt(
-        id: PlexItemID,
+        id: MediaItemID,
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
@@ -163,7 +163,7 @@ extension PlaybackCoordinator {
     ///     hold the candidate walk for the full request timeout. nil leaves the
     ///     session's own timeout in charge (the last candidate).
     func startPlaybackSession(
-        id: PlexItemID,
+        id: MediaItemID,
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int? = nil,
@@ -173,7 +173,7 @@ extension PlaybackCoordinator {
         attemptID: UUID,
         suppressLocalDownload: Bool = false,
         allowsMovieCopySelection: Bool = false,
-        preparedDetails: PlexMediaDetails? = nil,
+        preparedDetails: MediaDetails? = nil,
         prefersMergedMovieProgress: Bool = false,
         fetchDeadline: Duration? = nil
     ) async -> PlaybackSessionOutcome {
@@ -201,9 +201,9 @@ extension PlaybackCoordinator {
         // Plex enforces its remote-streaming rule on the stream, not on the
         // metadata: a refused details fetch is some other problem.
         var didFetchDetails = false
-        var movieResumeSource: PlexMediaDetails?
+        var movieResumeSource: MediaDetails?
         do {
-            var details: PlexMediaDetails
+            var details: MediaDetails
             if let preparedDetails {
                 details = preparedDetails
             } else if !suppressLocalDownload,
@@ -870,7 +870,7 @@ extension PlaybackCoordinator {
     /// Whether this candidate would start part-way in: the same offsets the
     /// start position is built from below. Pre-rolls only play from the top.
     private func resumesMidway(
-        details: PlexMediaDetails,
+        details: MediaDetails,
         resumeOffsetMilliseconds: Int?,
         resumeOffsetDurationMilliseconds: Int?,
         carriesRequestedOffset: Bool
@@ -921,7 +921,7 @@ extension PlaybackCoordinator {
         ratingKey: String,
         serverID: String?,
         deadline: Duration?
-    ) async throws -> PlexMediaDetails {
+    ) async throws -> MediaDetails {
         guard let deadline else {
             return try await plexService.getMediaDetails(
                 ratingKey: ratingKey,
@@ -933,7 +933,7 @@ extension PlaybackCoordinator {
         // The fetch child is deliberately *not* annotated `@MainActor`:
         // `getMediaDetails` hops there itself, and an explicitly isolated child
         // closure trips the region-based isolation checker (Swift 6).
-        return try await withThrowingTaskGroup(of: PlexMediaDetails.self) { group in
+        return try await withThrowingTaskGroup(of: MediaDetails.self) { group in
             group.addTask { [plexService] in
                 try await plexService.getMediaDetails(
                     ratingKey: ratingKey,
@@ -1345,10 +1345,10 @@ extension PlaybackCoordinator {
     func activateReplacementAttempt(
         transitionLabel: String,
         attemptID: UUID,
-        details: PlexMediaDetails,
+        details: MediaDetails,
         ratingKey: String,
-        media: PlexMedia,
-        part: PlexMediaPart,
+        media: MediaVersion,
+        part: MediaPart,
         playbackURL: URL,
         sanitizedURL: String,
         playbackDecision: PlaybackDecision,
@@ -1574,10 +1574,10 @@ extension PlaybackCoordinator {
 
     /// Where a Plex sidecar subtitle mounts from: a local download's saved copy
     /// when there is one (the only copy reachable offline), else the server.
-    func externalSubtitleURL(for stream: PlexStream) -> URL? {
+    func externalSubtitleURL(for stream: MediaStream) -> URL? {
         if activePlaybackUsesLocalDownload, let ratingKey,
            let localURL = downloadManager?.localSubtitleURL(
-               for: PlexItemID(serverID: activePlaybackServerID, ratingKey: ratingKey),
+               for: MediaItemID(serverID: activePlaybackServerID, ratingKey: ratingKey),
                streamID: stream.id
            ) {
             return localURL
@@ -1602,7 +1602,7 @@ extension PlaybackCoordinator {
     @discardableResult
     func refreshSubtitleStreamsAfterDownload(
         selectingStreamID: Int? = nil,
-        downloaded: PlexSubtitleSearchResult? = nil
+        downloaded: SubtitleSearchResult? = nil
     ) async -> Int? {
         guard !didFinalizeCurrentSession,
               let ratingKey,
@@ -1615,7 +1615,7 @@ extension PlaybackCoordinator {
             debugInfo.part.streams.filter { $0.streamType == .subtitle }.map(\.id)
         )
 
-        let details: PlexMediaDetails
+        let details: MediaDetails
         do {
             details = try await fetchDetailsAfterSubtitleDownload(
                 ratingKey: ratingKey,
@@ -1644,7 +1644,7 @@ extension PlaybackCoordinator {
 
         if activePlaybackUsesLocalDownload,
            let converted = downloadManager?.record(
-               for: PlexItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
+               for: MediaItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
            )?.convertedMediaVersion(sourcePart: part),
            converted.part.id == debugInfo.part.id {
             // The server still describes the original file; only its sidecars
@@ -1712,7 +1712,7 @@ extension PlaybackCoordinator {
     /// Notes the contents of the sidecar a download is about to overwrite, so
     /// the refresh afterwards can tell Plex's new file from the old one even
     /// when Plex keeps the stream's id, key and titles.
-    func prepareSubtitleDownload(_ result: PlexSubtitleSearchResult) async {
+    func prepareSubtitleDownload(_ result: SubtitleSearchResult) async {
         subtitleDownloadBaselineDigest = nil
         guard let debugInfo,
               let streamID = replacedSubtitleStreamID(in: debugInfo.part.streams, downloaded: result),
@@ -1728,15 +1728,15 @@ extension PlaybackCoordinator {
     private func fetchDetailsAfterSubtitleDownload(
         ratingKey: String,
         partID: Int,
-        previousStreams: [PlexStream],
-        downloaded: PlexSubtitleSearchResult?
-    ) async throws -> PlexMediaDetails {
+        previousStreams: [MediaStream],
+        downloaded: SubtitleSearchResult?
+    ) async throws -> MediaDetails {
         let baselineDigest = subtitleDownloadBaselineDigest
         subtitleDownloadBaselineDigest = nil
         let language = PlayerViewModel.normalizedLanguageCode(downloaded?.languageCode ?? downloaded?.language)
         let presentationID = playerPresentationID
 
-        var latest: PlexMediaDetails?
+        var latest: MediaDetails?
         for delay in SubtitleDownloadApplication.pollDelays {
             if delay > .zero {
                 try? await Task.sleep(for: delay)
@@ -1746,7 +1746,7 @@ extension PlaybackCoordinator {
                 return latest
             }
 
-            let details: PlexMediaDetails
+            let details: MediaDetails
             do {
                 details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: activePlaybackServerID)
             } catch {
@@ -1781,7 +1781,7 @@ extension PlaybackCoordinator {
 
     /// SHA-256 of a sidecar's contents as Plex serves them right now, or nil
     /// when it cannot be fetched quickly.
-    private func sidecarDigest(of stream: PlexStream) async -> Data? {
+    private func sidecarDigest(of stream: MediaStream) async -> Data? {
         guard let key = stream.key?.nilIfEmpty else { return nil }
         let data = try? await plexService.rawServerRequest(
             path: key.hasPrefix("/") ? key : "/\(key)",
@@ -1794,8 +1794,8 @@ extension PlaybackCoordinator {
     /// The sidecar a same-language download overwrote: the one in the
     /// downloaded language, preferring the active one, else the newest.
     private func replacedSubtitleStreamID(
-        in subtitleStreams: [PlexStream],
-        downloaded: PlexSubtitleSearchResult?
+        in subtitleStreams: [MediaStream],
+        downloaded: SubtitleSearchResult?
     ) -> Int? {
         guard let language = PlayerViewModel.normalizedLanguageCode(
             downloaded?.languageCode ?? downloaded?.language
@@ -1919,9 +1919,9 @@ extension PlaybackCoordinator {
     /// sends. Shares the direct-play watch's task, so finalize, clear and
     /// engine swaps cancel it.
     func startLiveDirectPlayFallbackWatch(
-        channel: PlexLiveChannel,
-        program: PlexLiveProgram?,
-        lineup: PlexLiveTVLineup
+        channel: LiveChannel,
+        program: LiveProgram?,
+        lineup: LiveTVLineup
     ) {
         cancelDirectPlayFallbackWatch()
         let expectedPresentationID = playerPresentationID
@@ -2130,10 +2130,10 @@ extension PlaybackCoordinator {
     /// direct play restarts there; otherwise the session ends on the
     /// explanation instead of a generic engine error.
     private func recoverFromRemotePlaybackRefusal(
-        details: PlexMediaDetails,
+        details: MediaDetails,
         ratingKey: String,
-        media: PlexMedia,
-        part: PlexMediaPart,
+        media: MediaVersion,
+        part: MediaPart,
         debugInfo: PlaybackDebugInfo,
         startPosition: TimeInterval,
         expectedPresentationID: UUID
@@ -2288,7 +2288,7 @@ extension PlaybackCoordinator {
                let details = activeItemDetails, details.type == .episode,
                let showRatingKey = details.grandparentRatingKey {
                 downloadManager?.smartDownloadsEpisodeWatched(
-                    PlexItemID(serverID: activePlaybackServerID ?? details.serverID, ratingKey: ratingKey),
+                    MediaItemID(serverID: activePlaybackServerID ?? details.serverID, ratingKey: ratingKey),
                     showRatingKey: showRatingKey
                 )
             }
@@ -2398,9 +2398,9 @@ extension PlaybackCoordinator {
     }
 
     private func resolveMediaVersion(
-        in details: PlexMediaDetails,
+        in details: MediaDetails,
         selectedMediaID: Int?
-    ) -> PlexMedia? {
+    ) -> MediaVersion? {
         if let selectedMediaID {
             return details.media.first { media in
                 media.id == selectedMediaID && !media.parts.isEmpty

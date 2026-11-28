@@ -14,8 +14,8 @@ import SwiftUI
 struct MacLibraryBrowser: View {
     @Environment(PlexService.self) private var plexService
 
-    let libraryType: PlexLibraryType
-    let libraries: [PlexLibrary]
+    let libraryType: LibraryKind
+    let libraries: [Library]
     let viewModel: LibrariesViewModel
     @Binding var path: NavigationPath
 
@@ -132,7 +132,7 @@ struct MacLibraryBrowser: View {
         }
     }
 
-    private var selectedLibrary: PlexLibrary {
+    private var selectedLibrary: Library {
         libraries.first { $0.id == selectedLibraryID } ?? libraries[0]
     }
 
@@ -142,7 +142,7 @@ struct MacLibraryBrowser: View {
 
     /// Same check as the library grid's Collections chip: the section's
     /// Collections setting isn't off and it has at least one.
-    private func loadCollectionsAvailability(for library: PlexLibrary) async {
+    private func loadCollectionsAvailability(for library: Library) async {
         guard collectionsAvailable[library.id] == nil else { return }
         guard library.libraryType == .movie || library.libraryType == .show else {
             collectionsAvailable[library.id] = false

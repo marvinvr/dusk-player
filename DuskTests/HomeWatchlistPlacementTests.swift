@@ -89,18 +89,18 @@ struct HomeWatchlistPlacementTests {
 
     @Test("Only plex:// movies and shows can be watchlisted")
     func discoverRatingKey() {
-        #expect(PlexWatchlistEntry.discoverRatingKey(guid: "plex://movie/5d77688123d5a3001f4ed3df", type: .movie) == "5d77688123d5a3001f4ed3df")
-        #expect(PlexWatchlistEntry.discoverRatingKey(guid: "plex://show/abc", type: .show) == "abc")
-        #expect(PlexWatchlistEntry.discoverRatingKey(guid: "plex://episode/abc", type: .episode) == nil)
-        #expect(PlexWatchlistEntry.discoverRatingKey(guid: "local://12", type: .movie) == nil)
-        #expect(PlexWatchlistEntry.discoverRatingKey(guid: "com.plexapp.agents.imdb://tt1?lang=en", type: .movie) == nil)
-        #expect(PlexWatchlistEntry.discoverRatingKey(guid: "plex://show/abc", type: .movie) == nil)
+        #expect(WatchlistEntry.discoverRatingKey(guid: "plex://movie/5d77688123d5a3001f4ed3df", type: .movie) == "5d77688123d5a3001f4ed3df")
+        #expect(WatchlistEntry.discoverRatingKey(guid: "plex://show/abc", type: .show) == "abc")
+        #expect(WatchlistEntry.discoverRatingKey(guid: "plex://episode/abc", type: .episode) == nil)
+        #expect(WatchlistEntry.discoverRatingKey(guid: "local://12", type: .movie) == nil)
+        #expect(WatchlistEntry.discoverRatingKey(guid: "com.plexapp.agents.imdb://tt1?lang=en", type: .movie) == nil)
+        #expect(WatchlistEntry.discoverRatingKey(guid: "plex://show/abc", type: .movie) == nil)
     }
 
-    private func hub(_ title: String, identifier: String, key: String = "/hubs/x", server: String = "a") throws -> PlexHub {
+    private func hub(_ title: String, identifier: String, key: String = "/hubs/x", server: String = "a") throws -> HomeRow {
         let json: [String: Any] = ["title": title, "key": key, "type": "movie", "hubIdentifier": identifier, "Metadata": []]
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexHub.self, from: JSONSerialization.data(withJSONObject: json))
+        return try decoder.decode(HomeRow.self, from: JSONSerialization.data(withJSONObject: json))
     }
 }

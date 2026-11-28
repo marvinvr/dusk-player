@@ -1,30 +1,30 @@
 import SwiftUI
 
-/// Every media route carries a `PlexItemID`, not a bare rating key: rating keys
+/// Every media route carries a `MediaItemID`, not a bare rating key: rating keys
 /// are per-server counters that collide across servers, so a route without the
 /// server would open whatever item happens to share that key on the primary
 /// one. Navigating from an item therefore always opens it on *its* server.
 enum AppNavigationRoute: Hashable {
     case search
-    case library(PlexLibrary)
-    case libraryGenre(library: PlexLibrary, genre: LibraryGenreOption)
-    case libraryCollection(library: PlexLibrary, collection: PlexLibraryCollection)
+    case library(Library)
+    case libraryGenre(library: Library, genre: LibraryGenreOption)
+    case libraryCollection(library: Library, collection: MediaCollection)
     /// A movie or TV library's Plex collections. A collection itself opens
     /// as `.media(type: .collection, id:)`.
-    case libraryCollections(PlexLibrary)
-    case libraryRecommendations(PlexLibrary)
+    case libraryCollections(Library)
+    case libraryRecommendations(Library)
     case photoAlbum(PhotoAlbumRoute)
-    case hub(PlexHub)
+    case hub(HomeRow)
     /// A Plex playlist, on its own server.
-    case playlist(id: PlexItemID)
-    case media(type: PlexMediaType, id: PlexItemID)
-    case downloadedMedia(type: PlexMediaType, id: PlexItemID)
-    case video(id: PlexItemID)
+    case playlist(id: MediaItemID)
+    case media(type: MediaKind, id: MediaItemID)
+    case downloadedMedia(type: MediaKind, id: MediaItemID)
+    case video(id: MediaItemID)
     /// A video or movie opened from a list it plays through
     /// (`PlaybackListContext`): its Play continues with the following items.
-    case videoInList(id: PlexItemID, list: PlaybackListContext)
-    case movieInList(id: PlexItemID, list: PlaybackListContext)
-    case downloadedVideo(id: PlexItemID)
+    case videoInList(id: MediaItemID, list: PlaybackListContext)
+    case movieInList(id: MediaItemID, list: PlaybackListContext)
+    case downloadedVideo(id: MediaItemID)
     /// Person tag ids are per-server too, so the route carries the server the
     /// credit was read from; nil falls back to the primary server.
     case person(PlexPersonReference, serverID: String?)
@@ -32,7 +32,7 @@ enum AppNavigationRoute: Hashable {
     case seerrSeason(tvID: Int, seasonNumber: Int)
     /// A Plex Watchlist title on none of the connected servers (one that is
     /// opens as `.media`). See `WatchlistItemDetailView`.
-    case watchlistItem(PlexWatchlistEntry)
+    case watchlistItem(WatchlistEntry)
     /// Library Order, reached from the library tabs.
     case libraryOrder
     #if DEBUG
@@ -49,7 +49,7 @@ enum AppNavigationRoute: Hashable {
     case screenshotIPTVSources
     #endif
 
-    static func destination(for item: PlexItem) -> Self {
+    static func destination(for item: MediaItem) -> Self {
         if let person = PlexPersonReference(item: item) {
             return .person(person, serverID: item.serverID)
         }

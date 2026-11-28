@@ -20,7 +20,7 @@ struct HomeHubItemsView: View {
         isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0
     }
 
-    init(hub: PlexHub, plexService: PlexService) {
+    init(hub: HomeRow, plexService: PlexService) {
         _viewModel = State(initialValue: HomeHubItemsViewModel(
             hub: hub,
             plexService: plexService
@@ -64,7 +64,7 @@ struct HomeHubItemsView: View {
                 TVSettingsPageTitle(viewModel.navigationTitle, leadingInset: horizontalPadding)
                     .tvLibraryPageTitleSpacing()
                 #endif
-                PlexItemPosterGrid(
+                MediaItemPosterGrid(
                     items: viewModel.items,
                     layout: layout,
                     rowSpacing: gridRowSpacing,
@@ -75,7 +75,7 @@ struct HomeHubItemsView: View {
                     subtitle: { viewModel.subtitle(for: $0) },
                     progress: { viewModel.progress(for: $0) }
                 ) { item in
-                    PlexItemContextMenuContent(
+                    MediaItemContextMenuContent(
                         item: item,
                         onMarkWatched: {
                             Task { await viewModel.setWatched(true, for: item) }

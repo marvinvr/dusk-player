@@ -13,7 +13,7 @@ struct PlayerIntroAutoSkipTests {
         preferences.autoSkipIntroMode = .off
         defer { preferences.autoSkipIntroMode = previousMode }
 
-        let marker = PlexMarker(
+        let marker = Marker(
             id: 42,
             type: "intro",
             startTimeOffset: 5_000,
@@ -201,8 +201,8 @@ struct PlayerIntroAutoSkipTests {
     }
 
     @Test func lastCreditsMarkerDrivesUpNextAndEarlierOnesGetTheChip() {
-        let early = PlexMarker(id: 1, type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
-        let final = PlexMarker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+        let early = Marker(id: 1, type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
+        let final = Marker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
         let engine = IntroAutoSkipPlaybackEngine(currentTime: 35)
         let viewModel = PlayerViewModel(engine: engine, markers: [early, final])
         defer { viewModel.cleanup() }
@@ -224,7 +224,7 @@ struct PlayerIntroAutoSkipTests {
     }
 
     @Test func skippingCreditsToTheEndEndsPlaybackInsteadOfSeeking() {
-        let final = PlexMarker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+        let final = Marker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
         let engine = IntroAutoSkipPlaybackEngine(currentTime: 105)
         let viewModel = PlayerViewModel(engine: engine, markers: [final])
         defer { viewModel.cleanup() }
@@ -266,7 +266,7 @@ struct PlayerIntroAutoSkipTests {
         let previousMode = preferences.autoSkipIntroMode
         preferences.autoSkipIntroMode = mode
 
-        let marker = PlexMarker(
+        let marker = Marker(
             id: 42,
             type: "intro",
             startTimeOffset: 5_000,
@@ -304,7 +304,7 @@ private struct IntroAutoSkipHarness {
     let preferences: UserPreferences
     let previousMode: AutoSkipIntroMode
     let previousDuration: TimeInterval
-    let marker: PlexMarker
+    let marker: Marker
     let engine: IntroAutoSkipPlaybackEngine
     let viewModel: PlayerViewModel
     let handlerCalls: () -> Int

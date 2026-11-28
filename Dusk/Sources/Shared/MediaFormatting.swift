@@ -2,7 +2,7 @@ import Foundation
 
 enum MediaTextFormatter {
     /// A detail page's Media line: "1080 · H264 · AAC · 6ch".
-    static func mediaInfoLine(_ media: PlexMedia?) -> String? {
+    static func mediaInfoLine(_ media: MediaVersion?) -> String? {
         guard let media else { return nil }
         var parts: [String] = []
         if let res = media.videoResolution?.uppercased() {
@@ -172,7 +172,7 @@ enum MediaTextFormatter {
         return Double(offsetMs) / Double(durationMs)
     }
 
-    static func mediaTypeIconName(_ type: PlexMediaType) -> String {
+    static func mediaTypeIconName(_ type: MediaKind) -> String {
         switch type {
         case .movie:
             return "film"
@@ -191,7 +191,7 @@ enum MediaTextFormatter {
 
     /// Play Version item title: resolution plus dynamic range, nothing else
     /// ("4K · Dolby Vision", "1080p"). SDR goes unsaid.
-    static func playbackVersionTitle(_ media: PlexMedia) -> String {
+    static func playbackVersionTitle(_ media: MediaVersion) -> String {
         var parts = [playbackVersionResolution(media)].compactMap { $0 }
         if let video = media.parts.flatMap(\.streams).first(where: { $0.streamType == .video }) {
             if video.doviPresent == true || video.doviProfile != nil {
@@ -205,7 +205,7 @@ enum MediaTextFormatter {
 
     /// Play Version item secondary text: size first, then codecs, container,
     /// bitrate, Optimized and the owning library when copies span libraries.
-    static func playbackVersionDetail(_ media: PlexMedia, library: String? = nil) -> String? {
+    static func playbackVersionDetail(_ media: MediaVersion, library: String? = nil) -> String? {
         var parts: [String] = []
         let sizes = media.parts.compactMap(\.size)
         if sizes.count == media.parts.count, !sizes.isEmpty, sizes.allSatisfy({ $0 > 0 }) {
@@ -232,7 +232,7 @@ enum MediaTextFormatter {
         return "\(count) \(label)"
     }
 
-    private static func playbackVersionResolution(_ media: PlexMedia) -> String? {
+    private static func playbackVersionResolution(_ media: MediaVersion) -> String? {
         if let resolution = media.videoResolution?.trimmingCharacters(in: .whitespacesAndNewlines),
            !resolution.isEmpty {
             let normalized = resolution.lowercased()
@@ -260,7 +260,7 @@ enum MediaTextFormatter {
         }
     }
 
-    private static func playbackVersionBitrate(_ media: PlexMedia) -> String? {
+    private static func playbackVersionBitrate(_ media: MediaVersion) -> String? {
         guard let bitrate = media.bitrate, bitrate > 0 else { return nil }
         if bitrate >= 1000 {
             let megabits = Double(bitrate) / 1000.0

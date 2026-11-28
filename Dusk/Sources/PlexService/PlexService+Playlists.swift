@@ -12,8 +12,8 @@ import Foundation
 /// milliseconds but the `/items` container's is in seconds.
 extension PlexService {
     /// Video playlists on one server, in the server's order (title).
-    func getPlaylists(serverID: String) async throws -> [PlexPlaylist] {
-        let playlists: [PlexPlaylist] = try await fetchMetadata(
+    func getPlaylists(serverID: String) async throws -> [Playlist] {
+        let playlists: [Playlist] = try await fetchMetadata(
             path: "/playlists",
             queryItems: [URLQueryItem(name: "playlistType", value: "video")],
             serverID: serverID
@@ -24,14 +24,14 @@ extension PlexService {
     /// Video playlists from every connected server, streamed as each answers.
     /// A server that fails contributes nothing (`nil`, not an empty list, so
     /// the caller can tell "has none" from "did not answer").
-    func streamPlaylists() -> AsyncStream<ServerResult<[PlexPlaylist]?>> {
+    func streamPlaylists() -> AsyncStream<ServerResult<[Playlist]?>> {
         streamAcrossServers { service, serverID in
             try? await service.getPlaylists(serverID: serverID)
         }
     }
 
-    func getPlaylist(ratingKey: String, serverID: String?) async throws -> PlexPlaylist? {
-        let playlists: [PlexPlaylist] = try await fetchMetadata(
+    func getPlaylist(ratingKey: String, serverID: String?) async throws -> Playlist? {
+        let playlists: [Playlist] = try await fetchMetadata(
             path: "/playlists/\(ratingKey)",
             serverID: serverID
         )
@@ -39,10 +39,10 @@ extension PlexService {
     }
 
     /// Every entry of a playlist, in playlist order, paged through.
-    func getPlaylistEntries(ratingKey: String, serverID: String?) async throws -> [PlexPlaylistEntry] {
+    func getPlaylistEntries(ratingKey: String, serverID: String?) async throws -> [PlaylistEntry] {
         let targetID = try resolveServerID(serverID)
         let pageSize = 200
-        var entries: [PlexPlaylistEntry] = []
+        var entries: [PlaylistEntry] = []
         while true {
             let data = try await rawServerRequest(
                 path: "/playlists/\(ratingKey)/items",
@@ -52,7 +52,7 @@ extension PlexService {
                 ],
                 serverID: targetID
             )
-            let container = try decodeJSON(MetadataResponse<PlexPlaylistEntry>.self, from: data, serverID: targetID)
+            let container = try decodeJSON(MetadataResponse<PlaylistEntry>.self, from: data, serverID: targetID)
                 .MediaContainer
             let page = container.Metadata ?? []
             entries += page
@@ -64,7 +64,7 @@ extension PlexService {
 
     /// Plex cannot create an empty regular playlist, so a new one always
     /// starts with the items it was created from.
-    func createPlaylist(title: String, ratingKeys: [String], serverID: String) async throws -> PlexPlaylist {
+    func createPlaylist(title: String, ratingKeys: [String], serverID: String) async throws -> Playlist {
         let data = try await rawServerRequest(
             method: "POST",
             path: "/playlists",
@@ -76,7 +76,7 @@ extension PlexService {
             ],
             serverID: serverID
         )
-        guard let playlist = try decodeJSON(MetadataResponse<PlexPlaylist>.self, from: data, serverID: serverID)
+        guard let playlist = try decodeJSON(MetadataResponse<Playlist>.self, from: data, serverID: serverID)
             .MediaContainer.Metadata?.first else {
             throw PlexServiceError.decodingError("Plex did not return the new playlist.")
         }
@@ -85,7 +85,7 @@ extension PlexService {
 
     /// Appends items (a show or season adds all its episodes).
     @discardableResult
-    func addToPlaylist(_ playlist: PlexPlaylist, ratingKeys: [String]) async throws -> PlexPlaylistAddResult {
+    func addToPlaylist(_ playlist: Playlist, ratingKeys: [String]) async throws -> PlexPlaylistAddResult {
         let serverID = try resolveServerID(playlist.serverID)
         let data = try await rawServerRequest(
             method: "PUT",
@@ -100,7 +100,7 @@ extension PlexService {
         return PlexPlaylistAddResult(added: container?.leafCountAdded ?? requested, requested: requested)
     }
 
-    func removeFromPlaylist(_ playlist: PlexPlaylist, playlistItemID: Int) async throws {
+    func removeFromPlaylist(_ playlist: Playlist, playlistItemID: Int) async throws {
         _ = try await rawServerRequest(
             method: "DELETE",
             path: "/playlists/\(playlist.ratingKey)/items/\(playlistItemID)",
@@ -109,7 +109,7 @@ extension PlexService {
     }
 
     /// Moves an entry right after `afterPlaylistItemID`, or to the top when nil.
-    func movePlaylistItem(_ playlist: PlexPlaylist, playlistItemID: Int, after afterPlaylistItemID: Int?) async throws {
+    func movePlaylistItem(_ playlist: Playlist, playlistItemID: Int, after afterPlaylistItemID: Int?) async throws {
         _ = try await rawServerRequest(
             method: "PUT",
             path: "/playlists/\(playlist.ratingKey)/items/\(playlistItemID)/move",
@@ -118,7 +118,7 @@ extension PlexService {
         )
     }
 
-    func renamePlaylist(_ playlist: PlexPlaylist, to title: String) async throws {
+    func renamePlaylist(_ playlist: Playlist, to title: String) async throws {
         _ = try await rawServerRequest(
             method: "PUT",
             path: "/playlists/\(playlist.ratingKey)",
@@ -127,7 +127,7 @@ extension PlexService {
         )
     }
 
-    func deletePlaylist(_ playlist: PlexPlaylist) async throws {
+    func deletePlaylist(_ playlist: Playlist) async throws {
         _ = try await rawServerRequest(
             method: "DELETE",
             path: "/playlists/\(playlist.ratingKey)",
@@ -173,7 +173,7 @@ extension PlexService {
 
     /// Re-reads one playlist (its count, runtime and mosaic change with every
     /// edit) into the store.
-    func refreshPlaylist(_ id: PlexItemID) async {
+    func refreshPlaylist(_ id: MediaItemID) async {
         let session = playlists.sessionGeneration
         guard let playlist = try? await getPlaylist(ratingKey: id.ratingKey, serverID: id.serverID) else { return }
         playlists.upsert(playlist, sessionGeneration: session)

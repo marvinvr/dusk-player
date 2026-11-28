@@ -2,9 +2,9 @@ import Foundation
 
 /// An episode within a TV season.
 /// Returned from `GET /library/metadata/{seasonRatingKey}/children`.
-struct PlexEpisode: Codable, Sendable, Identifiable {
-    /// Server-scoped identity; see `PlexItemID`.
-    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+struct Episode: Codable, Sendable, Identifiable {
+    /// Server-scoped identity; see `MediaItemID`.
+    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
     /// Stamped by `ServerPool.decoder(for:)`; never part of the Plex payload,
     /// so it is excluded from `CodingKeys` and dropped when re-encoded.
@@ -86,7 +86,7 @@ struct PlexEpisode: Codable, Sendable, Identifiable {
     }
 }
 
-extension PlexEpisode {
+extension Episode {
     var isWatched: Bool {
         guard let count = viewCount else { return false }
         return count > 0
@@ -107,9 +107,9 @@ extension PlexEpisode {
 /// The episodes either side of the one playing, for the player's Previous /
 /// Next Episode controls. Either side may be nil: the first or last episode of
 /// the show, or (for downloads) no downloaded neighbour.
-struct PlexAdjacentEpisodes: Sendable {
-    var previous: PlexEpisode?
-    var next: PlexEpisode?
+struct AdjacentEpisodes: Sendable {
+    var previous: Episode?
+    var next: Episode?
 
     /// Neighbours inside one season. `episodes` must be sorted by `index`.
     /// Falls back to episode numbers when the playing episode is not in the
@@ -117,19 +117,19 @@ struct PlexAdjacentEpisodes: Sendable {
     /// `isEligible` skips episodes that cannot play, such as ones that are not
     /// downloaded during offline playback.
     static func inSeason(
-        _ episodes: [PlexEpisode],
-        around episode: PlexMediaDetails,
-        isEligible: (PlexEpisode) -> Bool = { _ in true }
-    ) -> PlexAdjacentEpisodes {
+        _ episodes: [Episode],
+        around episode: MediaDetails,
+        isEligible: (Episode) -> Bool = { _ in true }
+    ) -> AdjacentEpisodes {
         if let position = episodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }) {
-            return PlexAdjacentEpisodes(
+            return AdjacentEpisodes(
                 previous: episodes[..<position].last(where: isEligible),
                 next: episodes[episodes.index(after: position)...].first(where: isEligible)
             )
         }
 
-        guard let number = episode.index else { return PlexAdjacentEpisodes() }
-        return PlexAdjacentEpisodes(
+        guard let number = episode.index else { return AdjacentEpisodes() }
+        return AdjacentEpisodes(
             previous: episodes.last { ($0.index ?? 0) < number && isEligible($0) },
             next: episodes.first { ($0.index ?? 0) > number && isEligible($0) }
         )

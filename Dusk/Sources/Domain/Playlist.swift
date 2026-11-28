@@ -3,9 +3,9 @@ import Foundation
 /// A Plex playlist (`GET /playlists`). Every playlist lives on one server and
 /// belongs to the signed-in (Home) user; its items can only come from that
 /// server. Dusk shows video playlists only.
-struct PlexPlaylist: Decodable, Sendable, Identifiable, Hashable {
-    /// Server-scoped identity; see `PlexItemID`.
-    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+struct Playlist: Decodable, Sendable, Identifiable, Hashable {
+    /// Server-scoped identity; see `MediaItemID`.
+    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
     /// Stamped by `ServerPool.decoder(for:)`.
     let serverID: String?
@@ -95,8 +95,8 @@ struct PlexPlaylist: Decodable, Sendable, Identifiable, Hashable {
     /// The mosaic, or the playlist's own art when Plex sends one instead.
     var artworkPath: String? { composite ?? thumb }
 
-    func renamed(_ newTitle: String) -> PlexPlaylist {
-        PlexPlaylist(
+    func renamed(_ newTitle: String) -> Playlist {
+        Playlist(
             serverID: serverID, ratingKey: ratingKey, title: newTitle, summary: summary,
             smart: smart, playlistType: playlistType, composite: composite, thumb: thumb,
             duration: duration, leafCount: leafCount, viewCount: viewCount,
@@ -104,7 +104,7 @@ struct PlexPlaylist: Decodable, Sendable, Identifiable, Hashable {
         )
     }
 
-    static func == (lhs: PlexPlaylist, rhs: PlexPlaylist) -> Bool {
+    static func == (lhs: Playlist, rhs: Playlist) -> Bool {
         lhs.id == rhs.id && lhs.title == rhs.title && lhs.leafCount == rhs.leafCount
             && lhs.duration == rhs.duration && lhs.composite == rhs.composite
     }
@@ -118,9 +118,9 @@ struct PlexPlaylist: Decodable, Sendable, Identifiable, Hashable {
 /// metadata plus the `playlistItemID` every edit is keyed on. Smart playlists
 /// send no `playlistItemID` (their items cannot be edited), and the same item
 /// may appear twice in a regular one, so entries are told apart by it.
-struct PlexPlaylistEntry: Decodable, Sendable, Identifiable, Hashable {
+struct PlaylistEntry: Decodable, Sendable, Identifiable, Hashable {
     let playlistItemID: Int?
-    let item: PlexItem
+    let item: MediaItem
 
     /// Unique within one playlist listing.
     var id: String { playlistItemID.map(String.init) ?? item.id.storageKey }
@@ -136,15 +136,15 @@ struct PlexPlaylistEntry: Decodable, Sendable, Identifiable, Hashable {
         } else {
             playlistItemID = (try? container.decodeIfPresent(String.self, forKey: .playlistItemID)).flatMap { $0.flatMap(Int.init) }
         }
-        item = try PlexItem(from: decoder)
+        item = try MediaItem(from: decoder)
     }
 
-    init(playlistItemID: Int?, item: PlexItem) {
+    init(playlistItemID: Int?, item: MediaItem) {
         self.playlistItemID = playlistItemID
         self.item = item
     }
 
-    static func == (lhs: PlexPlaylistEntry, rhs: PlexPlaylistEntry) -> Bool {
+    static func == (lhs: PlaylistEntry, rhs: PlaylistEntry) -> Bool {
         lhs.id == rhs.id && lhs.item == rhs.item
     }
 

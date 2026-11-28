@@ -6,18 +6,18 @@ import SwiftUI
 /// only ever reachable from the type tab itself: the tab lands on merged
 /// recommendations and this is the way out to the individual libraries.
 struct LibraryTypeListDestination: Hashable {
-    let libraryType: PlexLibraryType
+    let libraryType: LibraryKind
 }
 
 /// One library a type tab can browse straight into, with the title the
 /// library list uses for it (server-labelled when titles collide).
 struct LibraryBrowseTarget: Hashable {
-    let library: PlexLibrary
+    let library: Library
     let title: String
 }
 
 struct LibrariesView: View {
-    let libraryType: PlexLibraryType
+    let libraryType: LibraryKind
     let viewModel: LibrariesViewModel
     @Binding var path: NavigationPath
 
@@ -31,7 +31,7 @@ struct LibrariesView: View {
 
 struct LibrariesRootContent: View {
     @Environment(PlexService.self) private var plexService
-    let libraryType: PlexLibraryType
+    let libraryType: LibraryKind
     let viewModel: LibrariesViewModel
     /// The enclosing stack's path, for the iOS Browse menu's pushes (see
     /// `LibraryRecommendationsView.push`).
@@ -144,7 +144,7 @@ struct LibrariesRootContent: View {
 
 /// Every library of one type, in the account's cross-server order.
 struct LibraryTypeListView: View {
-    let libraryType: PlexLibraryType
+    let libraryType: LibraryKind
     let viewModel: LibrariesViewModel
 
     var body: some View {
@@ -203,7 +203,7 @@ struct LibraryTypeListView: View {
 
     /// A row opens its library on its recommendations; photo libraries have
     /// none and open on their albums.
-    private func route(for library: PlexLibrary) -> AppNavigationRoute {
+    private func route(for library: Library) -> AppNavigationRoute {
         library.libraryType == .photo ? .library(library) : .libraryRecommendations(library)
     }
 }
@@ -213,7 +213,7 @@ private struct LibraryRowContent: View {
     @Environment(\.isFocused) private var isFocused
     #endif
 
-    let library: PlexLibrary
+    let library: Library
     let vm: LibrariesViewModel
 
     var body: some View {
@@ -283,13 +283,13 @@ private struct LibraryRowContent: View {
     }
 }
 
-// MARK: - PlexLibrary Hashable conformance for NavigationLink
+// MARK: - Library Hashable conformance for NavigationLink
 
 /// Keyed on `id` (`"<serverID>|<key>"`), never on `key` alone: section keys are
 /// per-server counters, so two servers' "3" sections would compare equal and a
 /// navigation link could open the wrong library.
-extension PlexLibrary: Hashable {
-    static func == (lhs: PlexLibrary, rhs: PlexLibrary) -> Bool {
+extension Library: Hashable {
+    static func == (lhs: Library, rhs: Library) -> Bool {
         lhs.id == rhs.id
     }
 

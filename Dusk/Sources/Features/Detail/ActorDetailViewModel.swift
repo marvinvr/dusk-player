@@ -10,7 +10,7 @@ final class ActorDetailViewModel {
     let serverID: String?
 
     private(set) var person: PlexPersonReference
-    private(set) var filmography: [PlexItem] = []
+    private(set) var filmography: [MediaItem] = []
     private(set) var isLoading = false
     private(set) var error: String?
 
@@ -42,11 +42,11 @@ final class ActorDetailViewModel {
         isLoading = false
     }
 
-    var movies: [PlexItem] {
+    var movies: [MediaItem] {
         filmography.filter { $0.type == .movie }
     }
 
-    var shows: [PlexItem] {
+    var shows: [MediaItem] {
         filmography.filter { $0.type == .show }
     }
 
@@ -66,11 +66,11 @@ final class ActorDetailViewModel {
         plexService.imageURL(for: person.thumb, serverID: serverID, width: size, height: size)
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.filmographyPosterSubtitle
     }
 
@@ -83,7 +83,7 @@ final class ActorDetailViewModel {
         )
     }
 
-    private func fallbackFilmography() async throws -> [PlexItem] {
+    private func fallbackFilmography() async throws -> [MediaItem] {
         let results = try await plexService.search(query: person.name, serverID: serverID)
         let supportedItems = results
             .flatMap(\.items)
@@ -96,8 +96,8 @@ final class ActorDetailViewModel {
         return exactRoleMatches.isEmpty ? supportedItems : exactRoleMatches
     }
 
-    private func sortFilmography(_ items: [PlexItem]) -> [PlexItem] {
-        var seen = Set<PlexItemID>()
+    private func sortFilmography(_ items: [MediaItem]) -> [MediaItem] {
+        var seen = Set<MediaItemID>()
         return items
             .filter { seen.insert($0.id).inserted }
             .sorted { lhs, rhs in

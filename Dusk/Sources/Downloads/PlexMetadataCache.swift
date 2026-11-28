@@ -27,7 +27,7 @@ struct PlexMetadataCache: Sendable {
         ))
     }
 
-    func mediaDetails(accountProfileID: String, serverID: String, ratingKey: String) -> PlexMediaDetails? {
+    func mediaDetails(accountProfileID: String, serverID: String, ratingKey: String) -> MediaDetails? {
         guard let data = payload(
             accountProfileID: accountProfileID,
             serverID: serverID,
@@ -35,10 +35,10 @@ struct PlexMetadataCache: Sendable {
         ) else {
             return nil
         }
-        return Self.decodeMetadata(PlexMediaDetails.self, from: data, serverID: serverID).first
+        return Self.decodeMetadata(MediaDetails.self, from: data, serverID: serverID).first
     }
 
-    func seasons(accountProfileID: String, serverID: String, showKey: String) -> [PlexSeason]? {
+    func seasons(accountProfileID: String, serverID: String, showKey: String) -> [Season]? {
         guard let data = payload(
             accountProfileID: accountProfileID,
             serverID: serverID,
@@ -46,10 +46,10 @@ struct PlexMetadataCache: Sendable {
         ) else {
             return nil
         }
-        return Self.decodeMetadata(PlexSeason.self, from: data, serverID: serverID)
+        return Self.decodeMetadata(Season.self, from: data, serverID: serverID)
     }
 
-    func episodes(accountProfileID: String, serverID: String, seasonKey: String) -> [PlexEpisode]? {
+    func episodes(accountProfileID: String, serverID: String, seasonKey: String) -> [Episode]? {
         guard let data = payload(
             accountProfileID: accountProfileID,
             serverID: serverID,
@@ -57,14 +57,14 @@ struct PlexMetadataCache: Sendable {
         ) else {
             return nil
         }
-        return Self.decodeMetadata(PlexEpisode.self, from: data, serverID: serverID)
+        return Self.decodeMetadata(Episode.self, from: data, serverID: serverID)
     }
 
     func firstCachedMediaDetails(
         accountProfileID: String,
         ratingKey: String,
         serverIDs: [String]
-    ) -> PlexMediaDetails? {
+    ) -> MediaDetails? {
         for serverID in serverIDs {
             if let details = mediaDetails(
                 accountProfileID: accountProfileID,
@@ -81,7 +81,7 @@ struct PlexMetadataCache: Sendable {
         accountProfileID: String,
         showKey: String,
         serverIDs: [String]
-    ) -> [PlexSeason]? {
+    ) -> [Season]? {
         for serverID in serverIDs {
             if let seasons = seasons(
                 accountProfileID: accountProfileID,
@@ -98,7 +98,7 @@ struct PlexMetadataCache: Sendable {
         accountProfileID: String,
         seasonKey: String,
         serverIDs: [String]
-    ) -> [PlexEpisode]? {
+    ) -> [Episode]? {
         for serverID in serverIDs {
             if let episodes = episodes(
                 accountProfileID: accountProfileID,

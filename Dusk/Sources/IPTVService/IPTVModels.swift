@@ -146,7 +146,7 @@ struct IPTVGuide: Hashable, Sendable {
 }
 
 /// Everything AVPlayer needs to open one IPTV channel. Rides on
-/// `PlexLiveChannel.iptv`, which is how the shared Live TV guide and player
+/// `LiveChannel.iptv`, which is how the shared Live TV guide and player
 /// tell an IPTV channel from a Plex tuner channel.
 struct IPTVPlayableChannel: Hashable, Sendable {
     let sourceID: UUID
@@ -169,7 +169,7 @@ struct IPTVPlayableChannel: Hashable, Sendable {
 /// A loaded source, ready for the guide.
 struct IPTVSourceLineup: Hashable, Sendable {
     let source: IPTVSource
-    let lineup: PlexLiveTVLineup
+    let lineup: LiveTVLineup
     /// A guide that failed to load does not hide the channels; it is noted.
     let guideError: String?
 }

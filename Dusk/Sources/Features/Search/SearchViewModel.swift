@@ -72,10 +72,10 @@ final class SearchViewModel {
         defer { seerrTask.cancel() }
 
         let serverIDs = plexService.mergeServerIDs
-        var resultsByServer = [[PlexSearchResult]](repeating: [], count: serverIDs.count)
+        var resultsByServer = [[SearchSection]](repeating: [], count: serverIDs.count)
         var failureCount = 0
         var firstFailure: (any Error)?
-        var plexGroups: [PlexSearchResult] = []
+        var plexGroups: [SearchSection] = []
 
         for await result in plexService.streamSearch(query: query) {
             guard !Task.isCancelled else { return }
@@ -119,7 +119,7 @@ final class SearchViewModel {
     }
 
     private static func makeGroups(
-        plexGroups: [PlexSearchResult],
+        plexGroups: [SearchSection],
         seerrItems: [SeerrSearchMedia]
     ) -> [SearchMediaResultGroup] {
         var groups = plexGroups.map {
@@ -164,7 +164,7 @@ final class SearchViewModel {
         return groups.filter { !$0.items.isEmpty }
     }
 
-    private static func fallbackKey(_ item: PlexItem) -> String {
+    private static func fallbackKey(_ item: MediaItem) -> String {
         "\(item.type.rawValue):\(normalized(item.title)):\(item.year.map(String.init) ?? "")"
     }
 

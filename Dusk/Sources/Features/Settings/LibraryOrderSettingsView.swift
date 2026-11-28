@@ -166,7 +166,7 @@ struct LibraryOrderSettingsView: View {
 
     private func positionBinding(
         _ viewModel: LibraryOrderSettingsViewModel,
-        for library: PlexLibrary
+        for library: Library
     ) -> Binding<Int> {
         Binding(
             get: { viewModel.position(of: library) },
@@ -178,8 +178,8 @@ struct LibraryOrderSettingsView: View {
     // MARK: - Shared
 
     /// Music and photo sections are listed here even though Dusk cannot browse
-    /// them, so they need icons `PlexLibraryType` does not model.
-    private static func iconName(for library: PlexLibrary) -> String {
+    /// them, so they need icons `LibraryKind` does not model.
+    private static func iconName(for library: Library) -> String {
         if let systemImage = library.libraryType?.systemImage {
             return systemImage
         }

@@ -23,7 +23,7 @@ enum LibraryWatchStatus: String, CaseIterable, Identifiable, Sendable {
     /// shows filter on their episodes (`unwatchedLeaves`), so a show is
     /// "watched" once every episode is. Plex has no in-progress filter for
     /// show sections.
-    func serverFilter(libraryType: PlexLibraryType?) -> (name: String, value: String)? {
+    func serverFilter(libraryType: LibraryKind?) -> (name: String, value: String)? {
         let unwatchedName = LibraryUnwatchedFilter.parameterName(for: libraryType)
         switch self {
         case .all: return nil
@@ -33,7 +33,7 @@ enum LibraryWatchStatus: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    static func options(for libraryType: PlexLibraryType?) -> [LibraryWatchStatus] {
+    static func options(for libraryType: LibraryKind?) -> [LibraryWatchStatus] {
         libraryType == .show ? [.all, .unwatched, .watched] : allCases
     }
 }
@@ -121,7 +121,7 @@ struct LibraryFilterState: Hashable, Sendable {
     /// chip own.
     var hasFieldFilters: Bool { !choices.isEmpty || !toggles.isEmpty }
 
-    func serverFilters(libraryType: PlexLibraryType?) -> [String: String] {
+    func serverFilters(libraryType: LibraryKind?) -> [String: String] {
         var filters: [String: String] = [:]
         if let status = watchStatus.serverFilter(libraryType: libraryType) {
             filters[status.name] = status.value

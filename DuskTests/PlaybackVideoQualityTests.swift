@@ -328,7 +328,7 @@ struct PlaybackVideoQualityTests {
             }]
         }
         """
-        let media = try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+        let media = try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
         let part = try #require(media.parts.first)
         return PlaybackDebugInfo(
             title: "Test",

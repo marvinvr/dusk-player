@@ -8,8 +8,8 @@ import Foundation
 /// exactly as it did before Dusk connected to everything at once.
 @MainActor
 enum ServerLabeling {
-    /// Server names keyed by `PlexLibrary.id`, for the colliding libraries only.
-    static func serverLabels(for libraries: [PlexLibrary], pool: ServerPool) -> [String: String] {
+    /// Server names keyed by `Library.id`, for the colliding libraries only.
+    static func serverLabels(for libraries: [Library], pool: ServerPool) -> [String: String] {
         var counts: [String: Int] = [:]
         for library in libraries {
             counts[collisionKey(for: library), default: 0] += 1
@@ -26,15 +26,15 @@ enum ServerLabeling {
 
     /// `"<title> · <server>"` when the library needs disambiguating, otherwise
     /// just the title.
-    static func displayTitle(for library: PlexLibrary, labels: [String: String]) -> String {
+    static func displayTitle(for library: Library, labels: [String: String]) -> String {
         guard let serverName = labels[library.id] else { return library.title }
         return "\(library.title) · \(serverName)"
     }
 
     /// Two libraries collide when a user could not tell them apart: same kind of
-    /// content, same name. `PlexLibrary.type` is used rather than `libraryType`
+    /// content, same name. `Library.type` is used rather than `libraryType`
     /// so music and photo sections (which Dusk never resolves) still compare.
-    private static func collisionKey(for library: PlexLibrary) -> String {
+    private static func collisionKey(for library: Library) -> String {
         "\(library.type)|\(library.title.lowercased())"
     }
 }

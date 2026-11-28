@@ -8,7 +8,7 @@ import SwiftUI
 struct MoreView: View {
     @Binding var path: NavigationPath
     let showsDownloads: Bool
-    let contentTypes: [PlexLibraryType]
+    let contentTypes: [LibraryKind]
     let librariesViewModel: LibrariesViewModel
     let liveTVViewModel: LiveTVViewModel
 
@@ -70,7 +70,7 @@ struct MoreView: View {
 }
 
 private enum MoreRoute: Hashable {
-    case content(PlexLibraryType)
+    case content(LibraryKind)
     case downloads
     case settings
 }

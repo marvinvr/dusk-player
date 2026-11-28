@@ -15,7 +15,7 @@ struct PlexHubSource: Sendable, Hashable, Codable {
 
 /// A "hub" on the Plex home screen (e.g. "Continue Watching", "Recently Added Movies").
 /// Returned from `GET /hubs`, `GET /hubs/sections/{sectionId}`, and `GET /hubs/search`.
-struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
+struct HomeRow: Decodable, Sendable, Identifiable, Hashable {
     var id: String {
         // A merged row is identified by what made it one row. Its
         // representative's `hubIdentifier` carries *that* server's section id,
@@ -48,7 +48,7 @@ struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
     /// library; absent on global rows such as Continue Watching.
     let librarySectionID: String?
     let librarySectionTitle: String?
-    let items: [PlexItem]
+    let items: [MediaItem]
 
     enum CodingKeys: String, CodingKey {
         case key, title, type, hubIdentifier, size, more
@@ -69,7 +69,7 @@ struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
         more: Bool?,
         librarySectionID: String?,
         librarySectionTitle: String?,
-        items: [PlexItem],
+        items: [MediaItem],
         serverID: String? = nil,
         sources: [PlexHubSource] = [],
         mergeIdentity: String? = nil
@@ -120,8 +120,8 @@ struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
 
     /// Same hub with a different item list; every other field is preserved.
     /// Use this instead of the memberwise init so new fields never get dropped.
-    func replacingItems(_ items: [PlexItem]) -> PlexHub {
-        PlexHub(
+    func replacingItems(_ items: [MediaItem]) -> HomeRow {
+        HomeRow(
             key: key,
             title: title,
             type: type,
@@ -145,8 +145,8 @@ struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
     /// Ask `sources` instead — `isPageable`, `hasMoreOnAnySource`,
     /// `totalSourceSize` (`MultiServer/HubMerge.swift`).
     /// - Parameter identity: the merge key, which becomes the row's `id`.
-    func merged(items: [PlexItem], sources: [PlexHubSource], identity: String? = nil) -> PlexHub {
-        PlexHub(
+    func merged(items: [MediaItem], sources: [PlexHubSource], identity: String? = nil) -> HomeRow {
+        HomeRow(
             key: key,
             title: title,
             type: type,
@@ -194,23 +194,23 @@ struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
     }
 }
 
-private extension KeyedDecodingContainer where Key == PlexHub.CodingKeys {
-    func decodeLossyPlexItemsIfPresent(forKey key: Key) throws -> [PlexItem] {
+private extension KeyedDecodingContainer where Key == HomeRow.CodingKeys {
+    func decodeLossyPlexItemsIfPresent(forKey key: Key) throws -> [MediaItem] {
         guard contains(key), try !decodeNil(forKey: key) else { return [] }
         return try decode(LossyPlexItemArray.self, forKey: key).items
     }
 }
 
 private struct LossyPlexItemArray: Decodable {
-    let items: [PlexItem]
+    let items: [MediaItem]
 
     init(from decoder: Decoder) throws {
         var container = try decoder.unkeyedContainer()
-        var items: [PlexItem] = []
+        var items: [MediaItem] = []
 
         while !container.isAtEnd {
             do {
-                items.append(try container.decode(PlexItem.self))
+                items.append(try container.decode(MediaItem.self))
             } catch {
                 // Plex short-search responses can include suggestion directories that do not
                 // conform to the media item shape the UI expects.

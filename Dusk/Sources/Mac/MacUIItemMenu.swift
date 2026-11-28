@@ -13,12 +13,12 @@ import SwiftUI
 ///     Add to Playlist…, Add to/Remove from Watchlist, Download
 ///
 /// A screen appends its own section after it (Home's "Hide Row").
-/// iOS/tvOS keep `PlexItemContextMenuContent` / `HomeItemContextMenu` as they are.
+/// iOS/tvOS keep `MediaItemContextMenuContent` / `HomeItemContextMenu` as they are.
 struct MacItemContextMenu: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
 
-    let item: PlexItem
+    let item: MediaItem
     var onMarkWatched: (() -> Void)?
     var onMarkUnwatched: (() -> Void)?
     /// The item's own page, when the click target doesn't already open it.
@@ -209,7 +209,7 @@ struct MacItemContextMenu: View {
         }
     }
 }
-extension PlexItem {
+extension MediaItem {
     /// An episode card's title on the Mac's episode rows: "S2 E3 · Title".
     var macEpisodeCardTitle: String {
         let number = [parentIndex.map { "S\($0)" }, index.map { "E\($0)" }]

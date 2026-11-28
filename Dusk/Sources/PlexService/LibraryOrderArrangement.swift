@@ -35,20 +35,20 @@ enum LibraryOrderArrangement {
     /// - Cloud provider entries (`machineIdentifier == "myPlex"`) are ignored
     ///   here; they are preserved on write.
     static func effectiveOrder(
-        libraries: [PlexLibrary],
+        libraries: [Library],
         pinnedSources: [PlexPinnedSource],
         machineIdentifiers: Set<String>
-    ) -> [PlexLibrary] {
+    ) -> [Library] {
         guard !machineIdentifiers.isEmpty, !pinnedSources.isEmpty else {
             return libraries
         }
 
-        var librariesByIdentity: [String: PlexLibrary] = [:]
+        var librariesByIdentity: [String: Library] = [:]
         for library in libraries where librariesByIdentity[library.id] == nil {
             librariesByIdentity[library.id] = library
         }
 
-        var placed: [PlexLibrary] = []
+        var placed: [Library] = []
         var used: Set<String> = []
 
         for source in pinnedSources
@@ -65,7 +65,7 @@ enum LibraryOrderArrangement {
         return placed + libraries.filter { !used.contains($0.id) }
     }
 
-    /// `PlexLibrary.id`s of the connected servers' sections the account has
+    /// `Library.id`s of the connected servers' sections the account has
     /// hidden (`isHidden`), whether in Dusk or in another Plex client. Duplicate
     /// pins follow `effectiveOrder`: the first entry for a section decides.
     static func hiddenIdentities(
@@ -127,14 +127,14 @@ enum LibraryOrderArrangement {
     /// guessed at: writing it under the wrong machine identifier would move a
     /// different server's library in every Plex client.
     ///
-    /// `hidden` is the set of `PlexLibrary.id`s the user wants hidden; every
+    /// `hidden` is the set of `Library.id`s the user wants hidden; every
     /// written entry gets `isHidden` from it. nil keeps each existing entry's
     /// flag (new entries start visible) — never force-unhide without the user
     /// asking, that would silently undo a choice made in another Plex client.
     /// Hidden entries are stable-moved to the end of the block, which keeps the
     /// write idempotent with `effectiveOrder`.
     static func writeOrder(
-        userOrder: [PlexLibrary],
+        userOrder: [Library],
         existing: [PlexPinnedSource],
         servers: [String: PlexServer],
         hidden: Set<String>? = nil
@@ -164,7 +164,7 @@ enum LibraryOrderArrangement {
     }
 
     /// The `(machineIdentifier, directoryID)` pair a pinned entry points at, in
-    /// the same shape as `PlexLibrary.id`.
+    /// the same shape as `Library.id`.
     private static func identity(for source: PlexPinnedSource) -> String? {
         guard let directoryID = source.directoryID else { return nil }
         return "\(source.machineIdentifier)|\(directoryID)"

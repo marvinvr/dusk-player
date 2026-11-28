@@ -80,10 +80,10 @@ final class PlayerViewModel {
     /// surface when entering Picture in Picture support mode mid-session).
     var engineView: AnyView
     @ObservationIgnored var lastPlayerViewGeneration = 0
-    let markers: [PlexMarker]
+    let markers: [Marker]
     /// Refreshed by the coordinator as the tuned channel's schedule rolls over,
     /// so the play bar and header follow the actual programming.
-    var liveTVContext: PlexLivePlaybackContext?
+    var liveTVContext: LivePlaybackContext?
     /// A past IPTV programme played back: names the session in the header.
     var iptvCatchUp: IPTVCatchUpPlayback?
     /// Wall-clock view of the live session, rebuilt on every `sync()`. Nil for
@@ -91,7 +91,7 @@ final class PlayerViewModel {
     var liveTimeline: LiveTimelineSnapshot?
     @ObservationIgnored var liveEdgeClock = LiveEdgeClock()
     var hasLoadedSource = false
-    var sourcePart: PlexMediaPart?
+    var sourcePart: MediaPart?
     var preferredAudioLanguage: String?
     var subtitlePolicy = SubtitleSelectionPolicy(
         mode: .off, subtitleLanguage: nil, audioLanguage: nil, forcedSubtitlesEnabled: true
@@ -103,7 +103,7 @@ final class PlayerViewModel {
     /// stays hidden until the playhead leaves the marker; seeking back in
     /// shows it again. Never seeks.
     var countdownDismissedMarkerID: Int?
-    var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
+    var autoSkipHandler: (@MainActor (Marker) -> Void)?
     /// Markers this episode has already skipped once, seeded from the
     /// coordinator so the record survives a rebuilt player (quality switch,
     /// Picture in Picture restore). A marker in here never arms another
@@ -117,7 +117,7 @@ final class PlayerViewModel {
     /// credits, e.g. a seek back before the marker). The player forwards it to
     /// the coordinator, which resolves the next episode and shows/hides the
     /// bottom-right Up Next poster.
-    var upNextPosterHandler: (@MainActor (PlexMarker?) -> Void)?
+    var upNextPosterHandler: (@MainActor (Marker?) -> Void)?
     @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
     /// The reached credits marker when the coordinator found nothing to play
     /// after this item, so it gets a Skip Credits chip instead of the poster.
@@ -139,7 +139,7 @@ final class PlayerViewModel {
     /// Builds the token-bearing URL for a Plex sidecar subtitle stream. Set by
     /// `PlayerView` from the coordinator's `PlexService`; nil in previews, where
     /// external streams then simply stay out of the picker.
-    @ObservationIgnored var externalSubtitleURLProvider: (@MainActor (PlexStream) -> URL?)?
+    @ObservationIgnored var externalSubtitleURLProvider: (@MainActor (MediaStream) -> URL?)?
     /// Asks the coordinator to restart this session on VLCKit so a Plex sidecar
     /// can be mounted. Fired when the viewer picks an external subtitle in an
     /// AVPlayer session, which cannot attach one to a live item.
@@ -152,7 +152,7 @@ final class PlayerViewModel {
     /// The part's sidecar subtitle streams paired with their resolved URLs.
     /// Cached because the track lists are rebuilt on every sync tick and
     /// building a stream URL is not free.
-    @ObservationIgnored var externalSubtitleStreams: [(stream: PlexStream, url: URL)] = []
+    @ObservationIgnored var externalSubtitleStreams: [(stream: MediaStream, url: URL)] = []
     /// Sidecars Plex overwrote in place this session (same stream id and URL),
     /// with how often. The count goes into the URL so the engine fetches the
     /// new file instead of reusing the slave it already mounted.
@@ -211,8 +211,8 @@ final class PlayerViewModel {
 
     init(
         engine: any PlaybackEngine,
-        markers: [PlexMarker] = [],
-        liveTVContext: PlexLivePlaybackContext? = nil
+        markers: [Marker] = [],
+        liveTVContext: LivePlaybackContext? = nil
     ) {
         self.engine = engine
         self.engineView = engine.makePlayerView()
@@ -257,8 +257,8 @@ final class PlayerViewModel {
 
     func configureAutomaticTrackSelection(
         preferences: UserPreferences,
-        part: PlexMediaPart?,
-        mediaDetails: PlexMediaDetails? = nil,
+        part: MediaPart?,
+        mediaDetails: MediaDetails? = nil,
         usesServerTrackSelection: Bool = false,
         rendersServerSubtitleTrack: Bool = false,
         selectedAudioStreamID: Int? = nil,

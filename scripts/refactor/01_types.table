@@ -1,0 +1,57 @@
+# P0-01 type renames (docs/jellyfin/04-architecture.md §4.1). `Old New`, whole words.
+#
+# Deferred on purpose (not 1:1, target taken, or owned by a later package):
+#   PlexServiceError    -> MediaServiceError: its NSError domain "Dusk.PlexServiceError"
+#                          is sent in analytics error reports (AnalyticsErrorReport
+#                          `nsError.domain`); renaming changes that value. Needs a call.
+#   PlexServer, PlexConnection, PlexServerConnection -> P0-16 (ConnectionCandidate exists)
+#   PlexUser, PlexHomeUser -> Profile: a merge of two types, P0-16
+#   PlexGuid -> ExternalIDs: P0-03
+#   PlexTitleEntity(Query): frozen App Intents identifier, P0-18
+#   PlexLiveTVDevice(Lineup), PlexLiveTuneResult, PlexLiveChannelMatcher: Plex-private, P0-14
+#   PlexService, PlexPin, PlexPinnedSource, PlexManagedHub, *Response, PlexDownloadQueue*,
+#   PlexMetadataCache, PlexTransport*: stay Plex or are renamed by their own package
+
+PlexItemID                  MediaItemID
+PlexItem                    MediaItem
+PlexMediaDetails            MediaDetails
+PlexMedia                   MediaVersion
+PlexMediaPart               MediaPart
+PlexStream                  MediaStream
+PlexMarker                  Marker
+PlexMediaType               MediaKind
+PlexLibrary                 Library
+PlexLibraryType             LibraryKind
+PlexHub                     HomeRow
+PlexEpisode                 Episode
+PlexSeason                  Season
+PlexAdjacentEpisodes        AdjacentEpisodes
+PlexContentKey              ContentKey
+PlexRole                    Person
+PlexTag                     Tag
+PlexRating                  Rating
+PlexPlaylist                Playlist
+PlexPlaylistEntry           PlaylistEntry
+PlexLibraryCollection       MediaCollection
+PlexExtra                   Extra
+PlexPhotoItem               PhotoItem
+PlexSearchResult            SearchSection
+PlexLiveTVProvider          LiveTVProvider
+PlexLiveChannel             LiveChannel
+PlexLiveProgram             LiveProgram
+PlexLiveAiring              LiveAiring
+PlexLiveChannelGuide        LiveChannelGuide
+PlexLiveTVLineup            LiveTVLineup
+PlexLivePlaybackContext     LivePlaybackContext
+PlexWatchlistEntry          WatchlistEntry
+PlexSubtitleSearchResult    SubtitleSearchResult
+PlexPlaybackHistoryEntry    PlaybackHistoryEntry
+
+# Shared item UI and helpers named PlexItem*
+PlexItemPage                    MediaItemPage
+PlexItemPager                   MediaItemPager
+PlexItemPosterCarouselSection   MediaItemPosterCarouselSection
+PlexItemActionCarouselSection   MediaItemActionCarouselSection
+PlexItemPosterGrid              MediaItemPosterGrid
+PlexItemContextMenuContent      MediaItemContextMenuContent
+PlexItemMerge                   MediaItemMerge

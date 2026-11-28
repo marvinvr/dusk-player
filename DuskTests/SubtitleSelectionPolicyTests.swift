@@ -264,8 +264,8 @@ struct SubtitleSelectionPolicyTests {
 
     // MARK: - Helpers
 
-    private func part(_ streams: String) throws -> PlexMediaPart {
-        try JSONDecoder().decode(PlexMedia.self, from: Data("""
+    private func part(_ streams: String) throws -> MediaPart {
+        try JSONDecoder().decode(MediaVersion.self, from: Data("""
             {"id":1,"Part":[{"id":1,"key":"/clip","Stream":[\(streams)]}]}
             """.utf8)).parts[0]
     }

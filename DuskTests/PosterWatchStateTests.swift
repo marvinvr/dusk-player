@@ -7,13 +7,13 @@ import Testing
 /// `viewCount` (or every episode watched for shows and seasons).
 @Suite("Poster watch state")
 struct PosterWatchStateTests {
-    private func item(_ fields: [String: Any]) throws -> PlexItem {
+    private func item(_ fields: [String: Any]) throws -> MediaItem {
         var json: [String: Any] = ["ratingKey": "1", "key": "/library/metadata/1", "title": "Item"]
         json.merge(fields) { _, new in new }
         let data = try JSONSerialization.data(withJSONObject: json)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "server"
-        return try decoder.decode(PlexItem.self, from: data)
+        return try decoder.decode(MediaItem.self, from: data)
     }
 
     @Test("A partly watched clip gets a bar and no checkmark")
@@ -61,16 +61,16 @@ struct PosterWatchStateTests {
 @Suite("Continue Watching context menu")
 @MainActor
 struct ContinueWatchingMenuTests {
-    private func item(_ fields: [String: Any]) throws -> PlexItem {
+    private func item(_ fields: [String: Any]) throws -> MediaItem {
         var json: [String: Any] = ["ratingKey": "1", "key": "/library/metadata/1", "title": "Item"]
         json.merge(fields) { _, new in new }
         let data = try JSONSerialization.data(withJSONObject: json)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "server"
-        return try decoder.decode(PlexItem.self, from: data)
+        return try decoder.decode(MediaItem.self, from: data)
     }
 
-    private func menuTitles(for item: PlexItem) -> [String] {
+    private func menuTitles(for item: MediaItem) -> [String] {
         HomeItemContextMenu(
             item: item,
             detailsLabel: "Movie Details",

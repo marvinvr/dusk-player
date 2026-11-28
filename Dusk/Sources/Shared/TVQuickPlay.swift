@@ -12,7 +12,7 @@ extension View {
     /// fallback when the item's own metadata has none (see
     /// `PlaybackCoordinator.play`). No-op on iOS and macOS.
     @ViewBuilder
-    func tvQuickPlay(route: AppNavigationRoute, item: PlexItem? = nil) -> some View {
+    func tvQuickPlay(route: AppNavigationRoute, item: MediaItem? = nil) -> some View {
         #if os(tvOS)
         if let target = TVQuickPlayTarget(route: route) {
             modifier(TVQuickPlayModifier(target: target, item: item))
@@ -40,9 +40,9 @@ extension View {
 /// What Play/Pause on a card route starts.
 enum TVQuickPlayTarget {
     /// A movie, video or episode, played straight away.
-    case item(id: PlexItemID, list: PlaybackListContext?)
+    case item(id: MediaItemID, list: PlaybackListContext?)
     /// A show or season: resolve its next-up episode first.
-    case series(entry: SeriesDetailViewModel.Entry, id: PlexItemID, prefersOfflineAvailability: Bool)
+    case series(entry: SeriesDetailViewModel.Entry, id: MediaItemID, prefersOfflineAvailability: Bool)
 
     init?(route: AppNavigationRoute) {
         switch route {
@@ -59,7 +59,7 @@ enum TVQuickPlayTarget {
         }
     }
 
-    private init?(type: PlexMediaType, id: PlexItemID, prefersOfflineAvailability: Bool) {
+    private init?(type: MediaKind, id: MediaItemID, prefersOfflineAvailability: Bool) {
         switch type {
         case .movie, .episode, .clip:
             self = .item(id: id, list: nil)
@@ -80,7 +80,7 @@ private struct TVQuickPlayModifier: ViewModifier {
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
 
     let target: TVQuickPlayTarget
-    let item: PlexItem?
+    let item: MediaItem?
 
     func body(content: Content) -> some View {
         content.onPlayPauseCommand(perform: start)

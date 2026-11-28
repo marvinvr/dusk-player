@@ -14,11 +14,11 @@ final class VideoDetailViewModel {
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     /// Server-scoped identity of the clip; every request goes to its server.
-    let id: PlexItemID
+    let id: MediaItemID
 
     var ratingKey: String { id.ratingKey }
 
-    private(set) var details: PlexMediaDetails?
+    private(set) var details: MediaDetails?
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var isUsingCachedData = false
@@ -27,13 +27,13 @@ final class VideoDetailViewModel {
     /// Other videos from the same channel (collection), newest first, excluding
     /// this video. Empty when the row cannot be resolved (no collection tag, no
     /// section id, offline, or fetch failure) — the view hides the row then.
-    private(set) var channelItems: [PlexItem] = []
+    private(set) var channelItems: [MediaItem] = []
     private(set) var channelShowAllRoute: AppNavigationRoute?
     @ObservationIgnored private var channelTask: Task<Void, Never>?
     @ObservationIgnored private var loadedChannelContext: String?
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
@@ -89,7 +89,7 @@ final class VideoDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 targetWatched,
-                id: PlexItemID(serverID: serverID, ratingKey: ratingKey)
+                id: MediaItemID(serverID: serverID, ratingKey: ratingKey)
             )
             self.details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
         } catch {

@@ -64,11 +64,11 @@ struct PlexLiveTuneDecodingTests {
     }
 
     @Test func codecLessLiveMediaIsNotSentToVLCKit() {
-        let part = PlexMediaPart(
+        let part = MediaPart(
             id: 0, key: "/livetv/sessions/x", file: nil, size: nil, container: "mpegts",
             duration: nil, videoProfile: nil, audioProfile: nil, accessible: true, exists: true, streams: []
         )
-        let media = PlexMedia(
+        let media = MediaVersion(
             id: 0, container: "hls", videoCodec: nil, audioCodec: nil, videoResolution: nil,
             videoProfile: nil, audioProfile: nil, audioChannels: nil, width: nil, height: nil,
             bitrate: nil, duration: nil, optimizedForStreaming: nil, parts: [part]

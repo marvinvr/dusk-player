@@ -810,7 +810,7 @@ private enum ProxyFMP4Fixture {
     }
 }
 
-private func proxyDolbyVision7Media(codec: String = "hevc", profile: Int, compat: Int) throws -> PlexMedia {
+private func proxyDolbyVision7Media(codec: String = "hevc", profile: Int, compat: Int) throws -> MediaVersion {
     let json = """
     {
         "id": 10,
@@ -828,7 +828,7 @@ private func proxyDolbyVision7Media(codec: String = "hevc", profile: Int, compat
         }]
     }
     """
-    return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+    return try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
 }
 
 /// True when this test bundle is running in the iOS or tvOS Simulator.

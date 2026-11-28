@@ -3,7 +3,7 @@ import SwiftUI
 /// What the full-screen viewer opens on.
 struct PhotoViewerRequest: Identifiable {
     let id = UUID()
-    let startID: PlexItemID
+    let startID: MediaItemID
     let startsSlideshow: Bool
 }
 
@@ -17,9 +17,9 @@ struct PhotoBrowserView: View {
     /// A clip picked inside the viewer. It plays once the viewer is gone: the
     /// player is a full-screen cover of the tab shell and cannot present over
     /// another cover.
-    @State private var pendingClip: PlexPhotoItem?
+    @State private var pendingClip: PhotoItem?
 
-    init(library: PlexLibrary, album: PhotoAlbumRoute? = nil, plexService: PlexService) {
+    init(library: Library, album: PhotoAlbumRoute? = nil, plexService: PlexService) {
         _viewModel = State(initialValue: PhotoBrowserViewModel(
             library: library,
             album: album,
@@ -107,7 +107,7 @@ struct PhotoBrowserView: View {
                         .padding(.top, 40)
                     } else if viewModel.isEmpty {
                         FeatureEmptyStateView(
-                            systemImage: PlexLibraryType.photo.systemImage,
+                            systemImage: LibraryKind.photo.systemImage,
                             title: viewModel.emptyStateTitle
                         )
                         .frame(maxWidth: .infinity)
@@ -218,7 +218,7 @@ struct PhotoBrowserView: View {
         .padding(.horizontal, PhotoGridMetrics.horizontalPadding)
     }
 
-    private func open(_ item: PlexPhotoItem) {
+    private func open(_ item: PhotoItem) {
         if item.isClip {
             play(item)
         } else {
@@ -226,7 +226,7 @@ struct PhotoBrowserView: View {
         }
     }
 
-    private func openViewer(at item: PlexPhotoItem?, slideshow: Bool) {
+    private func openViewer(at item: PhotoItem?, slideshow: Bool) {
         guard let item else { return }
         viewerRequest = PhotoViewerRequest(startID: item.id, startsSlideshow: slideshow)
     }
@@ -237,7 +237,7 @@ struct PhotoBrowserView: View {
         play(clip)
     }
 
-    private func play(_ clip: PlexPhotoItem) {
+    private func play(_ clip: PhotoItem) {
         Task {
             await playback.play(
                 id: clip.id,
@@ -313,7 +313,7 @@ enum PhotoGridMetrics {
 }
 
 private struct PhotoAlbumCard: View {
-    let album: PlexPhotoItem
+    let album: PhotoItem
     let route: AppNavigationRoute
     let imageURL: URL?
     let side: CGFloat
@@ -352,7 +352,7 @@ private struct PhotoAlbumCard: View {
 }
 
 private struct PhotoTile: View {
-    let item: PlexPhotoItem
+    let item: PhotoItem
     let imageURL: URL?
     let side: CGFloat
     let onOpen: () -> Void

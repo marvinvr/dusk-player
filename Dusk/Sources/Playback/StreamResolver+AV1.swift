@@ -40,7 +40,7 @@ struct AV1PlaybackCapabilities: Sendable {
 }
 
 extension StreamResolver {
-    static func containsAV1(_ media: PlexMedia) -> Bool {
+    static func containsAV1(_ media: MediaVersion) -> Bool {
         isAV1Codec(media.videoCodec) || media.parts.flatMap(\.streams).contains {
             $0.streamType == .video && isAV1Codec($0.codec)
         }
@@ -50,7 +50,7 @@ extension StreamResolver {
         ["av1", "av01"].contains(codec?.lowercased() ?? "")
     }
 
-    static func av1Decision(for media: PlexMedia, capabilities: AV1PlaybackCapabilities) -> Decision? {
+    static func av1Decision(for media: MediaVersion, capabilities: AV1PlaybackCapabilities) -> Decision? {
         guard containsAV1(media) else { return nil }
         let videos = media.parts.flatMap(\.streams).filter { $0.streamType == .video }
         let hasHDR = videos.contains {
@@ -94,7 +94,7 @@ extension StreamResolver {
                         requiresServerTranscode: true)
     }
 
-    private static func localAV1ContainerDecision(_ media: PlexMedia) -> Bool {
+    private static func localAV1ContainerDecision(_ media: MediaVersion) -> Bool {
         guard ["mp4", "mov", "m4v"].contains(media.container?.lowercased() ?? "") else { return false }
         let audio = media.parts.flatMap(\.streams).filter { $0.streamType == .audio }
         let audioCodecs = audio.isEmpty ? [media.audioCodec].compactMap { $0 } : audio.map { $0.codec ?? media.audioCodec ?? "" }
@@ -104,11 +104,11 @@ extension StreamResolver {
             }
     }
 
-    static func canCopyAV1Audio(_ stream: PlexStream) -> Bool {
+    static func canCopyAV1Audio(_ stream: MediaStream) -> Bool {
         ["aac", "eac3", "ac3", "flac", "alac", "mp3"].contains(stream.codec?.lowercased() ?? "")
     }
 
-    static func canRemuxAV1(_ media: PlexMedia, capabilities: AV1PlaybackCapabilities = .current) -> Bool {
+    static func canRemuxAV1(_ media: MediaVersion, capabilities: AV1PlaybackCapabilities = .current) -> Bool {
         containsAV1(media) && capabilities.hardwareDecode &&
             media.parts.flatMap(\.streams).filter { $0.streamType == .video }.allSatisfy {
                 isAV1Codec($0.codec ?? media.videoCodec) && ($0.bitDepth ?? 8) <= 10 &&

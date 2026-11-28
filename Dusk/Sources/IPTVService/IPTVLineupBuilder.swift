@@ -1,15 +1,15 @@
 import Foundation
 
-/// Turns a parsed playlist and guide into the same `PlexLiveTVLineup` the
+/// Turns a parsed playlist and guide into the same `LiveTVLineup` the
 /// Plex guide uses, so IPTV channels get the existing guide rows, Watch Live
 /// card, now/next, program sheet and live player HUD with no parallel UI.
-/// The channels carry `PlexLiveChannel.iptv`, which is what keeps them away
+/// The channels carry `LiveChannel.iptv`, which is what keeps them away
 /// from every Plex call.
 enum IPTVLineupBuilder {
     static let providerIdentifier = "tv.dusk.iptv"
 
-    static func provider(for source: IPTVSource) -> PlexLiveTVProvider {
-        PlexLiveTVProvider(
+    static func provider(for source: IPTVSource) -> LiveTVProvider {
+        LiveTVProvider(
             identifier: "iptv:\(source.id.uuidString)",
             providerIdentifier: providerIdentifier,
             title: source.name,
@@ -24,10 +24,10 @@ enum IPTVLineupBuilder {
         playlist: IPTVPlaylist,
         guide: IPTVGuide,
         sourceHeaders: [String: String]
-    ) -> PlexLiveTVLineup {
+    ) -> LiveTVLineup {
         let resolver = GuideChannelResolver(guide: guide)
         var usedIDs = Set<String>()
-        var guides: [PlexLiveChannelGuide] = []
+        var guides: [LiveChannelGuide] = []
         let sourceIdentity = IPTVResumeKey.sourceIdentity(playlistURL: source.playlistURL)
 
         for (index, entry) in playlist.entries.enumerated() {
@@ -43,7 +43,7 @@ enum IPTVLineupBuilder {
             for (name, value) in entry.streamHeaders { headers[name] = value }
             if let referrer = entry.referrer { headers["Referer"] = referrer }
 
-            let channel = PlexLiveChannel(
+            let channel = LiveChannel(
                 iptvID: channelID,
                 number: entry.number,
                 title: entry.title,
@@ -59,12 +59,12 @@ enum IPTVLineupBuilder {
                 )
             )
             let programs = guideID.map { guide.programmes[$0] ?? [] } ?? []
-            guides.append(PlexLiveChannelGuide(
+            guides.append(LiveChannelGuide(
                 channel: channel,
-                programs: programs.map { PlexLiveProgram(iptv: $0, channel: channel) }
+                programs: programs.map { LiveProgram(iptv: $0, channel: channel) }
             ))
         }
-        return PlexLiveTVLineup(provider: provider(for: source), guides: guides)
+        return LiveTVLineup(provider: provider(for: source), guides: guides)
     }
 
     /// How many days back the guide has to reach for this playlist: the
@@ -128,7 +128,7 @@ enum IPTVLineupBuilder {
     }
 }
 
-extension PlexLiveChannel {
+extension LiveChannel {
     init(iptvID: String, number: String?, title: String, logo: String?, playable: IPTVPlayableChannel) {
         id = iptvID
         gridKey = iptvID
@@ -145,8 +145,8 @@ extension PlexLiveChannel {
     var isIPTV: Bool { iptv != nil }
 }
 
-extension PlexLiveAiring {
-    init(beginsAt: TimeInterval, endsAt: TimeInterval, channel: PlexLiveChannel) {
+extension LiveAiring {
+    init(beginsAt: TimeInterval, endsAt: TimeInterval, channel: LiveChannel) {
         id = nil
         self.beginsAt = beginsAt
         self.endsAt = endsAt
@@ -161,10 +161,10 @@ extension PlexLiveAiring {
     }
 }
 
-extension PlexLiveTVProvider {
+extension LiveTVProvider {
     var isIPTV: Bool { providerIdentifier == IPTVLineupBuilder.providerIdentifier }
 }
 
-extension PlexLivePlaybackContext {
+extension LivePlaybackContext {
     var isIPTV: Bool { channel.iptv != nil }
 }

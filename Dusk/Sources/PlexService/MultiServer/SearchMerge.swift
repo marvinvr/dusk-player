@@ -2,8 +2,8 @@ import Foundation
 
 /// Merged search groups plus the alternates found while merging them.
 struct MergedSearchResults: Sendable {
-    let groups: [PlexSearchResult]
-    let alternates: [PlexContentKey: [PlexItemID]]
+    let groups: [SearchSection]
+    let alternates: [ContentKey: [MediaItemID]]
 
     static let empty = MergedSearchResults(groups: [], alternates: [:])
 }
@@ -16,8 +16,8 @@ struct MergedSearchResults: Sendable {
 /// which server happened to answer first.
 enum SearchMerge {
     /// - Parameter lists: one entry per connected server, in priority order.
-    static func merge(_ lists: [[PlexSearchResult]]) -> MergedSearchResults {
-        var groupedResults: [String: [PlexSearchResult]] = [:]
+    static func merge(_ lists: [[SearchSection]]) -> MergedSearchResults {
+        var groupedResults: [String: [SearchSection]] = [:]
         var order: [String] = []
 
         for list in lists {
@@ -30,15 +30,15 @@ enum SearchMerge {
             }
         }
 
-        var merged: [PlexSearchResult] = []
-        var alternates: [PlexContentKey: [PlexItemID]] = [:]
+        var merged: [SearchSection] = []
+        var alternates: [ContentKey: [MediaItemID]] = [:]
 
         for key in order {
             guard let group = groupedResults[key], let representative = group.first else { continue }
-            let mergedItems = PlexItemMerge.interleave(group.map(\.items))
-            alternates = PlexItemMerge.combine(alternates, mergedItems.alternates)
+            let mergedItems = MediaItemMerge.interleave(group.map(\.items))
+            alternates = MediaItemMerge.combine(alternates, mergedItems.alternates)
             merged.append(
-                PlexSearchResult(
+                SearchSection(
                     title: representative.title,
                     type: representative.type,
                     items: mergedItems.items

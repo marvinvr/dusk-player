@@ -263,7 +263,7 @@ final class UserPreferences {
     /// The preferred order of library destinations in the main tab bar.
     /// All supported types remain in this array, including hidden ones, so a
     /// library returns to its previous position when it is shown again.
-    private(set) var libraryTabOrder: [PlexLibraryType] {
+    private(set) var libraryTabOrder: [LibraryKind] {
         didSet {
             UserDefaults.standard.set(
                 libraryTabOrder.map(\.rawValue),
@@ -273,7 +273,7 @@ final class UserPreferences {
     }
 
     /// Library destinations excluded from the main tab bar.
-    private var hiddenLibraryTabs: Set<PlexLibraryType> {
+    private var hiddenLibraryTabs: Set<LibraryKind> {
         didSet {
             UserDefaults.standard.set(
                 hiddenLibraryTabs.map(\.rawValue).sorted(),
@@ -282,18 +282,18 @@ final class UserPreferences {
         }
     }
 
-    func visibleLibraryTabs(from availableTypes: [PlexLibraryType]) -> [PlexLibraryType] {
+    func visibleLibraryTabs(from availableTypes: [LibraryKind]) -> [LibraryKind] {
         let availableTypes = Set(availableTypes)
         return libraryTabOrder.filter {
             availableTypes.contains($0) && !hiddenLibraryTabs.contains($0)
         }
     }
 
-    func isLibraryTabVisible(_ libraryType: PlexLibraryType) -> Bool {
+    func isLibraryTabVisible(_ libraryType: LibraryKind) -> Bool {
         !hiddenLibraryTabs.contains(libraryType)
     }
 
-    func setLibraryTabVisible(_ isVisible: Bool, for libraryType: PlexLibraryType) {
+    func setLibraryTabVisible(_ isVisible: Bool, for libraryType: LibraryKind) {
         if isVisible {
             hiddenLibraryTabs.remove(libraryType)
         } else {
@@ -305,7 +305,7 @@ final class UserPreferences {
         libraryTabOrder.move(fromOffsets: fromOffsets, toOffset: toOffset)
     }
 
-    func moveLibraryTab(_ libraryType: PlexLibraryType, to destinationIndex: Int) {
+    func moveLibraryTab(_ libraryType: LibraryKind, to destinationIndex: Int) {
         guard let sourceIndex = libraryTabOrder.firstIndex(of: libraryType) else { return }
 
         var reorderedTabs = libraryTabOrder
@@ -643,22 +643,22 @@ final class UserPreferences {
         return PlayerSeekInterval(rawValue: defaults.integer(forKey: key)) ?? fallback
     }
 
-    private static func storedLibraryTabOrder(defaults: UserDefaults) -> [PlexLibraryType] {
+    private static func storedLibraryTabOrder(defaults: UserDefaults) -> [LibraryKind] {
         let storedTypes = (defaults.stringArray(forKey: Keys.libraryTabOrder) ?? [])
-            .compactMap(PlexLibraryType.init(rawValue:))
+            .compactMap(LibraryKind.init(rawValue:))
 
-        var normalizedTypes: [PlexLibraryType] = []
-        for libraryType in storedTypes + PlexLibraryType.allCases
+        var normalizedTypes: [LibraryKind] = []
+        for libraryType in storedTypes + LibraryKind.allCases
         where !normalizedTypes.contains(libraryType) {
             normalizedTypes.append(libraryType)
         }
         return normalizedTypes
     }
 
-    private static func storedHiddenLibraryTabs(defaults: UserDefaults) -> Set<PlexLibraryType> {
+    private static func storedHiddenLibraryTabs(defaults: UserDefaults) -> Set<LibraryKind> {
         Set(
             (defaults.stringArray(forKey: Keys.hiddenLibraryTabs) ?? [])
-                .compactMap(PlexLibraryType.init(rawValue:))
+                .compactMap(LibraryKind.init(rawValue:))
         )
     }
 

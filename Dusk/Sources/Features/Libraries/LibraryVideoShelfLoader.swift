@@ -3,15 +3,15 @@ import Foundation
 /// One 16:9 channel row on a video library's recommendations screen, backed
 /// by a Plex collection (video libraries hold one collection per channel).
 struct LibraryVideoChannelShelf: Identifiable, Sendable, Hashable {
-    let collection: PlexLibraryCollection
-    let items: [PlexItem]
+    let collection: MediaCollection
+    let items: [MediaItem]
 
     var id: String { collection.id }
 }
 
 struct LibraryVideoShelfResult: Sendable {
     let channelShelves: [LibraryVideoChannelShelf]
-    let rediscoverItems: [PlexItem]
+    let rediscoverItems: [MediaItem]
 }
 
 /// Loads the video-library-specific shelves (per-channel rows plus a seeded
@@ -20,7 +20,7 @@ struct LibraryVideoShelfResult: Sendable {
 /// take its place.
 @MainActor
 struct LibraryVideoShelfLoader {
-    let library: PlexLibrary
+    let library: Library
     let plexService: PlexService
     var calendar: Calendar = .autoupdatingCurrent
     var nowProvider: @Sendable () -> Date = Date.init
@@ -99,7 +99,7 @@ struct LibraryVideoShelfLoader {
     /// page is a seeded window over the whole title-sorted section — not the
     /// newest page — so older uploads resurface instead of mirroring the
     /// Recently Added hub.
-    private func loadRediscoverItems() async -> [PlexItem] {
+    private func loadRediscoverItems() async -> [MediaItem] {
         let randomizer = RecommendationSeededRandomizer(
             calendar: calendar,
             nowProvider: nowProvider,

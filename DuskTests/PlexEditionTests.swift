@@ -14,7 +14,7 @@ struct PlexEditionTests {
         edition: String? = nil,
         guid: String? = PlexEditionTests.guid,
         year: Int = 1982
-    ) throws -> PlexItem {
+    ) throws -> MediaItem {
         var fields: [String: Any] = [
             "ratingKey": ratingKey,
             "key": "/library/metadata/\(ratingKey)",
@@ -27,7 +27,7 @@ struct PlexEditionTests {
         if let edition { fields["editionTitle"] = edition }
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexItem.self, from: JSONSerialization.data(withJSONObject: fields))
+        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: fields))
     }
 
     // MARK: Decoding and display
@@ -40,7 +40,7 @@ struct PlexEditionTests {
         { "ratingKey": "1", "key": "/library/metadata/1", "type": "movie",
           "title": "Blade Runner", "year": 1982, "editionTitle": "Final Cut" }
         """
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(json.utf8))
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data(json.utf8))
         #expect(details.editionTitle == "Final Cut")
     }
 
@@ -103,7 +103,7 @@ struct PlexEditionTests {
         ]
         let serverB = [try movie(server: "b", ratingKey: "9")]
 
-        let merged = PlexItemMerge.interleave([serverA, serverB])
+        let merged = MediaItemMerge.interleave([serverA, serverB])
 
         #expect(merged.items.map(\.id) == [serverA[0].id, serverA[1].id])
     }
@@ -113,7 +113,7 @@ struct PlexEditionTests {
         let theatricalOnB = try movie(server: "b", ratingKey: "9")
         let directorsOnB = try movie(server: "b", ratingKey: "10", edition: "Director's Cut")
 
-        let alternates = PlexItemMerge.alternates(in: [[directorsOnA], [theatricalOnB, directorsOnB]])
+        let alternates = MediaItemMerge.alternates(in: [[directorsOnA], [theatricalOnB, directorsOnB]])
 
         #expect(alternates[directorsOnA.contentKey] == [directorsOnA.id, directorsOnB.id])
         #expect(alternates[theatricalOnB.contentKey] == [theatricalOnB.id])

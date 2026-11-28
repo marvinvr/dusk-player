@@ -467,7 +467,7 @@ extension PlaybackCoordinator {
 
         adjacentEpisodesTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            var resolved: PlexAdjacentEpisodes?
+            var resolved: AdjacentEpisodes?
             var isOnlineEpisodeLookup = false
             if !usesLocalDownload {
                 resolved = try? await self.plexService.getAdjacentEpisodes(around: details)
@@ -543,7 +543,7 @@ extension PlaybackCoordinator {
     ///   (still running, offline, failed) it is resolved as it always was:
     ///   from the download cache when `prefersDownloadCache` and the session
     ///   plays a download, else `nextEpisode(after:)`.
-    func resolveUpNext(after details: PlexMediaDetails, prefersDownloadCache: Bool) async -> UpNextCandidate? {
+    func resolveUpNext(after details: MediaDetails, prefersDownloadCache: Bool) async -> UpNextCandidate? {
         if let playbackQueue {
             return playbackQueue.next(isPlayable: isQueueItemPlayable).map {
                 UpNextCandidate(item: $0.item, queueIndex: $0.index)
@@ -575,7 +575,7 @@ extension PlaybackCoordinator {
         }
     }
 
-    func nextEpisode(after episode: PlexMediaDetails) async -> PlexEpisode? {
+    func nextEpisode(after episode: MediaDetails) async -> Episode? {
         if let nextEpisode = try? await plexService.getNextEpisode(after: episode) {
             return nextEpisode
         }
@@ -583,7 +583,7 @@ extension PlaybackCoordinator {
         return cachedNextEpisode(after: episode)
     }
 
-    private func cachedNextEpisode(after episode: PlexMediaDetails) -> PlexEpisode? {
+    private func cachedNextEpisode(after episode: MediaDetails) -> Episode? {
         downloadManager?.cachedNextDownloadedEpisode(after: episode)
     }
 
@@ -613,7 +613,7 @@ extension PlaybackCoordinator {
         candidate.queueIndex == nil ? nil : playbackQueue?.title
     }
 
-    private func queueNeighbours(itemID: PlexItemID) -> PlaybackAdjacentEpisodes {
+    private func queueNeighbours(itemID: MediaItemID) -> PlaybackAdjacentEpisodes {
         let queue = playbackQueue
         return PlaybackAdjacentEpisodes(
             itemID: itemID,
@@ -666,14 +666,14 @@ extension PlaybackCoordinator {
         }
     }
 
-    private func isCurrentQueueState(itemID: PlexItemID, position: Int) -> Bool {
+    private func isCurrentQueueState(itemID: MediaItemID, position: Int) -> Bool {
         adjacentEpisodes?.itemID == itemID && playbackQueue?.position == position
     }
 
     /// Marks a queued item gone and moves everything that offers it on: the
     /// Previous / Next targets, and an Up Next poster or screen that has not
     /// started yet (to the item after it, or away when it was the last).
-    func noteQueueItemUnavailable(_ id: PlexItemID) {
+    func noteQueueItemUnavailable(_ id: MediaItemID) {
         guard playbackQueue != nil else { return }
         upNextLogger.notice("Queued item \(id.storageKey, privacy: .public) is gone from its server; skipping it")
         playbackQueue?.markUnavailable(id)

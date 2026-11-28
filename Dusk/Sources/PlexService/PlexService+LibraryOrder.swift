@@ -50,7 +50,7 @@ extension PlexService {
     /// must never blank the others' libraries. A plex.tv failure is swallowed
     /// and simply leaves the libraries in plain server order.
     @discardableResult
-    func ensureLibraryOrderLoaded(force: Bool = false) async throws -> [PlexLibrary] {
+    func ensureLibraryOrderLoaded(force: Bool = false) async throws -> [Library] {
         let identity = libraryOrderCacheIdentity
 
         if !force, libraryOrder.state == .loaded, libraryOrder.matchesCacheIdentity(identity) {
@@ -61,7 +61,7 @@ extension PlexService {
             return try await existing.value
         }
 
-        let task = Task { @MainActor [weak self] () throws -> [PlexLibrary] in
+        let task = Task { @MainActor [weak self] () throws -> [Library] in
             guard let self else { return [] }
             return try await self.performLibraryOrderLoad(identity: identity)
         }
@@ -94,7 +94,7 @@ extension PlexService {
     /// left out would lose its pin. `hidden` (library ids) sets each section's
     /// `isHidden`; nil leaves the flags as the account has them. Writes are
     /// serialized; each one re-reads the blob first and never writes from cache.
-    func reorderLibraries(_ ordered: [PlexLibrary], hidden: Set<String>? = nil) async throws {
+    func reorderLibraries(_ ordered: [Library], hidden: Set<String>? = nil) async throws {
         let previous = libraryOrder.writeTask
 
         let task = Task { @MainActor [weak self] () throws -> Void in
@@ -125,7 +125,7 @@ extension PlexService {
 
     /// Applies the cached order to an already-fetched list, without any
     /// networking. Returns the list unchanged when nothing is cached.
-    func effectiveLibraryOrder(for libraries: [PlexLibrary]) -> [PlexLibrary] {
+    func effectiveLibraryOrder(for libraries: [Library]) -> [Library] {
         LibraryOrderArrangement.effectiveOrder(
             libraries: libraries,
             pinnedSources: libraryOrder.pinnedSources,
@@ -135,7 +135,7 @@ extension PlexService {
 
     // MARK: - Load
 
-    private func performLibraryOrderLoad(identity: String) async throws -> [PlexLibrary] {
+    private func performLibraryOrderLoad(identity: String) async throws -> [Library] {
         let serverIDs = mergeServerIDs
         libraryOrder.beginLoading(serverOrder: serverIDs)
 
@@ -156,7 +156,7 @@ extension PlexService {
         // Result.capturing, not do/catch: this closure runs as a task group
         // child inside streamAcrossServers (see Result.capturing).
         for await result in streamAcrossServers({ service, serverID in
-            await Result<[PlexLibrary], any Error>.capturing {
+            await Result<[Library], any Error>.capturing {
                 try await service.getLibraries(serverID: serverID)
             }
         }) {
@@ -257,7 +257,7 @@ extension PlexService {
 
     // MARK: - Write
 
-    private func performLibraryReorder(_ ordered: [PlexLibrary], hidden: Set<String>?) async throws {
+    private func performLibraryReorder(_ ordered: [Library], hidden: Set<String>?) async throws {
         guard let token = activeAccountToken?.nilIfEmpty else {
             throw PlexServiceError.notAuthenticated
         }

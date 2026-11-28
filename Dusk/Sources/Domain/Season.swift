@@ -2,9 +2,9 @@ import Foundation
 
 /// A season within a TV show.
 /// Returned from `GET /library/metadata/{showRatingKey}/children`.
-struct PlexSeason: Codable, Sendable, Identifiable {
-    /// Server-scoped identity; see `PlexItemID`.
-    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+struct Season: Codable, Sendable, Identifiable {
+    /// Server-scoped identity; see `MediaItemID`.
+    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
     /// Stamped by `ServerPool.decoder(for:)`; never part of the Plex payload,
     /// so it is excluded from `CodingKeys` and dropped when re-encoded.
@@ -59,7 +59,7 @@ struct PlexSeason: Codable, Sendable, Identifiable {
     }
 }
 
-extension PlexSeason {
+extension Season {
     var isPartiallyWatched: Bool {
         guard let total = leafCount, let viewed = viewedLeafCount else { return false }
         return total > 0 && viewed > 0 && viewed < total

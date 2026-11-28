@@ -25,11 +25,11 @@ struct PlexExtrasTests {
     }
     """
 
-    private func decodeExtras() throws -> [PlexExtra] {
+    private func decodeExtras() throws -> [Extra] {
         let data = Data(payload.utf8)
-        let items = try JSONDecoder().decode(MetadataResponse<PlexItem>.self, from: data).MediaContainer.Metadata ?? []
+        let items = try JSONDecoder().decode(MetadataResponse<MediaItem>.self, from: data).MediaContainer.Metadata ?? []
         let fields = try JSONDecoder().decode(MetadataResponse<PlexExtraFields>.self, from: data).MediaContainer.Metadata ?? []
-        return PlexExtra.extras(items: items, fields: fields)
+        return Extra.extras(items: items, fields: fields)
     }
 
     @Test func extrasKeepPlexOrderAndDropNonClips() throws {

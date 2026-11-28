@@ -19,7 +19,7 @@ struct MovieDetailView: View {
     private let playThrough: PlaybackListContext?
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
@@ -78,7 +78,7 @@ struct MovieDetailView: View {
     // MARK: - Content
 
     @ViewBuilder
-    private func contentView(_ details: PlexMediaDetails) -> some View {
+    private func contentView(_ details: MediaDetails) -> some View {
         GeometryReader { geometry in
             // The backdrop runs under side insets (iPhone landscape, iPhone
             // Duo's vertical bar); the hero content stays inside them.
@@ -153,7 +153,7 @@ struct MovieDetailView: View {
 
     @ViewBuilder
     private func heroSection(
-        _ details: PlexMediaDetails,
+        _ details: MediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
         containerHeight: CGFloat,
@@ -182,7 +182,7 @@ struct MovieDetailView: View {
     }
 
     @ViewBuilder
-    private func metadataTagline(_ details: PlexMediaDetails) -> some View {
+    private func metadataTagline(_ details: MediaDetails) -> some View {
         let parts = [
             details.year.map(String.init),
             details.editionTitle,
@@ -198,14 +198,14 @@ struct MovieDetailView: View {
     }
 
     @ViewBuilder
-    private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+    private func heroMetadata(_ details: MediaDetails) -> some View {
         if let genres = viewModel.genreText {
             Text(genres)
                 .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
-        DetailRatingsLine(ratings: PlexRating.sources(for: details), userRating: userRating.value)
+        DetailRatingsLine(ratings: Rating.sources(for: details), userRating: userRating.value)
 
         if let director = viewModel.directorText {
             Text("Directed by \(director)")
@@ -223,7 +223,7 @@ struct MovieDetailView: View {
     // MARK: - Actions
 
     @ViewBuilder
-    private func actionButtons(_ details: PlexMediaDetails) -> some View {
+    private func actionButtons(_ details: MediaDetails) -> some View {
         #if os(tvOS)
         HStack(spacing: detailHeroActionSpacing) {
             playButton(details)
@@ -233,7 +233,7 @@ struct MovieDetailView: View {
             watchedButton()
             DetailRateHeroButton(model: userRating, id: details.id)
             AddToPlaylistHeroButton(target: AddToPlaylistTarget(details: details))
-            WatchlistHeroButton(entry: PlexWatchlistEntry(details: details))
+            WatchlistHeroButton(entry: WatchlistEntry(details: details))
         }
         #else
         // Primary fills the stack width; the secondary row sits centered beneath
@@ -247,14 +247,14 @@ struct MovieDetailView: View {
                 watchedButton()
                 DetailRateHeroButton(model: userRating, id: details.id)
                 AddToPlaylistHeroButton(target: AddToPlaylistTarget(details: details))
-                WatchlistHeroButton(entry: PlexWatchlistEntry(details: details))
+                WatchlistHeroButton(entry: WatchlistEntry(details: details))
             }
         }
         .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
         #endif
     }
 
-    private func playButton(_ details: PlexMediaDetails) -> some View {
+    private func playButton(_ details: MediaDetails) -> some View {
         Button {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
@@ -316,11 +316,11 @@ struct MovieDetailView: View {
         }
     }
 
-    private func trailerButton(_ details: PlexMediaDetails) -> some View {
+    private func trailerButton(_ details: MediaDetails) -> some View {
         DetailTrailerHeroButton(model: extras, primaryExtraKey: details.primaryExtraKey, ownerTitle: details.title)
     }
 
-    private func downloadButton(_ details: PlexMediaDetails) -> some View {
+    private func downloadButton(_ details: MediaDetails) -> some View {
         DownloadActionButton(
             id: details.id,
             type: .movie,

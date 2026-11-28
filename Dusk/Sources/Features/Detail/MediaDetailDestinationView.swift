@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct MediaDetailDestinationView: View {
-    let type: PlexMediaType
-    let id: PlexItemID
+    let type: MediaKind
+    let id: MediaItemID
     let plexService: PlexService
     let seerrService: SeerrService?
     let downloadManager: DownloadManager?
@@ -10,8 +10,8 @@ struct MediaDetailDestinationView: View {
     let prefersOfflineAvailability: Bool
 
     init(
-        type: PlexMediaType,
-        id: PlexItemID,
+        type: MediaKind,
+        id: MediaItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,

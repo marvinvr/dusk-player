@@ -19,7 +19,7 @@ extension PlexService {
     /// The requested instance decides the outcome: its failure is thrown so the
     /// caller can surface it. The other copies are best effort — a server that
     /// refuses must not make the action look like it failed.
-    func setWatchedAcrossServers(_ watched: Bool, id: PlexItemID) async throws {
+    func setWatchedAcrossServers(_ watched: Bool, id: MediaItemID) async throws {
         // A library grid may not have visited a merged surface yet. Discover
         // same-server movie copies before the explicit action reaches Plex.
         if alternates.contentKey(for: id)?.isMovie != false,

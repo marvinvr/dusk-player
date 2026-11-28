@@ -10,7 +10,7 @@ struct LibraryCollectionsView: View {
     private let gridSpacing: CGFloat = DuskPosterMetrics.gridSpacing
     private let gridRowSpacing: CGFloat = DuskPosterMetrics.gridRowSpacing
 
-    init(library: PlexLibrary, plexService: PlexService) {
+    init(library: Library, plexService: PlexService) {
         _viewModel = State(initialValue: LibraryCollectionsViewModel(
             library: library,
             plexService: plexService
@@ -80,7 +80,7 @@ struct LibraryCollectionsView: View {
                         .tvLibraryPageTitleSpacing()
                     #endif
 
-                    PlexItemPosterGrid(
+                    MediaItemPosterGrid(
                         items: viewModel.items,
                         layout: layout,
                         rowSpacing: gridRowSpacing,

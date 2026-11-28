@@ -203,7 +203,7 @@ struct DolbyVision7PlaylistTests {
         { "id": 1, "streamType": 1, "codec": "hevc", "DOVIPresent": true,
           "DOVIProfile": 8, "DOVILevel": 6, "DOVIBLCompatID": 1 }
         """
-        let stream = try JSONDecoder().decode(PlexStream.self, from: Data(json.utf8))
+        let stream = try JSONDecoder().decode(MediaStream.self, from: Data(json.utf8))
         let configuration = try #require(DolbyVisionConfiguration(stream: stream))
         #expect(configuration.convertedFromProfile == nil)
         #expect(configuration.displayName == "Dolby Vision 8.1")

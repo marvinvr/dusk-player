@@ -112,14 +112,14 @@ extension PlexService {
 
     /// `/hubs` from every connected server, streamed. Each element carries that
     /// server's filtered rows; the caller merges what it has so far.
-    func streamHomeHubs() -> AsyncStream<ServerResult<[PlexHub]>> {
+    func streamHomeHubs() -> AsyncStream<ServerResult<[HomeRow]>> {
         streamAcrossServers { service, serverID in
             (try? await service.getHubs(serverID: serverID)) ?? []
         }
     }
 
     /// `/hubs/continueWatching` from every connected server, streamed.
-    func streamContinueWatching() -> AsyncStream<ServerResult<[PlexItem]>> {
+    func streamContinueWatching() -> AsyncStream<ServerResult<[MediaItem]>> {
         streamAcrossServers { service, serverID in
             (try? await service.getContinueWatching(serverID: serverID)) ?? []
         }
@@ -130,7 +130,7 @@ extension PlexService {
     /// "failed", which is what lets search report an error only when every
     /// server failed. The closure runs as a task group child, so it uses
     /// `Result.capturing` rather than its own `do`/`catch`.
-    func streamSearch(query: String) -> AsyncStream<ServerResult<Result<[PlexSearchResult], any Error>>> {
+    func streamSearch(query: String) -> AsyncStream<ServerResult<Result<[SearchSection], any Error>>> {
         streamAcrossServers { service, serverID in
             await Result.capturing {
                 try await service.search(query: query, serverID: serverID)
@@ -140,12 +140,12 @@ extension PlexService {
 
     /// Pages a merged hub row by following each contributing source on its own
     /// server, then re-merging. Sources are already in priority order.
-    func mergedHubItems(for hub: PlexHub, size: Int? = nil) async -> MergedPlexItems {
+    func mergedHubItems(for hub: HomeRow, size: Int? = nil) async -> MergedPlexItems {
         let sources = hub.sources.filter { $0.key?.nilIfEmpty != nil }
         guard !sources.isEmpty else { return .empty }
 
         let service = self
-        let lists = await withTaskGroup(of: (Int, [PlexItem]).self) { group in
+        let lists = await withTaskGroup(of: (Int, [MediaItem]).self) { group in
             for (index, source) in sources.enumerated() {
                 guard let key = source.key else { continue }
                 let serverID = source.serverID
@@ -159,14 +159,14 @@ extension PlexService {
                 }
             }
 
-            var results: [(Int, [PlexItem])] = []
+            var results: [(Int, [MediaItem])] = []
             for await result in group {
                 results.append(result)
             }
             return results.sorted { $0.0 < $1.0 }.map(\.1)
         }
 
-        return PlexItemMerge.hubItems(lists, for: hub)
+        return MediaItemMerge.hubItems(lists, for: hub)
     }
 
     /// Records a merge's findings so playback can fall back to another server.
@@ -174,7 +174,7 @@ extension PlexService {
     /// Single-copy entries are registered too: they teach the index which
     /// content key that id belongs to, so the same title seen on another server
     /// on a different screen links up with it later.
-    func registerAlternates(_ table: [PlexContentKey: [PlexItemID]]) {
+    func registerAlternates(_ table: [ContentKey: [MediaItemID]]) {
         for (key, ids) in table {
             alternates.register(ids, for: key)
         }

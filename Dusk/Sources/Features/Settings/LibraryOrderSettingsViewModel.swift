@@ -30,8 +30,8 @@ final class LibraryOrderSettingsViewModel {
     /// the account's sidebar order, so leaving them out would silently move them.
     /// Hidden libraries stay in this list; a move puts them after the visible
     /// ones, which is where the account stores them anyway.
-    private(set) var libraries: [PlexLibrary] = []
-    /// `PlexLibrary.id`s the user has hidden.
+    private(set) var libraries: [Library] = []
+    /// `Library.id`s the user has hidden.
     private(set) var hiddenIDs: Set<String> = []
     private(set) var isLoading = false
     private(set) var isSaving = false
@@ -44,7 +44,7 @@ final class LibraryOrderSettingsViewModel {
     private(set) var serverLabels: [String: String] = [:]
 
     /// The order and hidden set waiting for the debounce to elapse, if any.
-    @ObservationIgnored private var pendingWrite: (order: [PlexLibrary], hidden: Set<String>)?
+    @ObservationIgnored private var pendingWrite: (order: [Library], hidden: Set<String>)?
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
     /// Chained so two flushes cannot overlap on the wire.
     @ObservationIgnored private var writeTask: Task<Void, Never>?
@@ -73,21 +73,21 @@ final class LibraryOrderSettingsViewModel {
     /// The row title: the library name, plus its server only when another
     /// library of the same type carries the same name. Shared with the
     /// Libraries tab through `ServerLabeling` so both say the same thing.
-    func displayTitle(for library: PlexLibrary) -> String {
+    func displayTitle(for library: Library) -> String {
         ServerLabeling.displayTitle(for: library, labels: serverLabels)
     }
 
-    private func makeServerLabels(for libraries: [PlexLibrary]) -> [String: String] {
+    private func makeServerLabels(for libraries: [Library]) -> [String: String] {
         ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
     }
 
     /// The libraries Dusk shows, in order. Moves and positions refer to this
     /// list.
-    var visibleLibraries: [PlexLibrary] {
+    var visibleLibraries: [Library] {
         libraries.filter { !hiddenIDs.contains($0.id) }
     }
 
-    var hiddenLibraries: [PlexLibrary] {
+    var hiddenLibraries: [Library] {
         libraries.filter { hiddenIDs.contains($0.id) }
     }
 
@@ -111,7 +111,7 @@ final class LibraryOrderSettingsViewModel {
         return groups
     }
 
-    func isHidden(_ library: PlexLibrary) -> Bool {
+    func isHidden(_ library: Library) -> Bool {
         hiddenIDs.contains(library.id)
     }
 
@@ -134,7 +134,7 @@ final class LibraryOrderSettingsViewModel {
     }
 
     /// tvOS position menus: move one visible library to an absolute slot.
-    func move(_ library: PlexLibrary, to index: Int) {
+    func move(_ library: Library, to index: Int) {
         var visible = visibleLibraries
         guard let current = visible.firstIndex(of: library) else { return }
 
@@ -146,14 +146,14 @@ final class LibraryOrderSettingsViewModel {
         apply(visible + hiddenLibraries, hidden: hiddenIDs)
     }
 
-    func position(of library: PlexLibrary) -> Int {
+    func position(of library: Library) -> Int {
         visibleLibraries.firstIndex(of: library) ?? 0
     }
 
     /// Hides or shows a library everywhere in Dusk (see `HiddenLibraryFilter`).
     /// The flag lives on the Plex account next to the order, so other Plex apps
     /// follow it too.
-    func setHidden(_ isHidden: Bool, for library: PlexLibrary) {
+    func setHidden(_ isHidden: Bool, for library: Library) {
         var hidden = hiddenIDs
         if isHidden {
             guard hidden.insert(library.id).inserted else { return }
@@ -163,7 +163,7 @@ final class LibraryOrderSettingsViewModel {
         apply(libraries, hidden: hidden)
     }
 
-    private func apply(_ updated: [PlexLibrary], hidden: Set<String>) {
+    private func apply(_ updated: [Library], hidden: Set<String>) {
         libraries = updated
         hiddenIDs = hidden
         saveError = nil
@@ -199,7 +199,7 @@ final class LibraryOrderSettingsViewModel {
         }
     }
 
-    private func write(_ order: [PlexLibrary], hidden: Set<String>) async {
+    private func write(_ order: [Library], hidden: Set<String>) async {
         isSaving = true
         do {
             try await plexService.reorderLibraries(order, hidden: hidden)
@@ -218,7 +218,7 @@ final class LibraryOrderSettingsViewModel {
 struct LibraryServerGroup: Identifiable {
     let serverID: String
     let serverName: String
-    var libraries: [PlexLibrary]
+    var libraries: [Library]
 
     var id: String { serverID }
 }

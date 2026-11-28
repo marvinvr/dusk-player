@@ -327,11 +327,11 @@ struct MainTabView: View {
         hasDownloads && !availableTabs.contains(.downloads)
     }
 
-    private var moreTabContentTypes: [PlexLibraryType] {
+    private var moreTabContentTypes: [LibraryKind] {
         guard availableTabs.contains(.more) else { return [] }
         let availableLibraryTypes = librariesViewModel?.availableLibraryTypes ?? []
         let visibleTypes = preferences.visibleLibraryTabs(from: availableLibraryTypes + dataDrivenTabTypes)
-        let flatTypes = availableTabs.compactMap { tab -> PlexLibraryType? in
+        let flatTypes = availableTabs.compactMap { tab -> LibraryKind? in
             switch tab {
             case .library(let type): type
             case .liveTV: .liveTV
@@ -344,8 +344,8 @@ struct MainTabView: View {
 
     /// Destinations that exist only while a server offers them: Live TV with
     /// a DVR, Playlists once the account has a video playlist.
-    private var dataDrivenTabTypes: [PlexLibraryType] {
-        var types: [PlexLibraryType] = []
+    private var dataDrivenTabTypes: [LibraryKind] {
+        var types: [LibraryKind] = []
         if liveTVViewModel?.isAvailable == true {
             types.append(.liveTV)
         }
@@ -494,7 +494,7 @@ struct MainTabView: View {
         }
     }
 
-    private func binding(for libraryType: PlexLibraryType) -> Binding<NavigationPath> {
+    private func binding(for libraryType: LibraryKind) -> Binding<NavigationPath> {
         switch libraryType {
         case .movie:
             $moviesPath
@@ -575,7 +575,7 @@ private extension MainTabView {
                let channels = try? await plexService.getLiveTVChannels(provider: provider),
                !channels.isEmpty {
                 let channel = channels[min(max(index, 0), channels.count - 1)]
-                let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: [])
+                let lineup = LiveTVLineup(provider: provider, channels: channels, programs: [])
                 await playback.playLiveTV(channel: channel, program: nil, lineup: lineup)
                 return
             }

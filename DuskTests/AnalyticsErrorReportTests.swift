@@ -50,8 +50,8 @@ struct AnalyticsErrorSanitizingTests {
     }
 
     @Test func hdrFormatComesFromSignallingOnly() throws {
-        func stream(_ json: String) throws -> PlexStream {
-            try JSONDecoder().decode(PlexStream.self, from: Data(json.utf8))
+        func stream(_ json: String) throws -> MediaStream {
+            try JSONDecoder().decode(MediaStream.self, from: Data(json.utf8))
         }
         #expect(AnalyticsErrorSanitizer.hdr(of: try stream(#"{"id":1,"streamType":1,"codec":"hevc","DOVIProfile":8,"DOVIBLCompatID":1}"#)) == "dv8.1")
         #expect(AnalyticsErrorSanitizer.hdr(of: try stream(#"{"id":1,"streamType":1,"codec":"hevc","DOVIProfile":5}"#)) == "dv5")

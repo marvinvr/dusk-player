@@ -323,7 +323,7 @@ final class TraktService {
 
     /// Called once per playback session when Plex scrobbles it (the 90 %
     /// mark or a finished stop). Never throws, never blocks.
-    func recordFinished(type: PlexMediaType, guid: String?, guids: [PlexGuid], at date: Date = .now) {
+    func recordFinished(type: MediaKind, guid: String?, guids: [PlexGuid], at date: Date = .now) {
         guard isAvailable,
               let profileID = plexService.activeProfileID,
               accounts[profileID] != nil else { return }

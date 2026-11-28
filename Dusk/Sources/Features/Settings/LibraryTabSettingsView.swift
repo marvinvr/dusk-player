@@ -114,7 +114,7 @@ struct LibraryTabSettingsView: View {
             .frame(height: 1)
     }
 
-    private func positionBinding(for libraryType: PlexLibraryType) -> Binding<Int> {
+    private func positionBinding(for libraryType: LibraryKind) -> Binding<Int> {
         Binding(
             get: { preferences.libraryTabOrder.firstIndex(of: libraryType) ?? 0 },
             set: { preferences.moveLibraryTab(libraryType, to: $0) }
@@ -129,7 +129,7 @@ struct LibraryTabSettingsView: View {
     }
     #endif
 
-    private func visibilityBinding(for libraryType: PlexLibraryType) -> Binding<Bool> {
+    private func visibilityBinding(for libraryType: LibraryKind) -> Binding<Bool> {
         Binding(
             get: { preferences.isLibraryTabVisible(libraryType) },
             set: { preferences.setLibraryTabVisible($0, for: libraryType) }

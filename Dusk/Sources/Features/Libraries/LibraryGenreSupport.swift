@@ -55,7 +55,7 @@ enum LibraryGenreSupport {
     }
 
     static func matchedGenres(
-        for tags: [PlexTag],
+        for tags: [Tag],
         availableGenres: [LibraryGenreOption],
         limit: Int = 3
     ) -> [LibraryGenreOption] {
@@ -89,7 +89,7 @@ enum LibraryGenreSupport {
     }
 
     static func inferredGenres(
-        from tags: [PlexTag],
+        from tags: [Tag],
         limit: Int = 3
     ) -> [LibraryGenreOption] {
         var matches: [LibraryGenreOption] = []
@@ -144,7 +144,7 @@ enum LibraryGenreSupport {
     }
 
     static func containsGenre(
-        _ tags: [PlexTag],
+        _ tags: [Tag],
         matching genre: LibraryGenreOption
     ) -> Bool {
         let normalizedTarget = normalizeGenreTitle(genre.title)

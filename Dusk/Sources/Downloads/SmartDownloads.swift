@@ -23,8 +23,8 @@ struct SmartDownloadRule: Codable, Sendable, Hashable, Identifiable {
 
     var id: String { globalKey }
 
-    var showID: PlexItemID {
-        PlexItemID(serverID: serverID, ratingKey: showRatingKey)
+    var showID: MediaItemID {
+        MediaItemID(serverID: serverID, ratingKey: showRatingKey)
     }
 
     var globalKey: String {

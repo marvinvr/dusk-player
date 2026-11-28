@@ -26,11 +26,11 @@ struct TVLibraryMergeTests {
     private func episode(
         _ key: String, section: Int = 1, guid: String? = "plex://episode/mmc-s2e21",
         lastViewedAt: Int? = nil, offset: Int = 0, server: String = "a"
-    ) throws -> PlexItem {
+    ) throws -> MediaItem {
         let value = episodeFields(key, section: section, guid: guid, lastViewedAt: lastViewedAt, offset: offset)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexItem.self, from: JSONSerialization.data(withJSONObject: value))
+        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: value))
     }
 
     @Test func singleServerContinueWatchingKeepsMostRecentlyWatchedCopy() throws {
@@ -45,7 +45,7 @@ struct TVLibraryMergeTests {
     @Test func sameLastViewedFallsBackToFurthestProgress() throws {
         let tv = try episode("tv", lastViewedAt: 100, offset: 600_000)
         let kids = try episode("kids", section: 2, lastViewedAt: 100, offset: 300_000)
-        #expect(PlexItemMerge.interleave([[kids, tv]]).items.map(\.id) == [tv.id])
+        #expect(MediaItemMerge.interleave([[kids, tv]]).items.map(\.id) == [tv.id])
     }
 
     @Test func homeHubRowCollapsesSameServerCopies() throws {
@@ -58,7 +58,7 @@ struct TVLibraryMergeTests {
         ]
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        let hub = try decoder.decode(PlexHub.self, from: JSONSerialization.data(withJSONObject: value))
+        let hub = try decoder.decode(HomeRow.self, from: JSONSerialization.data(withJSONObject: value))
         let merged = HubMerge.merge([[hub]])
         #expect(merged.hubs.first?.items.map(\.id) == [tv.id])
         #expect(merged.alternates[tv.contentKey] == [tv.id, kids.id])
@@ -67,7 +67,7 @@ struct TVLibraryMergeTests {
     @Test func weakEpisodeIdentityNeverMergesWithinOneServer() throws {
         let tv = try episode("tv", guid: nil)
         let kids = try episode("kids", section: 2, guid: nil)
-        #expect(PlexItemMerge.interleave([[tv, kids]]).items.count == 2)
+        #expect(MediaItemMerge.interleave([[tv, kids]]).items.count == 2)
         #expect(ContinueWatchingMerge.merge([[tv, kids]]).items.count == 2)
         #expect(ContinueWatchingMerge.merge([[tv, kids], []]).items.count == 2)
     }

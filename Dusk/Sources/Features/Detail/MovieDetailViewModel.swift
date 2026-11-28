@@ -8,18 +8,18 @@ final class MovieDetailViewModel {
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     /// Server-scoped identity of the movie. Every request this model makes goes
     /// to `id.serverID`, never to whichever server happens to be primary.
-    let id: PlexItemID
+    let id: MediaItemID
 
     var ratingKey: String { id.ratingKey }
 
-    private(set) var details: PlexMediaDetails?
-    private(set) var copies: [PlexMediaDetails] = []
+    private(set) var details: MediaDetails?
+    private(set) var copies: [MediaDetails] = []
 
     var versions: [MoviePlaybackVersion] {
         MoviePlaybackVersion.versions(in: copies.isEmpty ? [details].compactMap { $0 } : copies)
     }
 
-    var resumeDetails: PlexMediaDetails? {
+    var resumeDetails: MediaDetails? {
         MoviePlaybackVersion.mostAdvancedCopy(in: copies) ?? details
     }
 
@@ -29,7 +29,7 @@ final class MovieDetailViewModel {
     private(set) var offlineStateVersion = 0
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
@@ -85,7 +85,7 @@ final class MovieDetailViewModel {
         do {
             try await plexService.setWatchedAcrossServers(
                 targetWatched,
-                id: PlexItemID(serverID: serverID, ratingKey: ratingKey)
+                id: MediaItemID(serverID: serverID, ratingKey: ratingKey)
             )
             await refreshDetails()
         } catch {

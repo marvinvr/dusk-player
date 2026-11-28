@@ -26,7 +26,7 @@ XMLTV works.
   (−12 h … +8 days) and, when every entry has a `tvg-id`, only those channels.
   A truncated file keeps what was read.
 - `IPTVService/IPTVLineupBuilder.swift`: maps playlist + guide onto the existing
-  `PlexLiveTVLineup` / `PlexLiveChannel` / `PlexLiveProgram` types so the guide
+  `LiveTVLineup` / `LiveChannel` / `LiveProgram` types so the guide
   rows, Watch Live card, now/next, program sheet and live player HUD are reused
   as-is. Guide match: `tvg-id` exact, then case-insensitive, then a unique
   display-name match on `tvg-name`/title. XMLTV `title`/`sub-title` map to
@@ -48,9 +48,9 @@ XMLTV works.
 
 ## Invariants
 
-- **The marker is `PlexLiveChannel.iptv`.** `PlaybackCoordinator.playLiveTV`
-  routes such a channel to `playIPTV`; `PlexLivePlaybackContext.isIPTV` and
-  `PlexLiveTVProvider.isIPTV` gate everything Plex-only.
+- **The marker is `LiveChannel.iptv`.** `PlaybackCoordinator.playLiveTV`
+  routes such a channel to `playIPTV`; `LivePlaybackContext.isIPTV` and
+  `LiveTVProvider.isIPTV` gate everything Plex-only.
 - **Always AVPlayer.** `playIPTV` builds an AVPlayer engine directly; Force
   VLCKit, the resolver and the direct-play → server-stream ladder never apply.
   An IPTV channel can never reach VLCKit. AVPlayer cannot play a raw MPEG-TS

@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 /// servers and libraries are in. Settings screens are not routed: Settings is
 /// its own scene on the Mac. See docs/screenshots.md and docs/macos.md.
 extension MacRootView {
-    func applyMacScreenshotDestination(libraries: () -> [PlexLibrary]) async {
+    func applyMacScreenshotDestination(libraries: () -> [Library]) async {
         guard ScreenshotMode.isActive else { return }
         for _ in 0..<80 {
             if let destination = await ScreenshotMode.consumeDestination(

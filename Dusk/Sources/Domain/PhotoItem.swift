@@ -3,20 +3,20 @@ import Foundation
 /// One entry of a Plex photo library: an album (folder), a photo, or a video
 /// clip that lives among the photos.
 ///
-/// Photo libraries are decoded separately from `PlexItem` on purpose: an album
+/// Photo libraries are decoded separately from `MediaItem` on purpose: an album
 /// and a photo both arrive as `type: "photo"` (only an album's `key` ends in
-/// `/children`), and `PlexItem` keeps photos as `.unknown`, which is what keeps
+/// `/children`), and `MediaItem` keeps photos as `.unknown`, which is what keeps
 /// them off Home, Search and the detail routes.
-struct PlexPhotoItem: Decodable, Sendable, Identifiable, Hashable {
+struct PhotoItem: Decodable, Sendable, Identifiable, Hashable {
     enum Kind: Sendable {
         case album
         case photo
         case clip
     }
 
-    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
-    /// Stamped by `ServerPool.decoder(for:)`, like `PlexItem.serverID`.
+    /// Stamped by `ServerPool.decoder(for:)`, like `MediaItem.serverID`.
     let serverID: String?
     let ratingKey: String
     let key: String
@@ -79,10 +79,10 @@ struct PlexPhotoItem: Decodable, Sendable, Identifiable, Hashable {
         partKey = media?.parts.first?.key
         make = media?.make
         model = media?.model
-        places = (try? container.decodeIfPresent([PlexTag].self, forKey: .places))?.map(\.tag) ?? []
+        places = (try? container.decodeIfPresent([Tag].self, forKey: .places))?.map(\.tag) ?? []
     }
 
-    static func == (lhs: PlexPhotoItem, rhs: PlexPhotoItem) -> Bool {
+    static func == (lhs: PhotoItem, rhs: PhotoItem) -> Bool {
         lhs.id == rhs.id
     }
 
@@ -117,7 +117,7 @@ private struct PhotoMedia: Decodable {
     }
 }
 
-extension PlexPhotoItem {
+extension PhotoItem {
     var isAlbum: Bool { kind == .album }
     var isClip: Bool { kind == .clip }
 
@@ -166,7 +166,7 @@ extension PlexPhotoItem {
 /// album's contents are queried through the section (`parent=`), and the
 /// library's server is the only server that knows the album's rating key.
 struct PhotoAlbumRoute: Hashable {
-    let library: PlexLibrary
+    let library: Library
     let ratingKey: String
     let title: String
 }

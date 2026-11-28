@@ -5,10 +5,10 @@ import Foundation
 /// pages after it, fetched as the grid nears the end of what is loaded.
 @MainActor
 @Observable
-final class PlexItemPager {
-    typealias Fetch = (_ start: Int, _ size: Int) async throws -> PlexItemPage
+final class MediaItemPager {
+    typealias Fetch = (_ start: Int, _ size: Int) async throws -> MediaItemPage
 
-    private(set) var items: [PlexItem] = []
+    private(set) var items: [MediaItem] = []
     private(set) var totalSize: Int?
     private(set) var isLoading = false
     private(set) var isLoadingMore = false
@@ -60,7 +60,7 @@ final class PlexItemPager {
 
     /// Only the tail is checked: a scan of thousands of loaded items on every
     /// cell appearance is main-thread work that grows with the scroll.
-    func loadMoreIfNeeded(currentItem: PlexItem) async {
+    func loadMoreIfNeeded(currentItem: MediaItem) async {
         guard hasMore, !isLoading, !isLoadingMore,
               items.suffix(pageSize / 2).contains(where: { $0.id == currentItem.id })
         else { return }

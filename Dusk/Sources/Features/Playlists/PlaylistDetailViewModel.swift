@@ -7,17 +7,17 @@ import Foundation
 @MainActor
 @Observable
 final class PlaylistDetailViewModel {
-    let id: PlexItemID
+    let id: MediaItemID
     private let plexService: PlexService
 
-    private(set) var playlist: PlexPlaylist?
-    private(set) var entries: [PlexPlaylistEntry] = []
+    private(set) var playlist: Playlist?
+    private(set) var entries: [PlaylistEntry] = []
     private(set) var hasLoadedEntries = false
     private(set) var error: String?
     /// An edit that failed; shown as an alert.
     var actionError: String?
 
-    init(id: PlexItemID, plexService: PlexService) {
+    init(id: MediaItemID, plexService: PlexService) {
         self.id = id
         self.plexService = plexService
         self.playlist = plexService.playlists.playlist(id: id)
@@ -94,7 +94,7 @@ final class PlaylistDetailViewModel {
     }
 
     /// Play from Here, and Play from Beginning (index 0).
-    func queue(startingAt entry: PlexPlaylistEntry) -> PlaybackQueue? {
+    func queue(startingAt entry: PlaylistEntry) -> PlaybackQueue? {
         guard let playlist, let index = entries.firstIndex(of: entry) else { return nil }
         return actions.queue(for: playlist, entries: entries, startIndex: index)
     }
@@ -111,7 +111,7 @@ final class PlaylistDetailViewModel {
 
     // MARK: - Edits
 
-    func remove(_ entry: PlexPlaylistEntry) async {
+    func remove(_ entry: PlaylistEntry) async {
         guard let playlist, canEdit, let playlistItemID = entry.playlistItemID,
               let index = entries.firstIndex(of: entry) else { return }
         let previous = entries
@@ -181,7 +181,7 @@ final class PlaylistDetailViewModel {
         }
     }
 
-    func setWatched(_ watched: Bool, for entry: PlexPlaylistEntry) async {
+    func setWatched(_ watched: Bool, for entry: PlaylistEntry) async {
         do {
             try await plexService.setWatchedAcrossServers(watched, id: entry.item.id)
         } catch {
@@ -192,7 +192,7 @@ final class PlaylistDetailViewModel {
 
     // MARK: - Presentation
 
-    func thumbnailURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func thumbnailURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.landscapeImageURL(plexService: plexService, width: width, height: height)
     }
 
@@ -208,7 +208,7 @@ final class PlaylistDetailViewModel {
 
     /// `The Bear · S2 E6` for an episode, the year for a movie, the clip line
     /// for a video.
-    static func secondaryLine(for item: PlexItem) -> String? {
+    static func secondaryLine(for item: MediaItem) -> String? {
         if item.isClip {
             return item.clipPosterSubtitle
         }

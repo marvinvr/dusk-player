@@ -15,11 +15,11 @@ import Foundation
 struct PlaybackSourceResolver {
     struct Resolution: Equatable {
         /// Usable instances, best first.
-        let identifiers: [PlexItemID]
+        let identifiers: [MediaItemID]
         /// The instance the caller asked for, with a missing server filled in.
         /// Callers compare candidates against this to tell the copy the user
         /// actually picked from its fallbacks.
-        let requestedID: PlexItemID
+        let requestedID: MediaItemID
 
         var isEmpty: Bool { identifiers.isEmpty }
     }
@@ -35,7 +35,7 @@ struct PlaybackSourceResolver {
     ///     progress (a resume offset), so it plays first no matter where its
     ///     server sits in the priority list; the others remain as fallbacks.
     func resolve(
-        for id: PlexItemID,
+        for id: MediaItemID,
         restrictToItemServer: Bool = false,
         prefersRequestedInstance: Bool = false
     ) -> Resolution {
@@ -44,8 +44,8 @@ struct PlaybackSourceResolver {
             : plexService.alternates.instances(of: id)
         let requested = normalizedRequestedID(id)
 
-        var seen = Set<PlexItemID>()
-        var usable: [PlexItemID] = []
+        var seen = Set<MediaItemID>()
+        var usable: [MediaItemID] = []
 
         for instance in orderedByPriority(normalized(instances, requestedBy: id)) {
             guard let serverID = instance.serverID,
@@ -67,7 +67,7 @@ struct PlaybackSourceResolver {
 
     /// An item that reached playback without a server (an unstamped offline
     /// cache, a legacy route) plays from the primary server.
-    private func normalized(_ instances: [PlexItemID], requestedBy id: PlexItemID) -> [PlexItemID] {
+    private func normalized(_ instances: [MediaItemID], requestedBy id: MediaItemID) -> [MediaItemID] {
         var normalized = instances
         if !normalized.contains(id) {
             normalized.append(id)
@@ -77,21 +77,21 @@ struct PlaybackSourceResolver {
         }
         return normalized.map { instance in
             instance.serverID == nil
-                ? PlexItemID(serverID: primaryID, ratingKey: instance.ratingKey)
+                ? MediaItemID(serverID: primaryID, ratingKey: instance.ratingKey)
                 : instance
         }
     }
 
     /// The requested id as it appears after `normalized` has filled in a
     /// missing server.
-    private func normalizedRequestedID(_ id: PlexItemID) -> PlexItemID {
+    private func normalizedRequestedID(_ id: MediaItemID) -> MediaItemID {
         guard id.serverID == nil, let primaryID = plexService.pool.primary?.serverID else {
             return id
         }
-        return PlexItemID(serverID: primaryID, ratingKey: id.ratingKey)
+        return MediaItemID(serverID: primaryID, ratingKey: id.ratingKey)
     }
 
-    private func orderedByPriority(_ instances: [PlexItemID]) -> [PlexItemID] {
+    private func orderedByPriority(_ instances: [MediaItemID]) -> [MediaItemID] {
         instances
             .enumerated()
             .sorted { lhs, rhs in
@@ -103,7 +103,7 @@ struct PlaybackSourceResolver {
             .map(\.element)
     }
 
-    private func rank(of id: PlexItemID) -> Int {
+    private func rank(of id: MediaItemID) -> Int {
         guard let serverID = id.serverID else { return Int.max }
         return plexService.serverPriority.rank(of: serverID)
     }

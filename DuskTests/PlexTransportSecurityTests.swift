@@ -114,7 +114,7 @@ struct PlexTransportSecurityTests {
         let id = "transport-test-\(UUID())"
         defer { ServerPool.forget(serverID: id) }
         let server = try server([], id: id)
-        let part = try JSONDecoder().decode(PlexMediaPart.self, from: Data(#"{"id":1,"key":"/video.mp4"}"#.utf8))
+        let part = try JSONDecoder().decode(MediaPart.self, from: Data(#"{"id":1,"key":"/video.mp4"}"#.utf8))
         for raw in ["http://public.example:32400", "http://192.168.1.2:32400", "https://public.example:32400"] {
             service.pool.adopt(server: server, baseURL: URL(string: raw)!, token: "test-token", connection: nil)
             #expect(service.directPlayURL(for: part, serverID: id) != nil)

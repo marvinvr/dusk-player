@@ -5,7 +5,7 @@ import Foundation
 enum HomeHubFilter {
     /// Plex's own continue-watching/on-deck hubs are covered by the cinematic
     /// hero, and playlists are not a Dusk destination.
-    static func shouldHide(hub: PlexHub) -> Bool {
+    static func shouldHide(hub: HomeRow) -> Bool {
         let fields = [hub.title, hub.key, hub.hubIdentifier]
             .compactMap { $0?.lowercased() }
 
@@ -19,7 +19,7 @@ enum HomeHubFilter {
         }
     }
 
-    static func shouldHide(item: PlexItem) -> Bool {
+    static func shouldHide(item: MediaItem) -> Bool {
         switch item.type {
         case .artist, .album, .track, .unknown:
             return true

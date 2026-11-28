@@ -7,7 +7,7 @@ import Testing
 /// both sides carry.
 @Suite("Live TV guide matching")
 struct PlexLiveTVGuideMatchingTests {
-    private let provider = PlexLiveTVProvider(
+    private let provider = LiveTVProvider(
         identifier: "tv.plex.providers.epg.cloud:2",
         providerIdentifier: "tv.plex.providers.epg.cloud",
         title: "Live TV",
@@ -15,15 +15,15 @@ struct PlexLiveTVGuideMatchingTests {
         gridKey: "/tv.plex.providers.epg.cloud:2/grid"
     )
 
-    private func channels(_ json: String) throws -> [PlexLiveChannel] {
-        try JSONDecoder().decode([PlexLiveChannel].self, from: Data(json.utf8))
+    private func channels(_ json: String) throws -> [LiveChannel] {
+        try JSONDecoder().decode([LiveChannel].self, from: Data(json.utf8))
     }
 
-    private func programs(_ json: String) throws -> [PlexLiveProgram] {
-        try JSONDecoder().decode([PlexLiveProgram].self, from: Data(json.utf8))
+    private func programs(_ json: String) throws -> [LiveProgram] {
+        try JSONDecoder().decode([LiveProgram].self, from: Data(json.utf8))
     }
 
-    private func titles(_ lineup: PlexLiveTVLineup) -> [[String]] {
+    private func titles(_ lineup: LiveTVLineup) -> [[String]] {
         lineup.guides.map { $0.programs.map(\.title) }
     }
 
@@ -37,7 +37,7 @@ struct PlexLiveTVGuideMatchingTests {
          { "ratingKey": "2", "title": "B", "Media": [{ "beginsAt": 100, "endsAt": 200, "gridKey": "g1" }] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(titles(lineup) == [["B"], ["A"]])
     }
@@ -53,7 +53,7 @@ struct PlexLiveTVGuideMatchingTests {
            "Media": [{ "beginsAt": 100, "endsAt": 200, "gridKey": "other", "channelIdentifier": "c1" }] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(titles(lineup) == [["A"]])
     }
@@ -68,7 +68,7 @@ struct PlexLiveTVGuideMatchingTests {
          { "ratingKey": "2", "title": "B", "Media": [{ "beginsAt": 100, "endsAt": 200, "channelIdentifier": "021" }] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(titles(lineup) == [["B"], ["A"]])
         #expect(lineup.guides.map(\.channel.tuneIdentifier) == ["c1", "c2"])
@@ -84,7 +84,7 @@ struct PlexLiveTVGuideMatchingTests {
            "Media": [{ "beginsAt": 100, "endsAt": 200, "channelIdentifier": "unknown", "channelVcn": "3-2" }] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(titles(lineup) == [[], ["A"]])
     }
@@ -106,7 +106,7 @@ struct PlexLiveTVGuideMatchingTests {
            "Media": [{ "beginsAt": 100, "endsAt": 200, "channelTitle": "World" }] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(titles(lineup) == [[], ["By title"], ["By call sign"]])
     }
@@ -126,7 +126,7 @@ struct PlexLiveTVGuideMatchingTests {
         ] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(lineup.guides[0].programs.map { $0.beginsAt?.timeIntervalSince1970 } == [100, 500])
         #expect(lineup.guides[1].programs.map { $0.beginsAt?.timeIntervalSince1970 } == [300])
@@ -143,7 +143,7 @@ struct PlexLiveTVGuideMatchingTests {
          { "ratingKey": "2", "title": "Twice", "Media": [{ "beginsAt": 100, "endsAt": 200, "gridKey": "g1" }] }]
         """)
 
-        let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        let lineup = LiveTVLineup(provider: provider, channels: channels, programs: programs)
 
         #expect(lineup.guides.map(\.channel.id) == ["c1"])
         #expect(titles(lineup) == [["Twice"]])

@@ -12,7 +12,7 @@ import Foundation
 /// `com.plexapp.agents.opensubtitles:///...`) that identifies the candidate when
 /// asking the server to download it. It is required, because a result we cannot
 /// download is useless to the UI.
-struct PlexSubtitleSearchResult: Decodable, Identifiable, Sendable, Hashable {
+struct SubtitleSearchResult: Decodable, Identifiable, Sendable, Hashable {
     /// Stable identity for SwiftUI lists.
     ///
     /// Search results are not library streams, so most servers send `id: 0` (or
@@ -151,7 +151,7 @@ struct PlexSubtitleSearchResult: Decodable, Identifiable, Sendable, Hashable {
 
 private extension KeyedDecodingContainer {
     /// Plex sends flag fields as `true`/`false` or as `1`/`0`, and occasionally
-    /// as `"1"`. Mirrors `PlexStream.decodeBoolish` without touching it.
+    /// as `"1"`. Mirrors `MediaStream.decodeBoolish` without touching it.
     func decodeSubtitleBoolish(forKey key: Key) -> Bool? {
         if let boolValue = try? decodeIfPresent(Bool.self, forKey: key) {
             return boolValue

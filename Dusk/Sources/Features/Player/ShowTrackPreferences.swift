@@ -14,7 +14,7 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
     let external: Bool?
 
     @MainActor
-    init?(stream: PlexStream) {
+    init?(stream: MediaStream) {
         guard let language = PlayerViewModel.normalizedLanguageCode(stream.languageCode ?? stream.languageTag),
               language != "und", language != "unk" else { return nil }
         self.language = language
@@ -34,7 +34,7 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    func match(in streams: [PlexStream], type: PlexStreamType) -> PlexStream? {
+    func match(in streams: [MediaStream], type: PlexStreamType) -> MediaStream? {
         // Language and purpose are requirements. Codec/channels only break ties;
         // never substitute forced subtitles or commentary for a normal track.
         //
@@ -58,7 +58,7 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    private func score(_ stream: PlexStream) -> Int {
+    private func score(_ stream: MediaStream) -> Int {
         let isExternal = stream.key != nil
         let sameKind = external.map { $0 == isExternal } ?? false
         let sameHearingImpaired = Self(stream: stream)?.hearingImpaired == hearingImpaired
@@ -80,7 +80,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     var subtitles: Subtitles?
 
     @MainActor
-    static func hasHDRVideo(in part: PlexMediaPart) -> Bool {
+    static func hasHDRVideo(in part: MediaPart) -> Bool {
         part.streams.contains {
             $0.streamType == .video && ($0.isHDRVideo || StreamResolver.hdrTransfer(of: $0) != nil ||
                 $0.doviPresent == true || $0.doviProfile != nil ||
@@ -95,7 +95,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     /// or none, instead of sending the video to VLC without HDR. SDR media
     /// and subtitles that ride the remux are returned unchanged.
     @MainActor
-    static func remuxSubtitleStreamID(_ streamID: Int?, in part: PlexMediaPart) -> Int? {
+    static func remuxSubtitleStreamID(_ streamID: Int?, in part: MediaPart) -> Int? {
         guard hasHDRVideo(in: part), let streamID,
               let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == streamID }),
               !StreamResolver.canRideRemux(subtitle: stream) else { return streamID }
@@ -107,9 +107,9 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     /// (forced-only text must not stand in for full subtitles, nor the
     /// reverse). The same SDH flag is preferred, then Plex's order.
     @MainActor
-    static func textSubtitleFallback(for stream: PlexStream, in part: PlexMediaPart) -> PlexStream? {
+    static func textSubtitleFallback(for stream: MediaStream, in part: MediaPart) -> MediaStream? {
         guard let wanted = ShowTrackDescriptor(stream: stream) else { return nil }
-        let candidates = part.streams.compactMap { candidate -> (stream: PlexStream, descriptor: ShowTrackDescriptor)? in
+        let candidates = part.streams.compactMap { candidate -> (stream: MediaStream, descriptor: ShowTrackDescriptor)? in
             guard candidate.streamType == .subtitle, candidate.id != stream.id,
                   StreamResolver.canRideRemux(subtitle: candidate),
                   let descriptor = ShowTrackDescriptor(stream: candidate),
@@ -122,12 +122,12 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    func audioStream(in part: PlexMediaPart) -> PlexStream? {
+    func audioStream(in part: MediaPart) -> MediaStream? {
         audio?.match(in: part.streams, type: .audio)
     }
 
     @MainActor
-    func subtitleStreamID(in part: PlexMediaPart, fallback: Int?) -> Int? {
+    func subtitleStreamID(in part: MediaPart, fallback: Int?) -> Int? {
         switch subtitles {
         case .off: nil
         case let .track(descriptor): descriptor.match(in: part.streams, type: .subtitle)?.id ?? fallback
@@ -136,7 +136,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     }
 
     @MainActor
-    func hasMatch(in part: PlexMediaPart) -> Bool {
+    func hasMatch(in part: MediaPart) -> Bool {
         if audioStream(in: part) != nil { return true }
         switch subtitles {
         case .off: return true
@@ -155,7 +155,7 @@ struct ShowTrackPreferenceStore {
         let serverID: String
         let showRatingKey: String
 
-        init?(profileID: String?, serverID: String?, details: PlexMediaDetails) {
+        init?(profileID: String?, serverID: String?, details: MediaDetails) {
             guard details.type == .episode,
                   let profileID, !profileID.isEmpty,
                   let serverID, !serverID.isEmpty,

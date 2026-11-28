@@ -59,8 +59,8 @@ struct IPTVResumeStoreTests {
                 sourceIdentity: IPTVResumeKey.sourceIdentity(playlistURL: source.playlistURL),
                 streamURL: channelURL, headers: [:], userAgent: nil, drm: nil
             )
-            let channel = PlexLiveChannel(iptvID: "iptv:\(source.id.uuidString):1", number: nil, title: "One", logo: nil, playable: playable)
-            let program = PlexLiveProgram(
+            let channel = LiveChannel(iptvID: "iptv:\(source.id.uuidString):1", number: nil, title: "One", logo: nil, playable: playable)
+            let program = LiveProgram(
                 iptv: IPTVProgramme(channelID: "1", start: start, stop: start.addingTimeInterval(3600), title: "Show"),
                 channel: channel
             )

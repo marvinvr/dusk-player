@@ -19,8 +19,8 @@ struct DownloadActionButton: View {
 
     /// Server-scoped identity of the item the button acts on. Rating keys
     /// collide across servers, so the download record must be found by both.
-    let id: PlexItemID
-    let type: PlexMediaType
+    let id: MediaItemID
+    let type: MediaKind
     /// True for video clips (Plex `type == "movie"` + `subtype == "clip"`), so
     /// the queued download record carries the flag for 16:9 artwork and
     /// `.downloadedVideo` routing.
@@ -456,7 +456,7 @@ struct DownloadContextMenuContent: View {
 struct SmartDownloadMenuContent: View {
     @Environment(DownloadManager.self) private var downloadManager
 
-    let show: PlexItemID
+    let show: MediaItemID
     /// Used when the rule is turned on from here (no quality sheet).
     var quality: DownloadQuality = .original
 

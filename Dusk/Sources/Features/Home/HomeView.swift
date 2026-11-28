@@ -194,7 +194,7 @@ struct HomeView: View {
         #endif
     }
 
-    private func play(_ item: PlexItem) {
+    private func play(_ item: MediaItem) {
         Task {
             await playback.play(
                 id: item.id,
@@ -206,9 +206,9 @@ struct HomeView: View {
     }
 
     private func playLiveTV(
-        _ channel: PlexLiveChannel,
-        _ program: PlexLiveProgram,
-        _ lineup: PlexLiveTVLineup
+        _ channel: LiveChannel,
+        _ program: LiveProgram,
+        _ lineup: LiveTVLineup
     ) {
         Task {
             await playback.playLiveTV(channel: channel, program: program, lineup: lineup)

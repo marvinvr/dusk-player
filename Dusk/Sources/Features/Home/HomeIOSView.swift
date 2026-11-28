@@ -22,8 +22,8 @@ struct HomeIOSView: View {
     /// Settings › Home Advanced: the small Continue Watching row replaces
     /// the cinematic hero.
     let showsCompactContinueWatching: Bool
-    let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
-    let play: (PlexItem) -> Void
+    let playLiveTV: (LiveChannel, LiveProgram, LiveTVLineup) -> Void
+    let play: (MediaItem) -> Void
 
     var body: some View {
         applyNavigationChrome(to: content, showsHero: showsCinematicHero)
@@ -209,7 +209,7 @@ struct HomeIOSView: View {
     }
 
     @ViewBuilder
-    private func hubSection(_ hub: PlexHub) -> some View {
+    private func hubSection(_ hub: HomeRow) -> some View {
         let items = viewModel.inlineItems(
             in: hub,
             maxRecentlyAddedItems: recentlyAddedInlineItemLimit
@@ -218,7 +218,7 @@ struct HomeIOSView: View {
         #if os(macOS)
         if !items.isEmpty, items.allSatisfy({ $0.type == .episode }) {
             // Episodes as 16:9 stills, "S2 E3 · Title" over the show.
-            PlexItemPosterCarouselSection(
+            MediaItemPosterCarouselSection(
                 title: hub.title,
                 items: items,
                 posterWidth: DuskPosterMetrics.videoCarouselWidth,
@@ -245,11 +245,11 @@ struct HomeIOSView: View {
     }
 
     @ViewBuilder
-    private func posterHubSection(_ hub: PlexHub, items: [PlexItem]) -> some View {
+    private func posterHubSection(_ hub: HomeRow, items: [MediaItem]) -> some View {
         if !items.isEmpty {
             let isVideoHub = viewModel.isVideoHub(hub)
 
-            PlexItemPosterCarouselSection(
+            MediaItemPosterCarouselSection(
                 title: hub.title,
                 items: items,
                 posterWidth: isVideoHub ? DuskPosterMetrics.videoCarouselWidth : DuskPosterMetrics.carouselPosterWidth,
@@ -269,8 +269,8 @@ struct HomeIOSView: View {
     }
 
     @ViewBuilder
-    private func hubContextMenu(_ item: PlexItem, in hub: PlexHub) -> some View {
-        PlexItemContextMenuContent(
+    private func hubContextMenu(_ item: MediaItem, in hub: HomeRow) -> some View {
+        MediaItemContextMenuContent(
             item: item,
             onMarkWatched: {
                 Task { await viewModel.setWatched(true, for: item) }
@@ -293,7 +293,7 @@ struct HomeIOSView: View {
     @ViewBuilder
     private func personalizedSection(_ shelf: HomePersonalizedShelf) -> some View {
         if !shelf.items.isEmpty {
-            PlexItemPosterCarouselSection(
+            MediaItemPosterCarouselSection(
                 title: shelf.title,
                 items: shelf.items,
                 posterWidth: DuskPosterMetrics.carouselPosterWidth,
@@ -305,7 +305,7 @@ struct HomeIOSView: View {
                     viewModel.posterURL(for: item, width: width, height: height)
                 }
             ) { item in
-                PlexItemContextMenuContent(
+                MediaItemContextMenuContent(
                     item: item,
                     onMarkWatched: {
                         Task { await viewModel.setWatched(true, for: item) }
@@ -360,7 +360,7 @@ struct HomeIOSView: View {
     /// button (white prominent capsule), so playback looks the same on every
     /// hero; iOS keeps Home's own style.
     @ViewBuilder
-    private func heroPrimaryButton(for item: PlexItem, action: @escaping () -> Void) -> some View {
+    private func heroPrimaryButton(for item: MediaItem, action: @escaping () -> Void) -> some View {
         #if os(macOS)
         Button(action: action) {
             DetailHeroPrimaryActionButtonLabel(
@@ -415,7 +415,7 @@ struct HomeIOSView: View {
         #endif
     }
 
-    private var cinematicHeroItems: [PlexItem] {
+    private var cinematicHeroItems: [MediaItem] {
         showsCompactContinueWatching ? [] : viewModel.heroItems()
     }
 
@@ -423,7 +423,7 @@ struct HomeIOSView: View {
         !cinematicHeroItems.isEmpty
     }
 
-    private func heroDetailsLabel(for item: PlexItem) -> String {
+    private func heroDetailsLabel(for item: MediaItem) -> String {
         switch item.type {
         case .episode:
             return "Go to Episode"

@@ -80,7 +80,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable, Sendable {
 
     /// The fields offered for a library of the given type. Video libraries
     /// lead with upload-date sorts (year is meaningless for clips).
-    static func fields(for libraryType: PlexLibraryType?) -> [LibrarySortField] {
+    static func fields(for libraryType: LibraryKind?) -> [LibrarySortField] {
         switch libraryType {
         case .video:
             [.releaseDate, .addedAt, .title, .duration, .lastViewed, .random]
@@ -149,18 +149,18 @@ struct LibrarySortOption: Hashable, Identifiable, Sendable {
     /// jump needs.
     var isTitleSort: Bool { field == .title }
 
-    static func fields(for libraryType: PlexLibraryType?) -> [LibrarySortField] {
+    static func fields(for libraryType: LibraryKind?) -> [LibrarySortField] {
         LibrarySortField.fields(for: libraryType)
     }
 
-    static func defaultOption(for libraryType: PlexLibraryType?) -> LibrarySortOption {
+    static func defaultOption(for libraryType: LibraryKind?) -> LibrarySortOption {
         libraryType == .video ? LibrarySortOption(.releaseDate) : .titleAscending
     }
 }
 
 /// One fetched page and whether the query has more beyond it.
 private struct LibraryItemsPage {
-    let items: [PlexItem]
+    let items: [MediaItem]
     let hasMore: Bool
     /// Locally matched genres only: the server offset the next page's scan
     /// resumes from.
@@ -177,15 +177,15 @@ private struct LibraryItemsQuery: Hashable {
 @Observable
 final class LibraryItemsViewModel {
     private let plexService: PlexService
-    let library: PlexLibrary
+    let library: Library
     /// When set, every fetch is scoped to this collection (used for the
     /// per-channel grids of video libraries).
-    private let collection: PlexLibraryCollection?
+    private let collection: MediaCollection?
     private let preferredInitialGenre: LibraryGenreOption?
     private let unwatchedFilterStore: LibraryUnwatchedFilterStore
     private let sortStore: LibrarySortStore
 
-    private(set) var items: [PlexItem] = []
+    private(set) var items: [MediaItem] = []
     private(set) var isLoading = false
     private(set) var isLoadingMore = false
     private(set) var error: String?
@@ -242,9 +242,9 @@ final class LibraryItemsViewModel {
     private var localScanOffset = 0
 
     init(
-        library: PlexLibrary,
+        library: Library,
         plexService: PlexService,
-        collection: PlexLibraryCollection? = nil,
+        collection: MediaCollection? = nil,
         initialGenre: LibraryGenreOption? = nil,
         unwatchedFilterStore: LibraryUnwatchedFilterStore = LibraryUnwatchedFilterStore(),
         sortStore: LibrarySortStore = LibrarySortStore()
@@ -381,7 +381,7 @@ final class LibraryItemsViewModel {
     /// scroll to. A letter already loaded is only scrolled to; any other
     /// replaces the grid with a window starting one page above it, so the
     /// titles just before the letter are there when scrolling up.
-    func jump(to entry: LibraryLetterIndex.Entry) async -> PlexItem? {
+    func jump(to entry: LibraryLetterIndex.Entry) async -> MediaItem? {
         guard let letterIndex, let offset = letterIndex.targetOffset(for: entry) else { return nil }
         if offset >= windowStart, offset < windowStart + items.count {
             return items[offset - windowStart]
@@ -410,7 +410,7 @@ final class LibraryItemsViewModel {
     }
 
     /// The letter the given loaded item falls under, for highlighting it.
-    func letterEntry(for item: PlexItem) -> LibraryLetterIndex.Entry? {
+    func letterEntry(for item: MediaItem) -> LibraryLetterIndex.Entry? {
         guard let letterIndex,
               let index = items.firstIndex(where: { $0.id == item.id }) else { return nil }
         return letterIndex.entry(containing: windowStart + index)
@@ -518,11 +518,11 @@ final class LibraryItemsViewModel {
         return choices
     }
 
-    func setWatched(_ watched: Bool, for item: PlexItem) async {
+    func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
             try await plexService.setWatchedAcrossServers(
                 watched,
-                id: PlexItemID(serverID: item.serverID ?? serverID, ratingKey: item.ratingKey)
+                id: MediaItemID(serverID: item.serverID ?? serverID, ratingKey: item.ratingKey)
             )
             await reloadItems()
         } catch {
@@ -530,7 +530,7 @@ final class LibraryItemsViewModel {
         }
     }
 
-    func loadMoreIfNeeded(currentItem: PlexItem) async {
+    func loadMoreIfNeeded(currentItem: MediaItem) async {
         // Only the tail is searched: with thousands of titles loaded, a scan
         // of the whole list on every cell appearance is main-thread work that
         // grows with the scroll. Half a page ahead keeps wide tvOS/iPad grids
@@ -560,15 +560,15 @@ final class LibraryItemsViewModel {
         }
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func progress(for item: PlexItem) -> Double? {
+    func progress(for item: MediaItem) -> Double? {
         item.posterProgress
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.standardPosterSubtitle
     }
 
@@ -665,7 +665,7 @@ final class LibraryItemsViewModel {
     ) async throws -> LibraryItemsPage {
         let baseFilters = serverFilters(for: query, includingGenre: false)
         let wanted = scanOffset == 0 ? firstPageSize : pageSize
-        var matchedItems: [PlexItem] = []
+        var matchedItems: [MediaItem] = []
         var offset = scanOffset
 
         for _ in 0..<maxLocalScanPagesPerLoad {

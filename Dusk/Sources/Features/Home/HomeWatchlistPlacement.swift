@@ -19,7 +19,7 @@ import Foundation
 enum HomeWatchlistPlacement {
     /// The index in `hubs` the row is inserted before (`hubs.count` = after
     /// every hub), or nil when Plex's layout hides the Watchlist.
-    static func index(in hubs: [PlexHub], plexHomeHubs: [PlexHomeHubSetting]?) -> Int? {
+    static func index(in hubs: [HomeRow], plexHomeHubs: [PlexHomeHubSetting]?) -> Int? {
         if let plexHomeHubs, let position = plexHomeHubs.firstIndex(where: \.isWatchlist) {
             if plexHomeHubs[position].isHidden { return nil }
             for preceding in plexHomeHubs[..<position].reversed() where !preceding.isHidden {
@@ -34,18 +34,18 @@ enum HomeWatchlistPlacement {
 
     /// Index in `hubs` the row is inserted before. `hubs.count` is after every
     /// Plex hub (and before the personalized shelves, which are not in `hubs`).
-    static func defaultIndex(in hubs: [PlexHub]) -> Int {
+    static func defaultIndex(in hubs: [HomeRow]) -> Int {
         guard let lastRecentlyAdded = hubs.lastIndex(where: isRecentlyAdded) else {
             return hubs.count
         }
         return lastRecentlyAdded + 1
     }
 
-    private static func isRecentlyAdded(_ hub: PlexHub) -> Bool {
+    private static func isRecentlyAdded(_ hub: HomeRow) -> Bool {
         [hub.hubIdentifier, hub.key].contains { $0?.lowercased().contains("recentlyadded") == true }
     }
 
-    private static func matches(_ hub: PlexHub, _ setting: PlexHomeHubSetting) -> Bool {
+    private static func matches(_ hub: HomeRow, _ setting: PlexHomeHubSetting) -> Bool {
         // A merged row carries its representative server's identifier; the
         // other servers' copies of the row cannot be told apart from it.
         guard hub.hubIdentifier == setting.hubIdentifier else { return false }

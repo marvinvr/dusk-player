@@ -10,7 +10,7 @@ private let libraryRecommendationsLogger = Logger(
 /// One channel row plus the library it belongs to, so "Show All" opens that
 /// library's collection rather than whichever library happened to be first.
 struct LibraryChannelRow: Identifiable, Sendable {
-    let library: PlexLibrary
+    let library: Library
     let shelf: LibraryVideoChannelShelf
 
     var id: String { "\(library.id)|\(shelf.id)" }
@@ -19,8 +19,8 @@ struct LibraryChannelRow: Identifiable, Sendable {
 /// A library's Plex collections as a row: the first few, with "Show All"
 /// opening the library's full Collections grid.
 struct LibraryCollectionShelf: Identifiable, Sendable {
-    let library: PlexLibrary
-    let items: [PlexItem]
+    let library: Library
+    let items: [MediaItem]
     let hasMore: Bool
 
     var id: String { library.id }
@@ -40,20 +40,20 @@ final class LibraryRecommendationsViewModel {
     private var maxRecentlyAddedItems = 10
 
     /// Every library this screen covers, in the account's order. Never empty.
-    let libraries: [PlexLibrary]
+    let libraries: [Library]
 
     /// The library that stands in for the screen: its type drives the layout
     /// and it is what a single-library screen browses into.
-    var library: PlexLibrary { libraries[0] }
+    var library: Library { libraries[0] }
 
     var isMultiLibrary: Bool { libraries.count > 1 }
 
-    private(set) var hubs: [PlexHub] = []
+    private(set) var hubs: [HomeRow] = []
     private(set) var personalizedShelves: [LibraryPersonalizedShelf] = []
     private(set) var channelShelves: [LibraryChannelRow] = []
     private(set) var collectionShelves: [LibraryCollectionShelf] = []
-    private(set) var rediscoverItems: [PlexItem] = []
-    private(set) var continueWatching: [PlexItem] = []
+    private(set) var rediscoverItems: [MediaItem] = []
+    private(set) var continueWatching: [MediaItem] = []
     private(set) var continueWatchingTitle = "Continue Watching"
     private(set) var isLoading = false
     private(set) var hasLoadedOnce = false
@@ -70,11 +70,11 @@ final class LibraryRecommendationsViewModel {
     /// See `load(maxRecentlyAddedItems:)`.
     private var loadTask: Task<Void, Never>?
 
-    convenience init(library: PlexLibrary, plexService: PlexService) {
+    convenience init(library: Library, plexService: PlexService) {
         self.init(libraries: [library], plexService: plexService)
     }
 
-    init(libraries: [PlexLibrary], plexService: PlexService) {
+    init(libraries: [Library], plexService: PlexService) {
         precondition(!libraries.isEmpty, "A recommendations screen needs at least one library")
         self.libraries = libraries
         self.plexService = plexService
@@ -227,7 +227,7 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
-    private func applyHubs(_ fetchedHubs: [[PlexHub]], isInitialLoad: Bool, generation: Int) async {
+    private func applyHubs(_ fetchedHubs: [[HomeRow]], isInitialLoad: Bool, generation: Int) async {
         let processedHubs = await processHubs(fetchedHubs)
         guard !Task.isCancelled, generation == loadGeneration else { return }
 
@@ -360,12 +360,12 @@ final class LibraryRecommendationsViewModel {
     /// `/hubs/sections/{id}` for every library this screen covers, all at once,
     /// each routed to its own server. A library that fails contributes nothing
     /// rather than failing the screen.
-    private func fetchLibraryHubs(promotedOnly: Bool = false) async -> [[PlexHub]] {
+    private func fetchLibraryHubs(promotedOnly: Bool = false) async -> [[HomeRow]] {
         let service = plexService
         let count = hubFetchCount
         let libraries = self.libraries
 
-        return await withTaskGroup(of: (Int, [PlexHub]).self) { group in
+        return await withTaskGroup(of: (Int, [HomeRow]).self) { group in
             for (index, library) in libraries.enumerated() {
                 group.addTask {
                     let hubs = promotedOnly
@@ -383,7 +383,7 @@ final class LibraryRecommendationsViewModel {
                 }
             }
 
-            var results: [(Int, [PlexHub])] = []
+            var results: [(Int, [HomeRow])] = []
             for await result in group {
                 results.append(result)
             }
@@ -399,7 +399,7 @@ final class LibraryRecommendationsViewModel {
     /// Runs `load` for every library, a few at a time, and returns the results
     /// in library order.
     private func loadPerLibrary<Result: Sendable>(
-        _ load: @escaping @Sendable @MainActor (PlexLibrary) async -> Result
+        _ load: @escaping @Sendable @MainActor (Library) async -> Result
     ) async -> [Result] {
         let libraries = self.libraries
 
@@ -431,7 +431,7 @@ final class LibraryRecommendationsViewModel {
 
     private func loadVideoShelves() async -> (
         channelShelves: [LibraryChannelRow],
-        rediscoverItems: [PlexItem]
+        rediscoverItems: [MediaItem]
     ) {
         let service = plexService
         let results = await loadPerLibrary { library in
@@ -441,14 +441,14 @@ final class LibraryRecommendationsViewModel {
         let channelRows = results.flatMap { library, result in
             result.channelShelves.map { LibraryChannelRow(library: library, shelf: $0) }
         }
-        return (channelRows, PlexItemMerge.interleave(results.map(\.1.rediscoverItems)).items)
+        return (channelRows, MediaItemMerge.interleave(results.map(\.1.rediscoverItems)).items)
     }
 
     /// Merges each library's rows into one set, then expands the Recently Added
     /// rows and splits Continue Watching out of them.
     private func processHubs(
-        _ fetchedHubs: [[PlexHub]]
-    ) async -> (hubs: [PlexHub], continueWatching: [PlexItem], continueWatchingTitle: String) {
+        _ fetchedHubs: [[HomeRow]]
+    ) async -> (hubs: [HomeRow], continueWatching: [MediaItem], continueWatchingTitle: String) {
         let filtered = fetchedHubs.map { $0.filter { !shouldHideHub($0) } }
         // One list per library here, not per server: merging rows of two
         // libraries of the same type is exactly what a type tab is for.
@@ -501,7 +501,7 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
-    func setWatched(_ watched: Bool, for item: PlexItem) async {
+    func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
             try await plexService.setWatchedAcrossServers(watched, id: item.id)
             await load()
@@ -510,52 +510,52 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func landscapeImageURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func landscapeImageURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.landscapeImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func progress(for item: PlexItem) -> Double? {
+    func progress(for item: MediaItem) -> Double? {
         item.posterProgress
     }
 
-    func displayTitle(for item: PlexItem) -> String {
+    func displayTitle(for item: MediaItem) -> String {
         item.continueWatchingDisplayTitle
     }
 
-    func displaySubtitle(for item: PlexItem) -> String? {
+    func displaySubtitle(for item: MediaItem) -> String? {
         item.continueWatchingDisplaySubtitle
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.standardPosterSubtitle
     }
 
-    func visibleItems(in hub: PlexHub) -> [PlexItem] {
+    func visibleItems(in hub: HomeRow) -> [MediaItem] {
         hub.items.filter { !shouldHideItem($0) }
     }
 
-    func inlineItems(in hub: PlexHub) -> [PlexItem] {
+    func inlineItems(in hub: HomeRow) -> [MediaItem] {
         let items = visibleItems(in: hub)
 
         guard isRecentlyAddedHub(hub) else { return items }
         return Array(items.prefix(maxRecentlyAddedItems))
     }
 
-    var prioritizedHubs: [PlexHub] {
+    var prioritizedHubs: [HomeRow] {
         hubs.filter(isRecentlyAddedHub)
     }
 
-    var secondaryHubs: [PlexHub] {
+    var secondaryHubs: [HomeRow] {
         hubs.filter { !isRecentlyAddedHub($0) }
     }
 
     /// A merged row is pageable when any of its libraries is, and its size is
     /// the sum across them.
-    func shouldShowAll(for hub: PlexHub) -> Bool {
+    func shouldShowAll(for hub: HomeRow) -> Bool {
         guard hub.isPageable else { return false }
 
         let visibleCount = visibleItems(in: hub).count
@@ -570,7 +570,7 @@ final class LibraryRecommendationsViewModel {
         return hub.hasMoreOnAnySource || max(totalSize, visibleCount) > visibleCount
     }
 
-    func normalizedTitle(for hub: PlexHub) -> String {
+    func normalizedTitle(for hub: HomeRow) -> String {
         guard hub.title.lowercased().contains("recently added") else { return hub.title }
 
         let suffix = hub.title.replacingOccurrences(
@@ -583,7 +583,7 @@ final class LibraryRecommendationsViewModel {
         return suffix.isEmpty ? "Recently Added" : "Recently Added \(suffix)"
     }
 
-    private func normalizedContinueWatchingTitle(for hub: PlexHub) -> String {
+    private func normalizedContinueWatchingTitle(for hub: HomeRow) -> String {
         let title = hub.title.lowercased()
 
         if title.contains("continue watching") || title.contains("on deck") || title.contains("in progress") || title.contains("inprogress") {
@@ -595,8 +595,8 @@ final class LibraryRecommendationsViewModel {
 
     /// Re-fetches each Recently Added row at the size the screen shows,
     /// following every contributing library's own hub key and re-merging.
-    private func expandedRecentlyAddedHubs(from hubs: [PlexHub]) async -> [PlexHub] {
-        var expandedHubs: [PlexHub] = []
+    private func expandedRecentlyAddedHubs(from hubs: [HomeRow]) async -> [HomeRow] {
+        var expandedHubs: [HomeRow] = []
         expandedHubs.reserveCapacity(hubs.count)
 
         for hub in hubs {
@@ -626,7 +626,7 @@ final class LibraryRecommendationsViewModel {
         return expandedHubs
     }
 
-    private func isContinueWatchingHub(_ hub: PlexHub) -> Bool {
+    private func isContinueWatchingHub(_ hub: HomeRow) -> Bool {
         let fields = [hub.title, hub.key, hub.hubIdentifier]
             .compactMap { $0?.lowercased() }
 
@@ -639,7 +639,7 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
-    private func isRecentlyAddedHub(_ hub: PlexHub) -> Bool {
+    private func isRecentlyAddedHub(_ hub: HomeRow) -> Bool {
         let normalizedTitle = hub.title.lowercased()
 
         guard normalizedTitle.contains("recently added") else { return false }
@@ -648,7 +648,7 @@ final class LibraryRecommendationsViewModel {
         return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode, .clip])
     }
 
-    private func shouldHideHub(_ hub: PlexHub) -> Bool {
+    private func shouldHideHub(_ hub: HomeRow) -> Bool {
         let fields = [hub.title, hub.key, hub.hubIdentifier]
             .compactMap { $0?.lowercased() }
 
@@ -657,7 +657,7 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
-    private func shouldHideItem(_ item: PlexItem) -> Bool {
+    private func shouldHideItem(_ item: MediaItem) -> Bool {
         let normalizedKey = item.key.lowercased()
 
         switch item.type {
@@ -669,20 +669,20 @@ final class LibraryRecommendationsViewModel {
     }
 
     /// Drops anything already in Continue Watching. Matching is on
-    /// `PlexItemID` (rating keys alias across servers) plus the cross-server
+    /// `MediaItemID` (rating keys alias across servers) plus the cross-server
     /// content key, so a film in progress on one server is not recommended
     /// from another.
     private func filterPersonalizedShelves(
         _ shelves: [LibraryPersonalizedShelf],
-        excluding continueWatchingItems: [PlexItem]
+        excluding continueWatchingItems: [MediaItem]
     ) -> [LibraryPersonalizedShelf] {
-        var excludedIDs: Set<PlexItemID> = []
-        var excludedContentKeys: Set<PlexContentKey> = []
+        var excludedIDs: Set<MediaItemID> = []
+        var excludedContentKeys: Set<ContentKey> = []
 
         for item in continueWatchingItems {
             for ratingKey in [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
                 .compactMap({ $0 }) {
-                excludedIDs.insert(PlexItemID(serverID: item.serverID, ratingKey: ratingKey))
+                excludedIDs.insert(MediaItemID(serverID: item.serverID, ratingKey: ratingKey))
             }
             excludedContentKeys.insert(item.contentKey)
             excludedContentKeys.formUnion(item.movieContentKeys)
@@ -747,7 +747,7 @@ extension LibraryRecommendationLoadResult {
             return LibraryPersonalizedShelf(
                 genre: representative.genre,
                 title: representative.title,
-                items: PlexItemMerge.interleave(group.map(\.items)).items,
+                items: MediaItemMerge.interleave(group.map(\.items)).items,
                 showAllLibrary: nil
             )
         }
@@ -772,27 +772,27 @@ extension LibraryRecommendationLoadResult {
 /// underneath instead of starting from a spinner.
 @MainActor
 struct LibraryRecommendationsSnapshot {
-    let hubs: [PlexHub]
+    let hubs: [HomeRow]
     let personalizedShelves: [LibraryPersonalizedShelf]
     let channelShelves: [LibraryChannelRow]
     let collectionShelves: [LibraryCollectionShelf]
-    let rediscoverItems: [PlexItem]
-    let continueWatching: [PlexItem]
+    let rediscoverItems: [MediaItem]
+    let continueWatching: [MediaItem]
     let continueWatchingTitle: String
 
     private static var cache: [String: LibraryRecommendationsSnapshot] = [:]
 
     /// Keyed on the profile as well: Continue Watching and the personalized
     /// rows belong to whoever is signed in, not to the library.
-    private static func key(for libraries: [PlexLibrary], profileID: String?) -> String {
+    private static func key(for libraries: [Library], profileID: String?) -> String {
         ([profileID ?? ""] + libraries.map(\.id)).joined(separator: "|")
     }
 
-    static func cached(for libraries: [PlexLibrary], profileID: String?) -> LibraryRecommendationsSnapshot? {
+    static func cached(for libraries: [Library], profileID: String?) -> LibraryRecommendationsSnapshot? {
         cache[key(for: libraries, profileID: profileID)]
     }
 
-    static func store(_ snapshot: LibraryRecommendationsSnapshot, for libraries: [PlexLibrary], profileID: String?) {
+    static func store(_ snapshot: LibraryRecommendationsSnapshot, for libraries: [Library], profileID: String?) {
         cache[key(for: libraries, profileID: profileID)] = snapshot
     }
 }

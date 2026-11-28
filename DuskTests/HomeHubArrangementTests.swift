@@ -102,17 +102,17 @@ struct HomeHubArrangementTests {
         _ title: String, section: Any? = nil, identifier: String = "movie.recentlyadded",
         key: String = "/hubs/recentlyAdded", type: String = "movie",
         items: [[String: Any]] = [], server: String = "a"
-    ) throws -> PlexHub {
+    ) throws -> HomeRow {
         var json: [String: Any] = ["title": title, "key": key, "type": type, "hubIdentifier": identifier, "Metadata": items]
         json["librarySectionID"] = section
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexHub.self, from: JSONSerialization.data(withJSONObject: json))
+        return try decoder.decode(HomeRow.self, from: JSONSerialization.data(withJSONObject: json))
     }
 
-    private func library(_ key: String, type: String) throws -> PlexLibrary {
+    private func library(_ key: String, type: String) throws -> Library {
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(PlexLibrary.self, from: JSONSerialization.data(withJSONObject: ["key": key, "title": key, "type": type]))
+        return try decoder.decode(Library.self, from: JSONSerialization.data(withJSONObject: ["key": key, "title": key, "type": type]))
     }
 }

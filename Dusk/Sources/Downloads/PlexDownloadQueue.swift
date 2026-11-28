@@ -26,7 +26,7 @@ struct PlexDownloadQueueItem: Sendable {
 
 struct PlexPreparedDownload: Sendable {
     let request: URLRequest
-    let media: PlexMedia
+    let media: MediaVersion
     let expectedBytes: Int64?
 }
 
@@ -59,8 +59,8 @@ struct PlexDownloadDecision: Sendable {
     let duration: Int?
     let partDuration: Int?
 
-    func convertedMedia(sourceMedia: PlexMedia, mediaPath: String, expectedBytes: Int64?) -> PlexMedia {
-        let part = PlexMediaPart(
+    func convertedMedia(sourceMedia: MediaVersion, mediaPath: String, expectedBytes: Int64?) -> MediaVersion {
+        let part = MediaPart(
             id: sourceMedia.firstAvailablePart?.id ?? 0,
             key: mediaPath,
             file: nil,
@@ -69,7 +69,7 @@ struct PlexDownloadDecision: Sendable {
             duration: partDuration ?? duration ?? sourceMedia.duration,
             videoProfile: nil, audioProfile: nil, accessible: true, exists: true, streams: []
         )
-        return PlexMedia(
+        return MediaVersion(
             id: sourceMedia.id, container: "mkv", videoCodec: "h264", audioCodec: "aac",
             videoResolution: videoResolution, videoProfile: nil, audioProfile: nil,
             audioChannels: audioChannels, width: width, height: height, bitrate: bitrate,

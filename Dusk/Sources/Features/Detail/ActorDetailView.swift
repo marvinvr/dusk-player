@@ -169,7 +169,7 @@ struct ActorDetailView: View {
     }
 
     @ViewBuilder
-    private func filmographySection(title: String, items: [PlexItem], width: CGFloat) -> some View {
+    private func filmographySection(title: String, items: [MediaItem], width: CGFloat) -> some View {
         let layout = AdaptivePosterGridLayout.make(
             containerWidth: width,
             horizontalPadding: horizontalPadding,
@@ -191,7 +191,7 @@ struct ActorDetailView: View {
                 .foregroundStyle(Color.primary)
                 .padding(.horizontal, horizontalPadding)
 
-            PlexItemPosterGrid(
+            MediaItemPosterGrid(
                 items: items,
                 layout: layout,
                 posterURL: { item, width, height in

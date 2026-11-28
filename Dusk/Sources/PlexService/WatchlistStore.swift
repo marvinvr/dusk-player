@@ -23,8 +23,8 @@ final class WatchlistStore {
         case unavailable
     }
 
-    private(set) var entries: [PlexWatchlistEntry] = []
-    private(set) var matches: [String: PlexItem] = [:]
+    private(set) var entries: [WatchlistEntry] = []
+    private(set) var matches: [String: MediaItem] = [:]
     private(set) var state: State = .idle
     /// Plex Web's own Home layout, when the account customized it; nil means
     /// Plex's default layout (or that it could not be read).
@@ -53,7 +53,7 @@ final class WatchlistStore {
         return entries.contains { $0.guid == guid }
     }
 
-    func match(for entry: PlexWatchlistEntry) -> PlexItem? {
+    func match(for entry: WatchlistEntry) -> MediaItem? {
         matches[entry.guid]
     }
 
@@ -83,8 +83,8 @@ final class WatchlistStore {
     }
 
     func commit(
-        entries: [PlexWatchlistEntry],
-        matches: [String: PlexItem],
+        entries: [WatchlistEntry],
+        matches: [String: MediaItem],
         homeHubs: [PlexHomeHubSetting]?,
         serverIDs: [String],
         generation expected: Int
@@ -124,16 +124,16 @@ final class WatchlistStore {
     // MARK: - Edits
 
     struct Snapshot {
-        fileprivate let entries: [PlexWatchlistEntry]
-        fileprivate let matches: [String: PlexItem]
+        fileprivate let entries: [WatchlistEntry]
+        fileprivate let matches: [String: MediaItem]
     }
 
     /// Applies an add or remove before plex.tv confirms it. Returns what to
     /// restore if it fails. Newest first, like Plex lists it.
     func apply(
         watchlisted: Bool,
-        entry: PlexWatchlistEntry,
-        match: PlexItem?
+        entry: WatchlistEntry,
+        match: MediaItem?
     ) -> Snapshot {
         let snapshot = Snapshot(entries: entries, matches: matches)
         generation += 1

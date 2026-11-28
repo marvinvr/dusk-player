@@ -16,7 +16,7 @@ extension PlexService {
     /// such setting and sends 0 ("pre-roll only"): it plays exactly what the
     /// server owner set up, and a server without a pre-roll answers with the
     /// movie alone. Leaving the parameter out entirely returns no extras at all.
-    func cinemaPrerolls(forMovieRatingKey ratingKey: String, serverID: String?) async throws -> [PlexMediaDetails] {
+    func cinemaPrerolls(forMovieRatingKey ratingKey: String, serverID: String?) async throws -> [MediaDetails] {
         let targetID = try resolveServerID(serverID)
         let data = try await rawServerRequest(
             method: "POST",
@@ -33,14 +33,14 @@ extension PlexService {
             ],
             serverID: targetID
         )
-        let items = try decodeJSON(MetadataResponse<PlexMediaDetails>.self, from: data, serverID: targetID)
+        let items = try decodeJSON(MetadataResponse<MediaDetails>.self, from: data, serverID: targetID)
             .MediaContainer.Metadata ?? []
         return Self.prerollItems(in: items, featureRatingKey: ratingKey)
     }
 
     /// Everything the queue puts in front of the movie. Only clips count: a
     /// queue that somehow led with anything else is not a pre-roll queue.
-    static func prerollItems(in queue: [PlexMediaDetails], featureRatingKey: String) -> [PlexMediaDetails] {
+    static func prerollItems(in queue: [MediaDetails], featureRatingKey: String) -> [MediaDetails] {
         guard let featureIndex = queue.firstIndex(where: { $0.ratingKey == featureRatingKey }) else {
             return []
         }

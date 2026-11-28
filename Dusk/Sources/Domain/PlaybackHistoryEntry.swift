@@ -1,7 +1,7 @@
 import Foundation
 
 /// A playback history entry returned from `GET /status/sessions/history/all`.
-struct PlexPlaybackHistoryEntry: Codable, Sendable, Identifiable {
+struct PlaybackHistoryEntry: Codable, Sendable, Identifiable {
     var id: String {
         let base = historyKey ?? "\(ratingKey)-\(viewedAt ?? 0)"
         guard let serverID else { return base }
@@ -13,14 +13,14 @@ struct PlexPlaybackHistoryEntry: Codable, Sendable, Identifiable {
     let serverID: String?
 
     /// Server-scoped identity of the item this entry refers to.
-    var itemID: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+    var itemID: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
     let historyKey: String?
     let ratingKey: String
     let librarySectionID: String?
     let parentRatingKey: String?
     let grandparentRatingKey: String?
-    let type: PlexMediaType
+    let type: MediaKind
     let title: String
     let parentTitle: String?
     let grandparentTitle: String?
@@ -49,7 +49,7 @@ struct PlexPlaybackHistoryEntry: Codable, Sendable, Identifiable {
         librarySectionID = try container.decodeIfPresent(String.self, forKey: .librarySectionID)
         parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
         grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
-        type = try container.decode(PlexMediaType.self, forKey: .type)
+        type = try container.decode(MediaKind.self, forKey: .type)
         title = try container.decode(String.self, forKey: .title)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)

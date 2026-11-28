@@ -7,8 +7,8 @@ import Testing
 /// full Plex stream it belongs to instead of letting it consume the next one.
 @Suite("Forced subtitle twins")
 struct ForcedSubtitleTwinTests {
-    private func streams(_ json: String) throws -> [PlexStream] {
-        try JSONDecoder().decode([PlexStream].self, from: Data("[\(json)]".utf8))
+    private func streams(_ json: String) throws -> [MediaStream] {
+        try JSONDecoder().decode([MediaStream].self, from: Data("[\(json)]".utf8))
     }
 
     private func engineTrack(id: Int, code: String?, forced: Bool, external: Bool = false) -> SubtitleTrack {

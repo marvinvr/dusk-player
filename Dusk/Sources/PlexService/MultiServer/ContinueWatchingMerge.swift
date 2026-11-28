@@ -9,21 +9,21 @@ import Foundation
 /// is the progress Plex will resume from.
 enum ContinueWatchingMerge {
     /// - Parameter lists: one entry per connected server, in priority order.
-    static func merge(_ lists: [[PlexItem]]) -> MergedPlexItems {
-        let alternates = PlexItemMerge.alternates(in: lists)
-        let keys = PlexItemMerge.contentKeys(in: lists)
+    static func merge(_ lists: [[MediaItem]]) -> MergedPlexItems {
+        let alternates = MediaItemMerge.alternates(in: lists)
+        let keys = MediaItemMerge.contentKeys(in: lists)
 
         // One server: Plex already ordered this row, and re-sorting it here
         // would change what a single-server install has always shown.
         guard lists.count > 1 else {
-            return PlexItemMerge.interleave(lists)
+            return MediaItemMerge.interleave(lists)
         }
 
-        var representatives: [PlexContentKey: Candidate] = [:]
-        var order: [PlexContentKey] = []
+        var representatives: [ContentKey: Candidate] = [:]
+        var order: [ContentKey] = []
 
         for (rank, list) in lists.enumerated() {
-            for item in PlexItemMerge.interleave([list]).items {
+            for item in MediaItemMerge.interleave([list]).items {
                 var key = keys[item.id] ?? item.contentKey
                 if let existing = representatives[key], existing.item.serverID == item.serverID,
                    existing.item.id != item.id, !key.isStrong, item.movieContentKeys.isEmpty {
@@ -60,12 +60,12 @@ enum ContinueWatchingMerge {
     /// Movies use the most advanced copy. TV uses recency, then offset and
     /// server priority, as before.
     private struct Candidate {
-        let item: PlexItem
+        let item: MediaItem
         let rank: Int
 
         func wins(over other: Candidate) -> Bool {
             if !item.movieContentKeys.isEmpty, !other.item.movieContentKeys.isEmpty {
-                return PlexItemMerge.isMoreAdvanced(item, than: other.item)
+                return MediaItemMerge.isMoreAdvanced(item, than: other.item)
             }
             let lastViewedAt = item.lastViewedAt ?? 0
             let otherLastViewedAt = other.item.lastViewedAt ?? 0

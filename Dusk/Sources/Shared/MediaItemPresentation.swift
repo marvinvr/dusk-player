@@ -3,9 +3,9 @@ import Foundation
 /// Large series heroes use parent artwork, never an episode's small still.
 enum SeriesBackdropArtwork {
     static func path(
-        season: PlexMediaDetails?,
-        show: PlexMediaDetails?,
-        episode: PlexMediaDetails? = nil
+        season: MediaDetails?,
+        show: MediaDetails?,
+        episode: MediaDetails? = nil
     ) -> String? {
         season?.art?.nilIfEmpty
             ?? show?.art?.nilIfEmpty
@@ -17,7 +17,7 @@ enum SeriesBackdropArtwork {
     }
 }
 
-extension PlexItem {
+extension MediaItem {
     var posterProgress: Double? {
         MediaTextFormatter.progress(durationMs: duration, offsetMs: viewOffset)
     }
@@ -193,7 +193,7 @@ extension PlexItem {
 /// groups, hub item grids): a non-empty row consisting entirely of clips
 /// renders as a 16:9 carousel/grid; anything mixed or non-clip keeps the 2:3
 /// poster layout.
-extension Collection where Element == PlexItem {
+extension Collection where Element == MediaItem {
     var isAllClips: Bool {
         !isEmpty && allSatisfy(\.isClip)
     }

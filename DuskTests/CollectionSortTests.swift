@@ -13,7 +13,7 @@ struct CollectionSortTests {
         year: Int? = nil,
         addedAt: Int? = nil,
         rating: Double? = nil
-    ) throws -> PlexItem {
+    ) throws -> MediaItem {
         var value: [String: Any] = [
             "ratingKey": key, "key": "/library/metadata/\(key)", "type": "movie", "title": title,
         ]
@@ -23,7 +23,7 @@ struct CollectionSortTests {
         if let rating { value["rating"] = rating }
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(PlexItem.self, from: JSONSerialization.data(withJSONObject: value))
+        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: value))
     }
 
     @Test("Release date sorts newest first; titles without a date go last")
@@ -87,14 +87,14 @@ struct CollectionSortTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let store = CollectionSortStore(defaults: defaults)
-        let disney = PlexItemID(serverID: "a", ratingKey: "100")
+        let disney = MediaItemID(serverID: "a", ratingKey: "100")
         #expect(store.sort(for: disney) == nil)
 
         let newest = LibrarySortOption(.releaseDate, descending: true)
         store.setSort(newest, for: disney)
         #expect(CollectionSortStore(defaults: defaults).sort(for: disney) == newest)
         // The same rating key on another server is another collection.
-        #expect(store.sort(for: PlexItemID(serverID: "b", ratingKey: "100")) == nil)
+        #expect(store.sort(for: MediaItemID(serverID: "b", ratingKey: "100")) == nil)
 
         store.setSort(nil, for: disney)
         #expect(store.sort(for: disney) == nil)

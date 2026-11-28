@@ -17,7 +17,7 @@ struct PrerollPlayback {
     /// The movie request the pre-rolls stand in front of, replayed verbatim
     /// once they are done.
     struct Feature {
-        let id: PlexItemID
+        let id: MediaItemID
         let startPositionOverride: TimeInterval?
         let resumeOffsetMilliseconds: Int?
         let resumeOffsetDurationMilliseconds: Int?
@@ -26,9 +26,9 @@ struct PrerollPlayback {
     }
 
     struct Item {
-        let details: PlexMediaDetails
-        let media: PlexMedia
-        let part: PlexMediaPart
+        let details: MediaDetails
+        let media: MediaVersion
+        let part: MediaPart
         let url: URL
         let engineType: PlaybackEngineType
     }
@@ -51,7 +51,7 @@ extension PlaybackCoordinator {
     /// gets them: resuming mid-movie, downloads, AirPlay and SharePlay go
     /// straight to the movie (the caller filters the first three).
     func startPrerollsIfConfigured(
-        for details: PlexMediaDetails,
+        for details: MediaDetails,
         serverID: String?,
         feature: PrerollPlayback.Feature,
         attemptID: UUID
@@ -60,7 +60,7 @@ extension PlaybackCoordinator {
         guard details.type == .movie, details.subtype != "clip", !isSharePlayActive else { return false }
 
         let profileSession = plexService.serverSessionToken
-        let queue: [PlexMediaDetails]
+        let queue: [MediaDetails]
         do {
             queue = try await plexService.cinemaPrerolls(forMovieRatingKey: details.ratingKey, serverID: serverID)
         } catch {
@@ -102,7 +102,7 @@ extension PlaybackCoordinator {
         }
     }
 
-    private func prerollItem(for details: PlexMediaDetails, serverID: String?) -> PrerollPlayback.Item? {
+    private func prerollItem(for details: MediaDetails, serverID: String?) -> PrerollPlayback.Item? {
         guard let media = StreamResolver.selectMediaVersion(
                 from: details.media,
                 preferredMaxResolution: preferences.maxResolution

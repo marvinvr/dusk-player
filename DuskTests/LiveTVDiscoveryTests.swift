@@ -202,8 +202,8 @@ struct LiveTVDiscoveryTests {
 
     // MARK: - Helpers
 
-    private func provider(on serverID: String) -> PlexLiveTVProvider {
-        PlexLiveTVProvider(
+    private func provider(on serverID: String) -> LiveTVProvider {
+        LiveTVProvider(
             identifier: "tv.plex.providers.epg.cloud:9",
             providerIdentifier: "tv.plex.providers.epg.cloud",
             title: "Live TV & DVR",

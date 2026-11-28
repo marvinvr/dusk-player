@@ -325,7 +325,7 @@ struct PlayerView: View {
 private struct PlayerAirPlayRemoteBackground: View {
     @Environment(PlexService.self) private var plexService
 
-    let details: PlexMediaDetails?
+    let details: MediaDetails?
     let routeName: String?
 
     /// Vertical space kept clear for the HUD's centered play/pause button. The
@@ -552,7 +552,7 @@ private struct PlayerSessionView: View {
 
     private let playbackSource: PlaybackSource
     private let presentationID: UUID
-    private let mediaDetails: PlexMediaDetails?
+    private let mediaDetails: MediaDetails?
     private let debugInfo: PlaybackDebugInfo?
     private let controlsTopSafeAreaInset: CGFloat
 
@@ -560,7 +560,7 @@ private struct PlayerSessionView: View {
         engine: any PlaybackEngine,
         playbackSource: PlaybackSource,
         presentationID: UUID,
-        mediaDetails: PlexMediaDetails? = nil,
+        mediaDetails: MediaDetails? = nil,
         debugInfo: PlaybackDebugInfo? = nil
     ) {
         let model = PlayerViewModel(
@@ -1179,7 +1179,7 @@ private struct PlayerSessionView: View {
         return debugInfo.part.id
     }
 
-    private func skipMarkerOverlay(_ marker: PlexMarker) -> some View {
+    private func skipMarkerOverlay(_ marker: Marker) -> some View {
         VStack {
             Spacer()
 
@@ -1215,7 +1215,7 @@ private struct PlayerSessionView: View {
     }
 
     #if !os(tvOS)
-    private func skipMarkerButtonLabel(_ marker: PlexMarker) -> some View {
+    private func skipMarkerButtonLabel(_ marker: Marker) -> some View {
         HStack(spacing: 10) {
             Image(systemName: marker.isCredits ? "forward.end.fill" : "chevron.forward.2")
                 .font(DuskFont.glyphSmall(ios: .callout.weight(.semibold)))
@@ -1338,7 +1338,7 @@ private struct PlayerSessionView: View {
     }
 
     @MainActor
-    private func handleSkipMarker(_ marker: PlexMarker) {
+    private func handleSkipMarker(_ marker: Marker) {
         viewModel.handleSkipMarker(marker)
     }
 
@@ -1346,7 +1346,7 @@ private struct PlayerSessionView: View {
     /// resolve the next episode and raise the bottom-right Up Next poster (or
     /// dismiss it when the user seeked back out of the credits).
     @MainActor
-    private func handleReachedCreditsMarker(_ marker: PlexMarker?) {
+    private func handleReachedCreditsMarker(_ marker: Marker?) {
         guard let marker else {
             playback.dismissUpNextPoster()
             return

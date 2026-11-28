@@ -16,8 +16,8 @@ struct LiveTVGuideWindowTests {
         calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
     }
 
-    private func program(_ title: String, from begin: Date, to end: Date) throws -> PlexLiveProgram {
-        try JSONDecoder().decode(PlexLiveProgram.self, from: Data("""
+    private func program(_ title: String, from begin: Date, to end: Date) throws -> LiveProgram {
+        try JSONDecoder().decode(LiveProgram.self, from: Data("""
         { "ratingKey": "\(title)", "title": "\(title)",
           "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
         """.utf8))
@@ -58,7 +58,7 @@ struct LiveTVGuideWindowTests {
     @Test func restrictionDropsEndedAndOutOfWindowPrograms() throws {
         let now = date(2, 20, 30)
         let window = LiveTVGuideWindow.forDayOffset(0, now: now, calendar: calendar)
-        let channels = try JSONDecoder().decode([PlexLiveChannel].self, from: Data("""
+        let channels = try JSONDecoder().decode([LiveChannel].self, from: Data("""
         [{ "id": "c1", "gridKey": "g1" }]
         """.utf8))
         let programs = try [
@@ -67,8 +67,8 @@ struct LiveTVGuideWindowTests {
             program("tonight", from: date(2, 23), to: date(3, 1)),
             program("tooLate", from: date(3, 9), to: date(3, 10)),
         ]
-        let lineup = PlexLiveTVLineup(
-            provider: PlexLiveTVProvider(
+        let lineup = LiveTVLineup(
+            provider: LiveTVProvider(
                 identifier: "p", providerIdentifier: "p", title: "Live TV", dvrID: 1, gridKey: "/grid"
             ),
             channels: channels,
@@ -85,11 +85,11 @@ struct LiveTVGuideWindowTests {
     /// be listed once.
     @Test func midnightSpanningProgramFromTwoGridsIsListedOnce() throws {
         let spanning = try program("late", from: date(2, 23), to: date(3, 1))
-        let channels = try JSONDecoder().decode([PlexLiveChannel].self, from: Data("""
+        let channels = try JSONDecoder().decode([LiveChannel].self, from: Data("""
         [{ "id": "c1", "gridKey": "g1" }]
         """.utf8))
-        let lineup = PlexLiveTVLineup(
-            provider: PlexLiveTVProvider(
+        let lineup = LiveTVLineup(
+            provider: LiveTVProvider(
                 identifier: "p", providerIdentifier: "p", title: "Live TV", dvrID: 1, gridKey: "/grid"
             ),
             channels: channels,

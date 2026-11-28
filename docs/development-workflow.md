@@ -42,7 +42,7 @@ Dusk/Sources
   Features/Player/     Player shell, controls, coordinator, overlays
   Features/Search/     Search UI and state
   Features/Settings/   iOS/tvOS settings shells and shared settings state
-  Models/              Plex and playback model types
+  Domain/              Plex and playback model types
   Playback/            PlaybackEngine, AVPlayer, VLCKit, StreamResolver
   PlexService/         Plex auth, servers, library, history, playback, network
   Shared/              Reusable UI, formatting, presentation helpers
@@ -54,7 +54,7 @@ DuskTopShelf/          tvOS Top Shelf extension (reads the App Group snapshot on
 
 - App entry, theme, and navigation shell code: `Dusk/Sources/App/`.
 - New Plex endpoints: the matching `PlexService+*.swift` concern file.
-- Plex response and app-facing media types: `Dusk/Sources/Models/`.
+- Plex response and app-facing media types: `Dusk/Sources/Domain/`.
 - Playback engine details: `Dusk/Sources/Playback/`.
 - Player UI, overlays, sheets, and coordinator behavior: `Features/Player/`.
 - Detail screens and detail-only shared pieces: `Features/Detail/`.

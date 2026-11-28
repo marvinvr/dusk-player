@@ -38,8 +38,8 @@ enum StreamResolver {
     /// Local-file/direct-play selection. Also gates the optional SDR Atmos
     /// remux so it cannot replace an eligible enhanced subtitle renderer.
     static func evaluateForDirectPlayback(
-        media: PlexMedia,
-        part: PlexMediaPart,
+        media: MediaVersion,
+        part: MediaPart,
         enhancementMode: VideoEnhancementMode,
         selectedSubtitleStreamID: Int?,
         forceAVPlayer: Bool = false,
@@ -101,10 +101,10 @@ enum StreamResolver {
     /// `preferredVersion` picks among the playable versions and falls back to
     /// Automatic (the Max Resolution target) when none fits.
     static func selectMediaVersion(
-        from mediaVersions: [PlexMedia],
+        from mediaVersions: [MediaVersion],
         preferredMaxResolution: MaxResolution,
         preferredVersion: PreferredMediaVersion = .automatic
-    ) -> PlexMedia? {
+    ) -> MediaVersion? {
         let playableCandidates = mediaVersions.enumerated().compactMap { entry -> MediaCandidate? in
             let (index, media) = entry
             guard !media.parts.isEmpty else { return nil }
@@ -182,7 +182,7 @@ enum StreamResolver {
         }
     }
 
-    /// Inspect a `PlexMedia` and decide which engine should play it.
+    /// Inspect a `MediaVersion` and decide which engine should play it.
     ///
     /// - Parameters:
     ///   - media: The media version to evaluate (container + codec info).
@@ -190,7 +190,7 @@ enum StreamResolver {
     ///   - forceVLCKit: Engine override, subject to AV1 capability safety.
     /// - Returns: The engine type to instantiate.
     static func resolve(
-        media: PlexMedia,
+        media: MediaVersion,
         forceAVPlayer: Bool = false,
         forceVLCKit: Bool = false
     ) -> PlaybackEngineType {
@@ -202,7 +202,7 @@ enum StreamResolver {
     }
 
     static func evaluate(
-        media: PlexMedia,
+        media: MediaVersion,
         forceAVPlayer: Bool = false,
         forceVLCKit: Bool = false,
         av1Capabilities: AV1PlaybackCapabilities = .current
@@ -248,7 +248,7 @@ enum StreamResolver {
 
     /// Whether `media` is an AVPlayer container whose HEVC video is known to
     /// use the `hev1` sample entry (Plex `codecID` or a file probe).
-    static func containsHEV1Video(_ media: PlexMedia) -> Bool {
+    static func containsHEV1Video(_ media: MediaVersion) -> Bool {
         guard let container = media.container?.lowercased(), avContainers.contains(container) else {
             return false
         }
@@ -264,7 +264,7 @@ enum StreamResolver {
     /// before choosing: the file would otherwise direct play on AVPlayer
     /// and nothing says which tag it carries. Forced engines are left alone.
     static func needsHEVCSampleEntryProbe(
-        media: PlexMedia,
+        media: MediaVersion,
         forceAVPlayer: Bool = false,
         forceVLCKit: Bool = false
     ) -> Bool {
@@ -278,7 +278,7 @@ enum StreamResolver {
     }
 
     /// Why a `hev1` file cannot take the retagging Plex remux, or nil.
-    static func hev1RemuxBlocker(media: PlexMedia, subtitleStream: PlexStream?) -> String? {
+    static func hev1RemuxBlocker(media: MediaVersion, subtitleStream: MediaStream?) -> String? {
         guard containsHEV1Video(media) else { return "not hev1 HEVC" }
         guard media.parts.count == 1 else { return "multi-part media" }
         if let subtitleStream, !canRideRemux(subtitle: subtitleStream) {
@@ -287,7 +287,7 @@ enum StreamResolver {
         return nil
     }
 
-    private static func localEngineDecision(for media: PlexMedia) -> Decision {
+    private static func localEngineDecision(for media: MediaVersion) -> Decision {
         // Container check
         guard let container = media.container?.lowercased(),
               avContainers.contains(container) else {
@@ -333,7 +333,7 @@ enum StreamResolver {
     /// container is irrelevant. Codec and subtitle capabilities still decide
     /// whether the native HLS path or VLCKit is the safer renderer.
     static func evaluateLiveTV(
-        media: PlexMedia,
+        media: MediaVersion,
         forceAVPlayer: Bool = false,
         forceVLCKit: Bool = false
     ) -> Decision {
@@ -409,10 +409,10 @@ enum StreamResolver {
     /// (`AVErrorNoCompatibleAlternatesForExternalDisplay`) and rejects it if
     /// the declaration is removed (CoreMedia -12927). VLCKit tone-maps there.
     static func spatialAudioRemuxBlocker(
-        media: PlexMedia,
+        media: MediaVersion,
         decision: Decision,
-        audioStream: PlexStream?,
-        subtitleStream: PlexStream?,
+        audioStream: MediaStream?,
+        subtitleStream: MediaStream?,
         displaySupportsHDR: Bool,
         convertsAudio: Bool = false
     ) -> String? {
@@ -450,7 +450,7 @@ enum StreamResolver {
     /// else (TrueHD, DTS, …) has to be converted by Plex on the way.
     private static let remuxCopyableAudioCodecs: Set<String> = ["eac3", "ac3", "aac"]
 
-    static func canCopyIntoRemux(audio stream: PlexStream) -> Bool {
+    static func canCopyIntoRemux(audio stream: MediaStream) -> Bool {
         remuxCopyableAudioCodecs.contains(stream.codec?.lowercased() ?? "")
     }
 
@@ -463,8 +463,8 @@ enum StreamResolver {
     /// The display gate mirrors the Atmos remux: Plex declares the variant
     /// `VIDEO-RANGE=PQ`, which AVFoundation refuses on an SDR display.
     static func dolbyVisionRemuxBlocker(
-        media: PlexMedia,
-        subtitleStream: PlexStream?,
+        media: MediaVersion,
+        subtitleStream: MediaStream?,
         displaySupportsHDR: Bool
     ) -> String? {
         guard isDolbyVisionProfile5(media) else { return "not Dolby Vision profile 5" }
@@ -497,10 +497,10 @@ enum StreamResolver {
     /// The display gate is the one the Atmos remux uses: Plex declares the
     /// variant HDR, which AVFoundation refuses on an SDR display.
     static func hdrVideoRemuxBlocker(
-        media: PlexMedia,
+        media: MediaVersion,
         decision: Decision,
-        audioStream: PlexStream?,
-        subtitleStream: PlexStream?,
+        audioStream: MediaStream?,
+        subtitleStream: MediaStream?,
         displaySupportsHDR: Bool
     ) -> String? {
         guard decision.engine == .vlcKit, !decision.requiresServerTranscode else {
@@ -533,10 +533,10 @@ enum StreamResolver {
     /// spatial audio. Returns why not, or nil when the remux should be
     /// requested up front.
     static func hdrAudioConversionRemuxBlocker(
-        media: PlexMedia,
+        media: MediaVersion,
         decision: Decision,
-        audioStream: PlexStream,
-        subtitleStream: PlexStream?,
+        audioStream: MediaStream,
+        subtitleStream: MediaStream?,
         displaySupportsHDR: Bool,
         hdrVideoRemuxEnabled: Bool
     ) -> String? {
@@ -556,7 +556,7 @@ enum StreamResolver {
     /// Audio Plex converts to E-AC-3 so HDR video can stay on AVPlayer:
     /// TrueHD/MLP and DTS in every flavour (Plex spells them all `dca`, with
     /// the variant in `profile`; `dts…` covers other spellings).
-    static func convertsForHDRPicture(audio stream: PlexStream) -> Bool {
+    static func convertsForHDRPicture(audio stream: MediaStream) -> Bool {
         let codec = stream.codec?.lowercased() ?? ""
         return codec == "truehd" || codec == "mlp" || codec.hasPrefix("dca") || codec.hasPrefix("dts")
     }
@@ -564,7 +564,7 @@ enum StreamResolver {
     /// HDR video AVPlayer can show from an HEVC remux: a PQ or HLG transfer,
     /// or a Dolby Vision profile whose base layer is HDR (7, 8.1, 8.4, 8.6).
     /// Profile 5 has its own path; 8.2 (SDR base) is not HDR.
-    static func isRemuxableHDRVideo(_ stream: PlexStream) -> Bool {
+    static func isRemuxableHDRVideo(_ stream: MediaStream) -> Bool {
         guard stream.streamType == .video, stream.doviProfile != 5 else { return false }
         switch hdrTransfer(of: stream) {
         case .pq?, .hlg?: return true
@@ -580,7 +580,7 @@ enum StreamResolver {
     /// The stream's HDR transfer, from Plex's (ffprobe-spelled) `colorTrc`,
     /// falling back to the Dolby Vision base-layer compatibility ID when
     /// the TRC is missing. nil means SDR or unknown.
-    static func hdrTransfer(of stream: PlexStream) -> HDRTransfer? {
+    static func hdrTransfer(of stream: MediaStream) -> HDRTransfer? {
         let trc = stream.colorTrc?.lowercased() ?? ""
         if trc.contains("2084") || trc.contains("pq") { return .pq }
         if trc.contains("hlg") || trc.contains("b67") { return .hlg }
@@ -594,7 +594,7 @@ enum StreamResolver {
 
     /// Whether the part's video is HDR or Dolby Vision in any form Plex reports,
     /// i.e. anything a move to VLCKit would flatten (or, for DV5, break).
-    static func containsHDRVideo(inPart part: PlexMediaPart) -> Bool {
+    static func containsHDRVideo(inPart part: MediaPart) -> Bool {
         part.streams.contains {
             $0.streamType == .video && ($0.isHDRVideo || hdrTransfer(of: $0) != nil ||
                 $0.doviPresent == true || $0.doviProfile != nil ||
@@ -604,7 +604,7 @@ enum StreamResolver {
 
     /// Short label for a remux reason / Playback Info, e.g. `Dolby Vision 8.1`,
     /// `HDR10`, `HLG`. HDR10+ is not in Plex's metadata, so it reads HDR10.
-    static func hdrVideoLabel(for media: PlexMedia) -> String {
+    static func hdrVideoLabel(for media: MediaVersion) -> String {
         guard let stream = media.parts.lazy.flatMap(\.streams).first(where: isRemuxableHDRVideo) else {
             return "HDR"
         }
@@ -623,7 +623,7 @@ enum StreamResolver {
     /// is never signalled — Apple has no decoder for it, and its RPU is not
     /// valid as 8.1 without per-frame conversion — so it plays its HDR10
     /// base layer. 8.2/8.6 have no Apple-supported Dolby Vision form either.
-    static func dolbyVisionSignalingStream(in media: PlexMedia, includesProfile8: Bool) -> PlexStream? {
+    static func dolbyVisionSignalingStream(in media: MediaVersion, includesProfile8: Bool) -> MediaStream? {
         media.parts.lazy
             .flatMap(\.streams)
             .first { stream in
@@ -638,7 +638,7 @@ enum StreamResolver {
 
     /// The Dolby Vision profile 7 HEVC video stream a remux can convert to
     /// profile 8.1 on device (`DolbyVision7HLSProxy`), if any.
-    static func dolbyVision7ConversionStream(in media: PlexMedia) -> PlexStream? {
+    static func dolbyVision7ConversionStream(in media: MediaVersion) -> MediaStream? {
         media.parts.lazy
             .flatMap(\.streams)
             .first { stream in
@@ -649,17 +649,17 @@ enum StreamResolver {
     }
 
     /// The 8.1 configuration a profile 7 file is converted to and signalled as.
-    static func dolbyVision7ConversionTarget(in media: PlexMedia) -> DolbyVisionConfiguration? {
+    static func dolbyVision7ConversionTarget(in media: MediaVersion) -> DolbyVisionConfiguration? {
         dolbyVision7ConversionStream(in: media)
             .flatMap(DolbyVisionConfiguration.init(stream:))?
             .convertedToProfile81()
     }
 
-    static func canRideRemux(subtitle stream: PlexStream) -> Bool {
+    static func canRideRemux(subtitle stream: MediaStream) -> Bool {
         remuxTextSubtitleCodecs.contains(stream.codec?.lowercased() ?? "")
     }
 
-    static func isSpatialAudioCandidate(_ stream: PlexStream) -> Bool {
+    static func isSpatialAudioCandidate(_ stream: MediaStream) -> Bool {
         let codec = stream.codec?.lowercased()
         guard codec == "eac3" || codec == "ac3" else { return false }
         if isDolbyAtmos(stream) { return true }
@@ -671,7 +671,7 @@ enum StreamResolver {
     }
 
     /// Plex reports E-AC-3 + JOC as profile "dolby digital plus + dolby atmos".
-    static func isDolbyAtmos(_ stream: PlexStream) -> Bool {
+    static func isDolbyAtmos(_ stream: MediaStream) -> Bool {
         guard stream.codec?.lowercased() == "eac3" else { return false }
         let labels = [stream.profile, stream.extendedDisplayTitle, stream.displayTitle]
             .compactMap { $0?.lowercased() }
@@ -698,11 +698,11 @@ enum StreamResolver {
     /// rung. Profiles 7/8 (and anything with a base-layer compatibility ID)
     /// render fine via their HDR10 base layer, so they stay on normal engine
     /// selection.
-    static func isDolbyVisionProfile5(_ media: PlexMedia) -> Bool {
+    static func isDolbyVisionProfile5(_ media: MediaVersion) -> Bool {
         dolbyVisionProfile5Stream(in: media) != nil
     }
 
-    static func dolbyVisionProfile5Stream(in media: PlexMedia) -> PlexStream? {
+    static func dolbyVisionProfile5Stream(in media: MediaVersion) -> MediaStream? {
         media.parts.lazy
             .flatMap(\.streams)
             .first { $0.streamType == .video && $0.doviProfile == 5 }
@@ -711,7 +711,7 @@ enum StreamResolver {
     /// Check every video stream in every part; parts without stream metadata
     /// (tolerated — Plex omits streams on some endpoints) fall back to the
     /// media-level summary codec. Returns nil when AVPlayer can handle it all.
-    private static func videoDecision(for media: PlexMedia) -> Decision? {
+    private static func videoDecision(for media: MediaVersion) -> Decision? {
         var checkedStreamMetadata = false
 
         for part in media.parts {
@@ -735,7 +735,7 @@ enum StreamResolver {
 
     /// Evaluate one video stream (or the media-level summary when `stream` is
     /// nil). Returns nil when the stream is AVPlayer-compatible.
-    private static func videoDecision(codec rawCodec: String?, stream: PlexStream?) -> Decision? {
+    private static func videoDecision(codec rawCodec: String?, stream: MediaStream?) -> Decision? {
         guard let codec = rawCodec?.lowercased(),
               avVideoCodecs.contains(codec) else {
             let unsupportedVideoCodec = rawCodec?.uppercased() ?? "unknown"
@@ -772,7 +772,7 @@ enum StreamResolver {
 
     /// Hi10P detection: Plex reports the codec profile as "High 10" and/or a
     /// bit depth above 8 on the video stream.
-    private static func isTenBitH264(_ stream: PlexStream) -> Bool {
+    private static func isTenBitH264(_ stream: MediaStream) -> Bool {
         if let profile = stream.profile?.lowercased(), profile.contains("high 10") {
             return true
         }
@@ -782,7 +782,7 @@ enum StreamResolver {
     /// Check every audio stream in every part; parts without stream metadata
     /// fall back to the media-level summary codec. Any single incompatible
     /// track routes to VLCKit so all tracks stay selectable.
-    private static func audioDecision(for media: PlexMedia) -> Decision? {
+    private static func audioDecision(for media: MediaVersion) -> Decision? {
         var checkedStreamMetadata = false
 
         for part in media.parts {
@@ -818,7 +818,7 @@ enum StreamResolver {
 private extension StreamResolver {
     struct MediaCandidate {
         let index: Int
-        let media: PlexMedia
+        let media: MediaVersion
 
         var height: Int? {
             Self.resolveHeight(for: media)
@@ -852,7 +852,7 @@ private extension StreamResolver {
             return sizes.reduce(0) { $0 + ($1 ?? 0) }
         }
 
-        private static func resolveHeight(for media: PlexMedia) -> Int? {
+        private static func resolveHeight(for media: MediaVersion) -> Int? {
             if let height = media.height, height > 0 {
                 return height
             }
@@ -879,7 +879,7 @@ private extension StreamResolver {
             }
         }
 
-        private static func resolveBitrate(for media: PlexMedia) -> Int {
+        private static func resolveBitrate(for media: MediaVersion) -> Int {
             if let bitrate = media.bitrate, bitrate > 0 {
                 return bitrate
             }
@@ -892,7 +892,7 @@ private extension StreamResolver {
             return 0
         }
 
-        private static func primaryVideoStream(in media: PlexMedia) -> PlexStream? {
+        private static func primaryVideoStream(in media: MediaVersion) -> MediaStream? {
             for part in media.parts {
                 if let stream = part.streams.first(where: { $0.streamType == .video }) {
                     return stream

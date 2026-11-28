@@ -229,7 +229,7 @@ extension PlayerViewModel {
 
     /// Re-reads the active part after Plex installed a sidecar mid-session,
     /// mounts whatever is new, and selects `streamID` once it is up.
-    func reloadExternalSubtitleStreams(part: PlexMediaPart?, selecting streamID: Int?) {
+    func reloadExternalSubtitleStreams(part: MediaPart?, selecting streamID: Int?) {
         sourcePart = part
         if let streamID {
             pendingExternalSubtitleStreamID = streamID
@@ -422,13 +422,13 @@ extension PlayerViewModel {
         return nil
     }
 
-    func bestMatchingAudioTrack(for stream: PlexStream) -> AudioTrack? {
+    func bestMatchingAudioTrack(for stream: MediaStream) -> AudioTrack? {
         bestMatchingTrack(in: audioTracks) { track in
             scoreAudioMatch(track: track, stream: stream)
         }
     }
 
-    func bestMatchingSubtitleTrack(for stream: PlexStream) -> SubtitleTrack? {
+    func bestMatchingSubtitleTrack(for stream: MediaStream) -> SubtitleTrack? {
         bestMatchingTrack(in: subtitleTracks) { track in
             scoreSubtitleMatch(track: track, stream: stream)
         }
@@ -572,9 +572,9 @@ extension PlayerViewModel {
     /// in the language, the twin follows the full track listed before it.
     nonisolated static func forcedTwinSource(
         for track: SubtitleTrack,
-        in streams: [PlexStream],
+        in streams: [MediaStream],
         after merged: [SubtitleTrack]
-    ) -> PlexStream? {
+    ) -> MediaStream? {
         guard track.isForced, track.externalURL == nil,
               let language = normalizedLanguageCode(track.languageCode) else { return nil }
         let sameLanguage = streams.filter {
@@ -593,7 +593,7 @@ extension PlayerViewModel {
     /// libvlc's file name, with the Plex stream id kept for AirPlay handoffs.
     private func externalSubtitleTrack(
         id: Int,
-        stream: PlexStream,
+        stream: MediaStream,
         engineTrack: SubtitleTrack
     ) -> SubtitleTrack {
         SubtitleTrack(
@@ -644,9 +644,9 @@ extension PlayerViewModel {
     func popBestMatch<Track>(
         for track: Track,
         at index: Int,
-        from candidates: inout [(offset: Int, element: PlexStream)],
-        score: (Track, PlexStream) -> Int
-    ) -> PlexStream? {
+        from candidates: inout [(offset: Int, element: MediaStream)],
+        score: (Track, MediaStream) -> Int
+    ) -> MediaStream? {
         guard !candidates.isEmpty else { return nil }
 
         let rankedCandidates = candidates.enumerated().map { candidateIndex, candidate in
@@ -673,7 +673,7 @@ extension PlayerViewModel {
         return candidates.remove(at: selectedIndex).element
     }
 
-    func scoreAudioMatch(track: AudioTrack, stream: PlexStream) -> Int {
+    func scoreAudioMatch(track: AudioTrack, stream: MediaStream) -> Int {
         var score = 0
 
         if let trackLanguage = Self.normalizedLanguageCode(track.languageCode),
@@ -771,7 +771,7 @@ extension PlayerViewModel {
     /// decodes every codec there. `decodesTrueHD` defaults to the loaded
     /// VLCKit build (see `preferredRemuxAudioStream` for the `false` case).
     static func preferredAudioStreamPosition(
-        inPart part: PlexMediaPart?,
+        inPart part: MediaPart?,
         preferredLanguage rawPreferredLanguage: String?,
         excludingLocallyUndecodable: Bool = true,
         decodesTrueHD: Bool = VLCKitBuildInfo.decodesTrueHD
@@ -831,10 +831,10 @@ extension PlayerViewModel {
     /// The Plex audio stream local playback opens on: the pre-start pick when
     /// there is one, otherwise the part's selected/default/first stream.
     static func preferredLocalAudioStream(
-        inPart part: PlexMediaPart?,
+        inPart part: MediaPart?,
         preferredLanguage: String?,
         decodesTrueHD: Bool = VLCKitBuildInfo.decodesTrueHD
-    ) -> PlexStream? {
+    ) -> MediaStream? {
         guard let part else { return nil }
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         if let position = preferredAudioStreamPosition(
@@ -859,9 +859,9 @@ extension PlayerViewModel {
     /// TrueHD track (`preferredAudioStreamPosition`). Returns a TrueHD stream
     /// only when nothing else is in scope.
     static func preferredRemuxAudioStream(
-        inPart part: PlexMediaPart?,
+        inPart part: MediaPart?,
         preferredLanguage: String?
-    ) -> PlexStream? {
+    ) -> MediaStream? {
         preferredLocalAudioStream(inPart: part, preferredLanguage: preferredLanguage, decodesTrueHD: false)
     }
 
@@ -869,7 +869,7 @@ extension PlayerViewModel {
     /// preselection. AirPlay HLS pins the server session to an id rather than a
     /// container-relative elementary-stream position.
     static func preferredAudioStreamID(
-        inPart part: PlexMediaPart?,
+        inPart part: MediaPart?,
         preferredLanguage: String?
     ) -> Int? {
         guard let part else { return nil }
@@ -893,7 +893,7 @@ extension PlayerViewModel {
     /// channel count, so an unlabelled 5.1 track still opens a multichannel
     /// route rather than silently getting folded to stereo.
     static func preferredAudioStreamChannelCount(
-        inPart part: PlexMediaPart?,
+        inPart part: MediaPart?,
         preferredLanguage: String?
     ) -> Int? {
         guard let part else { return nil }
@@ -922,9 +922,9 @@ extension PlayerViewModel {
     /// policy as the runtime pick; `audioStream` is the audio the session
     /// starts on, which Auto compares against.
     static func preferredSubtitleStreamID(
-        inPart part: PlexMediaPart?,
+        inPart part: MediaPart?,
         policy: SubtitleSelectionPolicy,
-        audioStream: PlexStream?
+        audioStream: MediaStream?
     ) -> Int? {
         guard let part else { return nil }
         let tracks = part.streams
@@ -942,11 +942,11 @@ extension PlayerViewModel {
     /// The stream of `type` the server marks `selected` for this part: a
     /// choice saved by any Plex client (or a bulk tool such as PASTA), else
     /// Plex's own pick from the account language settings.
-    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: PlexMediaPart?) -> Int? {
+    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: MediaPart?) -> Int? {
         part?.streams.first { $0.streamType == type && ($0.isSelected ?? false) }?.id
     }
 
-    func scoreSubtitleMatch(track: SubtitleTrack, stream: PlexStream) -> Int {
+    func scoreSubtitleMatch(track: SubtitleTrack, stream: MediaStream) -> Int {
         var score = 0
 
         if let trackLanguage = Self.normalizedLanguageCode(track.languageCode),

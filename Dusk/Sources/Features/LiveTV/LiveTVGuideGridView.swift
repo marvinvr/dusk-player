@@ -288,7 +288,7 @@ extension LiveTVGuideCell {
 
 /// The pinned leading cell: logo, plus number and name when there is room.
 struct LiveTVGuideChannelCell: View {
-    let channel: PlexLiveChannel
+    let channel: LiveChannel
     let logoURL: URL?
     let metrics: LiveTVGuideMetrics
     var isFocusedRow = false
@@ -626,11 +626,11 @@ struct LiveTVGuideGrid: View {
     let sections: [LiveTVGuideSection]
     let now: Date
     let metrics: LiveTVGuideMetrics
-    let imageURL: (PlexLiveTVLineup) -> (String?, Int, Int) -> URL?
+    let imageURL: (LiveTVLineup) -> (String?, Int, Int) -> URL?
     let jump: LiveTVGuideJump
-    let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
-    let showDetails: (PlexLiveProgram) -> Void
-    let playChannel: (PlexLiveChannel, PlexLiveTVLineup) -> Void
+    let select: (LiveTVGuideCell, LiveTVGuideRow, LiveTVLineup) -> Void
+    let showDetails: (LiveProgram) -> Void
+    let playChannel: (LiveChannel, LiveTVLineup) -> Void
 
     var body: some View {
         ScrollView(.vertical) {
@@ -742,9 +742,9 @@ private struct LiveTVGuideSectionScroller: View {
     let metrics: LiveTVGuideMetrics
     let imageURL: (String?, Int, Int) -> URL?
     let jump: LiveTVGuideJump
-    let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
-    let showDetails: (PlexLiveProgram) -> Void
-    let playChannel: (PlexLiveChannel, PlexLiveTVLineup) -> Void
+    let select: (LiveTVGuideCell, LiveTVGuideRow, LiveTVLineup) -> Void
+    let showDetails: (LiveProgram) -> Void
+    let playChannel: (LiveChannel, LiveTVLineup) -> Void
 
     @State private var position = ScrollPosition()
     /// Which screenful of the axis is up: drawing is windowed around it, and
@@ -1069,11 +1069,11 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
     let width: CGFloat
     let sections: [LiveTVGuideSection]
     let now: Date
-    let imageURL: (PlexLiveTVLineup) -> (String?, Int, Int) -> URL?
+    let imageURL: (LiveTVLineup) -> (String?, Int, Int) -> URL?
     /// By section id. A section without one yet opens on now.
     @Binding var cursors: [String: LiveTVGuideCursor]
-    let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
-    let showDetails: (PlexLiveProgram) -> Void
+    let select: (LiveTVGuideCell, LiveTVGuideRow, LiveTVLineup) -> Void
+    let showDetails: (LiveProgram) -> Void
     /// Back to now.
     let jumpToNow: () -> Void
     /// The focused section, for the day the corner should name.
@@ -1431,7 +1431,7 @@ struct LiveTVGuideInfoPanel: View {
         }
     }
 
-    private func channelLine(_ channel: PlexLiveChannel, cell: LiveTVGuideCell) -> some View {
+    private func channelLine(_ channel: LiveChannel, cell: LiveTVGuideCell) -> some View {
         HStack(spacing: 14) {
             if cell.isReplayable {
                 Image(systemName: "play.fill")

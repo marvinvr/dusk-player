@@ -36,12 +36,12 @@ final class LibraryOrderStore {
     ///
     /// Assembled from `sectionsByServer` so a server that answers late slots
     /// into its own priority position instead of the end.
-    private(set) var sections: [PlexLibrary] = []
+    private(set) var sections: [Library] = []
 
     /// Sections per server, and the priority order to concatenate them in. Kept
     /// separately so one server's sections can be committed the moment they
     /// arrive without waiting for the slowest server.
-    @ObservationIgnored private var sectionsByServer: [String: [PlexLibrary]] = [:]
+    @ObservationIgnored private var sectionsByServer: [String: [Library]] = [:]
     @ObservationIgnored private var serverOrder: [String] = []
 
     /// The account's complete pinned list: every server plus the cloud
@@ -83,7 +83,7 @@ final class LibraryOrderStore {
 
     /// In-flight combined load, so concurrent callers (Home, Libraries, the
     /// settings screen, all racing at launch) share one pair of requests.
-    @ObservationIgnored var loadTask: Task<[PlexLibrary], Error>?
+    @ObservationIgnored var loadTask: Task<[Library], Error>?
 
     /// Tail of the write chain. Writes are last-writer-wins on plex.tv, so they
     /// are serialized locally and each one re-reads before it posts.
@@ -92,7 +92,7 @@ final class LibraryOrderStore {
     /// The order Dusk shows: sections pinned by the account first, in the
     /// account's sidebar order, then everything else in server-priority order.
     /// See `LibraryOrderArrangement`.
-    var orderedSections: [PlexLibrary] {
+    var orderedSections: [Library] {
         LibraryOrderArrangement.effectiveOrder(
             libraries: sections,
             pinnedSources: pinnedSources,
@@ -123,12 +123,12 @@ final class LibraryOrderStore {
 
     /// `orderedSections` without the hidden ones: what screens that list
     /// libraries show.
-    var visibleSections: [PlexLibrary] {
+    var visibleSections: [Library] {
         let hidden = hiddenSectionIdentities
         return orderedSections.filter { !hidden.contains($0.id) }
     }
 
-    /// `PlexLibrary.id` (`"<serverID>|<key>"`) in effective order.
+    /// `Library.id` (`"<serverID>|<key>"`) in effective order.
     var orderedSectionIdentities: [String] {
         orderedSections.map(\.id)
     }
@@ -180,7 +180,7 @@ final class LibraryOrderStore {
     /// `failedServerIDs` and must never have its pins rewritten. An empty
     /// (successful) answer is not a failure, but it does not make the server a
     /// participant in a write either — see `machineIdentifiers`.
-    func applyServerSections(_ sections: [PlexLibrary]?, serverID: String) {
+    func applyServerSections(_ sections: [Library]?, serverID: String) {
         if !serverOrder.contains(serverID) {
             serverOrder.append(serverID)
         }
@@ -242,7 +242,7 @@ final class LibraryOrderStore {
         orderUnavailable = false
     }
 
-    func clearLoadTask(_ task: Task<[PlexLibrary], Error>) {
+    func clearLoadTask(_ task: Task<[Library], Error>) {
         if loadTask == task {
             loadTask = nil
         }

@@ -23,7 +23,7 @@ final class SeriesDetailViewModel {
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     private let prefersOfflineAvailability: Bool
     let entry: Entry
-    let entryID: PlexItemID
+    let entryID: MediaItemID
 
     /// Loaded after the first season is on screen for season/episode entries, so
     /// the pills are the only thing that waits on it.
@@ -41,7 +41,7 @@ final class SeriesDetailViewModel {
 
     init(
         entry: Entry,
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
@@ -76,7 +76,7 @@ final class SeriesDetailViewModel {
 
     /// The episode the page starts on for the season on screen: the episode the
     /// route asked for, else the season's next-up episode.
-    var anchorEpisode: PlexEpisode? {
+    var anchorEpisode: Episode? {
         guard let season else { return nil }
         if let entryEpisodeKey,
            let episode = season.displayEpisodes.first(where: { $0.ratingKey == entryEpisodeKey }) {
@@ -112,7 +112,7 @@ final class SeriesDetailViewModel {
                 break
             }
             entryEpisodeKey = episode.ratingKey
-            await openSeason(id: PlexItemID(serverID: episode.serverID ?? serverID, ratingKey: seasonKey))
+            await openSeason(id: MediaItemID(serverID: episode.serverID ?? serverID, ratingKey: seasonKey))
             await loadShow(ratingKey: episode.grandparentRatingKey ?? season?.showID?.ratingKey)
         }
 
@@ -135,7 +135,7 @@ final class SeriesDetailViewModel {
     /// from where the page started it (Up Next / Next Episode), opening its
     /// season when the run crossed into another one. Returns false when the
     /// episode is not part of this show, leaving the page alone.
-    func follow(playedEpisode episode: PlexMediaDetails) async -> Bool {
+    func follow(playedEpisode episode: MediaDetails) async -> Bool {
         guard episode.type == .episode,
               let seasonKey = episode.parentRatingKey,
               let showKey = season?.showID?.ratingKey ?? show?.id.ratingKey,
@@ -145,14 +145,14 @@ final class SeriesDetailViewModel {
         }
         entryEpisodeKey = episode.ratingKey
         if seasonKey != season?.ratingKey {
-            await openSeason(id: PlexItemID(serverID: episode.serverID ?? serverID, ratingKey: seasonKey))
+            await openSeason(id: MediaItemID(serverID: episode.serverID ?? serverID, ratingKey: seasonKey))
         }
         return season?.ratingKey == seasonKey
     }
 
-    func selectSeason(_ season: PlexSeason) async {
+    func selectSeason(_ season: Season) async {
         guard season.ratingKey != selectedSeasonKey else { return }
-        await openSeason(id: PlexItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey))
+        await openSeason(id: MediaItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey))
     }
 
     func toggleSeasonWatched() async {
@@ -160,17 +160,17 @@ final class SeriesDetailViewModel {
         await show?.refresh()
     }
 
-    func setWatched(_ watched: Bool, for episode: PlexEpisode) async {
+    func setWatched(_ watched: Bool, for episode: Episode) async {
         await season?.setWatched(watched, for: episode)
         await show?.refresh()
     }
 
-    func toggleWatched(for episode: PlexEpisode) async {
+    func toggleWatched(for episode: Episode) async {
         await season?.toggleWatched(for: episode)
         await show?.refresh()
     }
 
-    func markSeason(_ season: PlexSeason, watched: Bool) async {
+    func markSeason(_ season: Season, watched: Bool) async {
         await show?.markSeason(season, watched: watched)
         if season.ratingKey == self.season?.ratingKey {
             await self.season?.refresh()
@@ -179,7 +179,7 @@ final class SeriesDetailViewModel {
 
     // MARK: - Loading
 
-    private func openSeason(id: PlexItemID) async {
+    private func openSeason(id: MediaItemID) async {
         selectedSeasonKey = id.ratingKey
         let model = SeasonDetailViewModel(
             id: id,
@@ -208,12 +208,12 @@ final class SeriesDetailViewModel {
 
     private func loadShow(ratingKey: String?) async {
         guard show == nil, let ratingKey else { return }
-        let show = makeShowModel(id: PlexItemID(serverID: season?.serverID ?? serverID, ratingKey: ratingKey))
+        let show = makeShowModel(id: MediaItemID(serverID: season?.serverID ?? serverID, ratingKey: ratingKey))
         self.show = show
         await show.load()
     }
 
-    private func makeShowModel(id: PlexItemID) -> ShowDetailViewModel {
+    private func makeShowModel(id: MediaItemID) -> ShowDetailViewModel {
         ShowDetailViewModel(
             id: id,
             plexService: plexService,
@@ -227,12 +227,12 @@ final class SeriesDetailViewModel {
     /// A show route opens on the first regular season that still has something
     /// unwatched. Specials sort first but are rarely where someone left off, so
     /// they only win when the show has nothing else.
-    private func initialSeasonID(in show: ShowDetailViewModel) -> PlexItemID? {
+    private func initialSeasonID(in show: ShowDetailViewModel) -> MediaItemID? {
         guard let season = Self.initialSeason(in: show.visibleSeasons) else { return nil }
-        return PlexItemID(serverID: season.serverID ?? show.serverID, ratingKey: season.ratingKey)
+        return MediaItemID(serverID: season.serverID ?? show.serverID, ratingKey: season.ratingKey)
     }
 
-    private static func initialSeason(in seasons: [PlexSeason]) -> PlexSeason? {
+    private static func initialSeason(in seasons: [Season]) -> Season? {
         let regular = seasons.filter { $0.index > 0 }
         let candidates = regular.isEmpty ? seasons : regular
         return candidates.first(where: { !$0.isFullyWatched }) ?? candidates.first
@@ -244,16 +244,16 @@ final class SeriesDetailViewModel {
     /// card uses it (`TVQuickPlay`). Nil when there is nothing playable.
     static func playTarget(
         entry: Entry,
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager?,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager?,
         prefersOfflineAvailability: Bool
-    ) async -> PlexEpisode? {
+    ) async -> Episode? {
         let serverID = id.serverID
             ?? downloadManager?.serverID(for: id)
             ?? plexService.pool.primary?.serverID
-        let seasonID: PlexItemID
+        let seasonID: MediaItemID
         switch entry {
         case .episode:
             return nil
@@ -262,7 +262,7 @@ final class SeriesDetailViewModel {
         case .show:
             // Same sources and offline filter as `ShowDetailViewModel.load` /
             // `visibleSeasons`.
-            var seasons: [PlexSeason]
+            var seasons: [Season]
             var isCached = false
             do {
                 seasons = try await plexService.getSeasons(showKey: id.ratingKey, serverID: serverID)
@@ -275,7 +275,7 @@ final class SeriesDetailViewModel {
                 seasons = seasons.filter { downloadManager.hasDownloadedEpisodes(season: $0.id) }
             }
             guard let season = initialSeason(in: seasons) else { return nil }
-            seasonID = PlexItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey)
+            seasonID = MediaItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey)
         }
 
         let season = SeasonDetailViewModel(
@@ -293,7 +293,7 @@ final class SeriesDetailViewModel {
         return episode
     }
 
-    private func entryEpisodeDetails() async -> PlexMediaDetails? {
+    private func entryEpisodeDetails() async -> MediaDetails? {
         do {
             return try await plexService.getMediaDetails(
                 ratingKey: entryID.ratingKey,

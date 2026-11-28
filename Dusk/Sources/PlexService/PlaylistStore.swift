@@ -19,7 +19,7 @@ final class PlaylistStore {
         case failed(String)
     }
 
-    private(set) var playlistsByServer: [String: [PlexPlaylist]] = [:]
+    private(set) var playlistsByServer: [String: [Playlist]] = [:]
     private(set) var serverOrder: [String] = []
     private(set) var state: State = .idle
     @ObservationIgnored private(set) var loadedRevision: ServerContentRevision?
@@ -33,7 +33,7 @@ final class PlaylistStore {
 
     /// Every playlist, A–Z like Plex lists them; same-titled playlists keep
     /// server priority order.
-    var playlists: [PlexPlaylist] {
+    var playlists: [Playlist] {
         let ordered = serverOrder.flatMap { playlistsByServer[$0] ?? [] }
         return ordered.enumerated().sorted { lhs, rhs in
             let order = lhs.element.title.localizedStandardCompare(rhs.element.title)
@@ -47,14 +47,14 @@ final class PlaylistStore {
 
     /// Regular (non-smart) playlists on one server, most recently updated
     /// first: the Add to Playlist targets for an item from that server.
-    func editablePlaylists(serverID: String?) -> [PlexPlaylist] {
+    func editablePlaylists(serverID: String?) -> [Playlist] {
         guard let serverID else { return [] }
         return (playlistsByServer[serverID] ?? [])
             .filter { !$0.smart }
             .sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
     }
 
-    func playlist(id: PlexItemID) -> PlexPlaylist? {
+    func playlist(id: MediaItemID) -> Playlist? {
         guard let serverID = id.serverID else { return nil }
         return playlistsByServer[serverID]?.first { $0.ratingKey == id.ratingKey }
     }
@@ -84,7 +84,7 @@ final class PlaylistStore {
         return loadGeneration
     }
 
-    func commit(_ playlists: [PlexPlaylist], serverID: String, generation: Int) {
+    func commit(_ playlists: [Playlist], serverID: String, generation: Int) {
         guard generation == loadGeneration, serverOrder.contains(serverID) else { return }
         playlistsByServer[serverID] = playlists
     }
@@ -111,7 +111,7 @@ final class PlaylistStore {
 
     /// `sessionGeneration`: the session the caller read before its request;
     /// an answer that outlived a sign-out or profile switch is dropped.
-    func upsert(_ playlist: PlexPlaylist, sessionGeneration expected: Int? = nil) {
+    func upsert(_ playlist: Playlist, sessionGeneration expected: Int? = nil) {
         if let expected, expected != sessionGeneration { return }
         guard let serverID = playlist.serverID else { return }
         var list = playlistsByServer[serverID] ?? []
@@ -126,7 +126,7 @@ final class PlaylistStore {
         }
     }
 
-    func remove(_ id: PlexItemID, sessionGeneration expected: Int? = nil) {
+    func remove(_ id: MediaItemID, sessionGeneration expected: Int? = nil) {
         if let expected, expected != sessionGeneration { return }
         guard let serverID = id.serverID else { return }
         playlistsByServer[serverID]?.removeAll { $0.ratingKey == id.ratingKey }

@@ -2,11 +2,11 @@ import SwiftUI
 
 struct LiveTVHomeShelf: View {
     let viewModel: LiveTVViewModel
-    let play: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
+    let play: (LiveChannel, LiveProgram, LiveTVLineup) -> Void
 
     var body: some View {
         if let lineup = viewModel.nowPlayingLineup {
-            let currentPrograms = lineup.guides.compactMap { guide -> (PlexLiveChannel, PlexLiveProgram)? in
+            let currentPrograms = lineup.guides.compactMap { guide -> (LiveChannel, LiveProgram)? in
                 guard let program = guide.currentProgram() else { return nil }
                 return (guide.channel, program)
             }

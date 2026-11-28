@@ -14,7 +14,7 @@ struct EpisodeDetailView: View {
     @State private var userRating = DetailUserRatingModel()
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
@@ -69,7 +69,7 @@ struct EpisodeDetailView: View {
     }
 
     @ViewBuilder
-    private func contentView(_ details: PlexMediaDetails) -> some View {
+    private func contentView(_ details: MediaDetails) -> some View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -152,7 +152,7 @@ struct EpisodeDetailView: View {
     }
 
     /// Hide Spoilers blurs an unfinished episode's synopsis until revealed.
-    private func blursSummary(_ details: PlexMediaDetails) -> Bool {
+    private func blursSummary(_ details: MediaDetails) -> Bool {
         UserPreferences.blursSummary(
             isUnwatchedEpisode: details.type == .episode && !viewModel.isWatched,
             hidesSpoilers: hidesSpoilers
@@ -161,7 +161,7 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func heroSection(
-        _ details: PlexMediaDetails,
+        _ details: MediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
         containerHeight: CGFloat,
@@ -316,7 +316,7 @@ struct EpisodeDetailView: View {
     }
 
     @ViewBuilder
-    private func metadataTagline(_ details: PlexMediaDetails) -> some View {
+    private func metadataTagline(_ details: MediaDetails) -> some View {
         #if os(macOS)
         // One ·-joined line, durations formatted like the movie page.
         let parts = [
@@ -339,7 +339,7 @@ struct EpisodeDetailView: View {
     }
 
     @ViewBuilder
-    private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+    private func heroMetadata(_ details: MediaDetails) -> some View {
         #if !os(macOS)
         if let originalDate = MediaTextFormatter.localizedAirDate(details.originallyAvailableAt) {
             Text(originalDate)
@@ -348,11 +348,11 @@ struct EpisodeDetailView: View {
         }
         #endif
 
-        DetailRatingsLine(ratings: PlexRating.sources(for: details), userRating: userRating.value)
+        DetailRatingsLine(ratings: Rating.sources(for: details), userRating: userRating.value)
     }
 
     @ViewBuilder
-    private func actionButtons(_ details: PlexMediaDetails) -> some View {
+    private func actionButtons(_ details: MediaDetails) -> some View {
         // Primary fills the stack width; the secondary row sits centered beneath
         // it on iPhone and at the text column's leading edge on iPad.
         VStack(alignment: usesFullWidthActionButtons ? detailHeroActionStackAlignment : .leading, spacing: detailHeroActionSpacing) {
@@ -368,7 +368,7 @@ struct EpisodeDetailView: View {
         .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
     }
 
-    private func playButton(_ details: PlexMediaDetails) -> some View {
+    private func playButton(_ details: MediaDetails) -> some View {
         Button {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
@@ -431,7 +431,7 @@ struct EpisodeDetailView: View {
         }
     }
 
-    private func downloadButton(_ details: PlexMediaDetails) -> some View {
+    private func downloadButton(_ details: MediaDetails) -> some View {
         DownloadActionButton(
             id: details.id,
             type: .episode,

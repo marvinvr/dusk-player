@@ -16,7 +16,7 @@ struct TopShelfSnapshot: Codable, Sendable {
     }
 
     struct Item: Codable, Sendable {
-        /// Stable per item (`PlexItemID.storageKey`), so tvOS can keep focus
+        /// Stable per item (`MediaItemID.storageKey`), so tvOS can keep focus
         /// on the same tile across updates.
         var id: String
         var title: String

@@ -10,7 +10,7 @@ struct RecentlyAddedMoviesTests {
         type: String = "movie",
         kind: String = "recentlyadded",
         items: [[String: Any]]
-    ) throws -> PlexHub {
+    ) throws -> HomeRow {
         let data = try JSONSerialization.data(withJSONObject: [
             "title": kind == "recentlyadded" ? "Recently Added Movies" : "Popular Movies",
             "type": type,
@@ -22,7 +22,7 @@ struct RecentlyAddedMoviesTests {
         ])
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexHub.self, from: data)
+        return try decoder.decode(HomeRow.self, from: data)
     }
 
     private func movie(_ key: String, addedAt: Int? = nil, guid: String? = nil) -> [String: Any] {
@@ -67,7 +67,7 @@ struct RecentlyAddedMoviesTests {
             movie("other", addedAt: 400),
         ])
         // Same merge used by inline expansion and Show All after fetching sources.
-        let merged = PlexItemMerge.hubItems([first.items, second.items], for: first)
+        let merged = MediaItemMerge.hubItems([first.items, second.items], for: first)
         #expect(merged.items.map(\.ratingKey) == ["new-copy", "other"])
         #expect(merged.alternates[first.items[0].contentKey] == [first.items[0].id, second.items[0].id])
     }
@@ -75,7 +75,7 @@ struct RecentlyAddedMoviesTests {
     @Test func equalAndMissingDatesKeepSourceOrder() throws {
         let first = try hub(section: 1, items: [movie("a", addedAt: 100), movie("b", addedAt: 100), movie("missing-a")])
         let second = try hub(section: 2, items: [movie("c", addedAt: 100), movie("missing-b")])
-        let merged = PlexItemMerge.hubItems([first.items, second.items], for: first)
+        let merged = MediaItemMerge.hubItems([first.items, second.items], for: first)
         #expect(merged.items.map(\.ratingKey) == ["a", "b", "c", "missing-a", "missing-b"])
     }
 
@@ -84,7 +84,7 @@ struct RecentlyAddedMoviesTests {
             movie("a", addedAt: 100, guid: "plex://movie/shared"),
             movie("b", addedAt: 100, guid: "plex://movie/shared"),
         ])
-        #expect(PlexItemMerge.hubItems([source.items], for: source).items == [source.items[0]])
+        #expect(MediaItemMerge.hubItems([source.items], for: source).items == [source.items[0]])
     }
 
     @Test func otherHubsRetainInterleaving() throws {
@@ -93,7 +93,7 @@ struct RecentlyAddedMoviesTests {
         let popular = try hub(section: 1, kind: "popular", items: [])
         let tv = try hub(section: 1, type: "show", items: [])
         for row in [popular, tv] {
-            #expect(PlexItemMerge.hubItems([first.items, second.items], for: row).items.map(\.ratingKey) == ["a", "c", "b"])
+            #expect(MediaItemMerge.hubItems([first.items, second.items], for: row).items.map(\.ratingKey) == ["a", "c", "b"])
         }
     }
 }

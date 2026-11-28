@@ -4,11 +4,11 @@ import Testing
 
 @Suite("Playback queue")
 struct PlaybackQueueTests {
-    private let playlistID = PlexItemID(serverID: "srv", ratingKey: "900")
+    private let playlistID = MediaItemID(serverID: "srv", ratingKey: "900")
 
-    private func item(_ key: String, type: PlexMediaType = .movie, watched: Bool = false, offset: Int? = nil, server: String = "srv") -> PlaybackQueueItem {
+    private func item(_ key: String, type: MediaKind = .movie, watched: Bool = false, offset: Int? = nil, server: String = "srv") -> PlaybackQueueItem {
         PlaybackQueueItem(
-            id: PlexItemID(serverID: server, ratingKey: key),
+            id: MediaItemID(serverID: server, ratingKey: key),
             type: type,
             title: "Item \(key)",
             index: type == .episode ? Int(key) : nil,
@@ -117,9 +117,9 @@ struct PlaybackQueueTests {
 
     @Test func itemsGoneFromTheServerAreSkipped() throws {
         var queue = try #require(PlaybackQueue.playlist(id: playlistID, title: "Mix", items: [item("1"), item("2"), item("3")]))
-        queue.markUnavailable(PlexItemID(serverID: "srv", ratingKey: "2"))
+        queue.markUnavailable(MediaItemID(serverID: "srv", ratingKey: "2"))
         #expect(queue.next()?.item.ratingKey == "3")
-        queue.markUnavailable(PlexItemID(serverID: "srv", ratingKey: "3"))
+        queue.markUnavailable(MediaItemID(serverID: "srv", ratingKey: "3"))
         #expect(queue.next() == nil)
     }
 
@@ -177,7 +177,7 @@ struct PlaybackQueueTests {
               {"ratingKey":"116969","key":"/library/metadata/116969","type":"episode","title":"Night Wild","grandparentTitle":"Amber Garden","index":1,"parentIndex":1}
             ]}}
             """.utf8)
-        let entries = try JSONDecoder().decode(MetadataResponse<PlexPlaylistEntry>.self, from: data).MediaContainer.Metadata ?? []
+        let entries = try JSONDecoder().decode(MetadataResponse<PlaylistEntry>.self, from: data).MediaContainer.Metadata ?? []
         #expect(entries.map(\.playlistItemID) == [10, nil])
         #expect(entries[1].item.type == .episode)
         #expect(entries.map(\.id).count == Set(entries.map(\.id)).count)
@@ -191,7 +191,7 @@ struct PlaybackQueueTests {
               {"ratingKey":"7","key":"/playlists/7/items","type":"playlist","title":"Songs","smart":"0","playlistType":"audio","leafCount":3}
             ]}}
             """.utf8)
-        let playlists = try JSONDecoder().decode(MetadataResponse<PlexPlaylist>.self, from: data).MediaContainer.Metadata ?? []
+        let playlists = try JSONDecoder().decode(MetadataResponse<Playlist>.self, from: data).MediaContainer.Metadata ?? []
         #expect(playlists[0].smart)
         #expect(playlists[0].summary == nil)
         #expect(playlists[0].duration == 40_000)
@@ -200,9 +200,9 @@ struct PlaybackQueueTests {
         #expect(!playlists[1].isVideo)
     }
 
-    private func decodeItems(_ rows: String) throws -> [PlexItem] {
+    private func decodeItems(_ rows: String) throws -> [MediaItem] {
         let data = Data(#"{"MediaContainer":{"Metadata":["# .utf8 + Data(rows.utf8) + Data("]}}".utf8))
-        return try JSONDecoder().decode(MetadataResponse<PlexItem>.self, from: data).MediaContainer.Metadata ?? []
+        return try JSONDecoder().decode(MetadataResponse<MediaItem>.self, from: data).MediaContainer.Metadata ?? []
     }
 }
 
@@ -275,9 +275,9 @@ struct UpNextResolutionTests {
     /// refreshes the Previous / Next targets.
     @Test func neighboursFollowTheQueuePositionNotJustTheItem() throws {
         let (playback, details) = try makeEpisodeSession()
-        let movie = PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "500"), type: .movie, title: "Film")
+        let movie = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "500"), type: .movie, title: "Film")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: PlexItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, ratingKey: "900"),
             title: "Mix",
             items: [episodeItem("101"), episodeItem("101"), movie]
         )
@@ -362,10 +362,10 @@ struct UpNextResolutionTests {
     /// poster on to the following item (or away at the end).
     @Test func aGoneItemMovesTheVisiblePosterOn() throws {
         let (playback, _) = try makeEpisodeSession()
-        let b = PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "600"), type: .movie, title: "B")
-        let c = PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "700"), type: .movie, title: "C")
+        let b = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "600"), type: .movie, title: "B")
+        let c = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "700"), type: .movie, title: "C")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: PlexItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, ratingKey: "900"),
             title: "Mix",
             items: [episodeItem("101"), b, c]
         )
@@ -384,10 +384,10 @@ struct UpNextResolutionTests {
     /// lookahead, not just the first three.
     @Test func lookaheadSkipsAnyRunOfRemovedEntries() async throws {
         let (playback, details) = try makeEpisodeSession()
-        let missing = (1...4).map { PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "m\($0)"), type: .movie, title: "Missing \($0)") }
-        let b = PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "800"), type: .movie, title: "B")
+        let missing = (1...4).map { PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "m\($0)"), type: .movie, title: "Missing \($0)") }
+        let b = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "800"), type: .movie, title: "B")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: PlexItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, ratingKey: "900"),
             title: "Mix",
             items: [episodeItem("101")] + missing + [b]
         )
@@ -397,7 +397,7 @@ struct UpNextResolutionTests {
             guard item.ratingKey == "800" else { throw PlexServiceError.httpError(statusCode: 404) }
             let decoder = JSONDecoder()
             decoder.userInfo[.duskServerID] = item.serverID
-            return try decoder.decode(PlexMediaDetails.self, from: Data("""
+            return try decoder.decode(MediaDetails.self, from: Data("""
                 {"ratingKey":"800","key":"/library/metadata/800","type":"movie","title":"B (fresh)","viewCount":1}
                 """.utf8))
         }
@@ -413,7 +413,7 @@ struct UpNextResolutionTests {
 
     @Test func aMovieOutsideAQueueHasNoUpNext() async throws {
         let (playback, _) = try makeEpisodeSession()
-        let movie = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        let movie = try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"5","key":"/library/metadata/5","type":"movie","title":"Movie"}
             """.utf8))
         #expect(await playback.resolveUpNext(after: movie, prefersDownloadCache: true) == nil)
@@ -421,9 +421,9 @@ struct UpNextResolutionTests {
 
     @Test func queueSessionsFollowTheQueueAndEndWithIt() async throws {
         let (playback, details) = try makeEpisodeSession()
-        let movie = PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "500"), type: .movie, title: "Film")
+        let movie = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "500"), type: .movie, title: "Film")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: PlexItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, ratingKey: "900"),
             title: "Mix",
             items: [episodeItem("101"), movie]
         )
@@ -447,10 +447,10 @@ struct UpNextResolutionTests {
 
     @Test func queueSkipsItemsWhoseServerIsUnreachable() async throws {
         let (playback, details) = try makeEpisodeSession()
-        let offline = PlaybackQueueItem(id: PlexItemID(serverID: "gone-server", ratingKey: "7"), type: .movie, title: "Offline")
-        let online = PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "8"), type: .movie, title: "Online")
+        let offline = PlaybackQueueItem(id: MediaItemID(serverID: "gone-server", ratingKey: "7"), type: .movie, title: "Offline")
+        let online = PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "8"), type: .movie, title: "Online")
         playback.playbackQueue = PlaybackQueue.playlist(
-            id: PlexItemID(serverID: serverID, ratingKey: "900"),
+            id: MediaItemID(serverID: serverID, ratingKey: "900"),
             title: "Mix",
             items: [episodeItem("101"), offline, online]
         )
@@ -461,14 +461,14 @@ struct UpNextResolutionTests {
 
     @Test func passoutProtectionCountsEveryQueueItem() throws {
         let (playback, _) = try makeEpisodeSession()
-        playback.activeItemDetails = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        playback.activeItemDetails = try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"5","key":"/library/metadata/5","type":"movie","title":"Movie"}
             """.utf8))
         playback.resetContinuousPlayEpisodeRunCountForCurrentItem()
         #expect(playback.continuousPlayEpisodeRunCount == 0)
         playback.playbackQueue = PlaybackQueue.list(
             title: "Videos",
-            items: [PlaybackQueueItem(id: PlexItemID(serverID: serverID, ratingKey: "5"), type: .movie, title: "Movie")],
+            items: [PlaybackQueueItem(id: MediaItemID(serverID: serverID, ratingKey: "5"), type: .movie, title: "Movie")],
             startIndex: 0
         )
         playback.resetContinuousPlayEpisodeRunCountForCurrentItem()
@@ -479,7 +479,7 @@ struct UpNextResolutionTests {
 
     private func episodeItem(_ key: String) -> PlaybackQueueItem {
         PlaybackQueueItem(
-            id: PlexItemID(serverID: serverID, ratingKey: key),
+            id: MediaItemID(serverID: serverID, ratingKey: key),
             type: .episode,
             title: "Episode \(key)",
             index: Int(key).map { $0 - 100 },
@@ -487,7 +487,7 @@ struct UpNextResolutionTests {
         )
     }
 
-    private func makeEpisodeSession() throws -> (PlaybackCoordinator, PlexMediaDetails) {
+    private func makeEpisodeSession() throws -> (PlaybackCoordinator, MediaDetails) {
         let service = PlexService(urlProtocolClasses: [UpNextStubProtocol.self])
         for connected in service.pool.connections.map(\.serverID) {
             service.pool.markOffline(serverID: connected, reason: "Not part of this test")
@@ -508,7 +508,7 @@ struct UpNextResolutionTests {
             """.utf8)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = serverID
-        let details = try decoder.decode(PlexMediaDetails.self, from: json)
+        let details = try decoder.decode(MediaDetails.self, from: json)
         playback.activeItemDetails = details
         playback.ratingKey = details.ratingKey
         playback.activePlaybackServerID = serverID
@@ -570,8 +570,8 @@ private final class UpNextStubProtocol: URLProtocol, @unchecked Sendable {
 @Suite("Playlist store")
 @MainActor
 struct PlaylistStoreTests {
-    private func playlist(_ key: String, server: String) -> PlexPlaylist {
-        PlexPlaylist(serverID: server, ratingKey: key, title: "P\(key)")
+    private func playlist(_ key: String, server: String) -> Playlist {
+        Playlist(serverID: server, ratingKey: key, title: "P\(key)")
     }
 
     private func revision(_ servers: [String], profile: String? = "p1") -> ServerContentRevision {

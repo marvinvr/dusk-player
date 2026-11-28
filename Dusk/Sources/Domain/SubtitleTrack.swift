@@ -44,7 +44,7 @@ extension SubtitleTrack {
 
 extension SubtitleTrack {
     /// Create from a Plex subtitle stream.
-    init(stream: PlexStream) {
+    init(stream: MediaStream) {
         self.id = stream.id
         self.displayTitle = stream.displayTitle ?? stream.language ?? "Unknown"
         self.language = stream.language

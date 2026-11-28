@@ -72,7 +72,7 @@ extension PlexService {
 
     private func performWatchlistLoad(serverIDs: [String], generation: Int) async {
         async let homeHubs = loadPlexHomeLayout()
-        let entries: [PlexWatchlistEntry]
+        let entries: [WatchlistEntry]
         do {
             entries = try await fetchWatchlistEntries()
         } catch {
@@ -108,14 +108,14 @@ extension PlexService {
 
     /// One undecodable entry (a type Plex added later) must not lose the list.
     private struct FailableWatchlistEntry: Decodable {
-        let entry: PlexWatchlistEntry?
+        let entry: WatchlistEntry?
         init(from decoder: any Decoder) throws {
-            entry = try? PlexWatchlistEntry(from: decoder)
+            entry = try? WatchlistEntry(from: decoder)
         }
     }
 
-    private func fetchWatchlistEntries() async throws -> [PlexWatchlistEntry] {
-        var entries: [PlexWatchlistEntry] = []
+    private func fetchWatchlistEntries() async throws -> [WatchlistEntry] {
+        var entries: [WatchlistEntry] = []
         var start = 0
         while start < Self.watchlistMaxEntries {
             let data = try await discoverRequest(
@@ -144,9 +144,9 @@ extension PlexService {
     /// libraries hidden on the account. Per-title lookups only: a full guid
     /// index of a 60k library is never built.
     private func matchWatchlist(
-        _ entries: [PlexWatchlistEntry],
+        _ entries: [WatchlistEntry],
         serverIDs: [String]
-    ) async -> [String: PlexItem] {
+    ) async -> [String: MediaItem] {
         guard !serverIDs.isEmpty, !entries.isEmpty else { return [:] }
         let hidden = await loadedHiddenLibraryFilter()
         let previous = watchlist.matches
@@ -164,7 +164,7 @@ extension PlexService {
         }
 
         let service = self
-        var found: [String: [String: PlexItem]] = [:]
+        var found: [String: [String: MediaItem]] = [:]
         var misses = Set<String>()
         var next = 0
         var completed = 0
@@ -188,7 +188,7 @@ extension PlexService {
             }
         }
 
-        var matches: [String: PlexItem] = [:]
+        var matches: [String: MediaItem] = [:]
         for entry in entries {
             if let item = serverIDs.lazy.compactMap({ found[entry.guid]?[$0] }).first {
                 matches[entry.guid] = item
@@ -213,7 +213,7 @@ extension PlexService {
         }
     }
 
-    func serverItems(guid: String, serverID: String) async throws -> [PlexItem] {
+    func serverItems(guid: String, serverID: String) async throws -> [MediaItem] {
         let data = try await rawServerRequest(
             path: "/library/all",
             queryItems: [
@@ -222,7 +222,7 @@ extension PlexService {
             ],
             serverID: serverID
         )
-        return try decodeJSON(MetadataResponse<PlexItem>.self, from: data, serverID: serverID)
+        return try decodeJSON(MetadataResponse<MediaItem>.self, from: data, serverID: serverID)
             .MediaContainer.Metadata ?? []
     }
 
@@ -231,7 +231,7 @@ extension PlexService {
     /// Adds or removes a title, optimistically: the store changes first and
     /// is restored if plex.tv refuses. Throws that refusal for the caller's
     /// inline error.
-    func setWatchlisted(_ watchlisted: Bool, entry: PlexWatchlistEntry, match: PlexItem? = nil) async throws {
+    func setWatchlisted(_ watchlisted: Bool, entry: WatchlistEntry, match: MediaItem? = nil) async throws {
         let snapshot = watchlist.apply(watchlisted: watchlisted, entry: entry, match: match)
         do {
             _ = try await discoverRequest(
@@ -244,7 +244,7 @@ extension PlexService {
             watchlist.restore(snapshot)
             throw error
         }
-        // Added from a detail page, which has no `PlexItem` to show: read the
+        // Added from a detail page, which has no `MediaItem` to show: read the
         // list back so the Home card finds its server copy.
         if watchlisted, match == nil {
             Task { await loadWatchlist(force: true) }
@@ -255,13 +255,13 @@ extension PlexService {
 
     private struct MetadataPage: Decodable {
         struct Container: Decodable {
-            let Metadata: [PlexWatchlistEntry]?
+            let Metadata: [WatchlistEntry]?
             let Availability: [PlexWatchlistAvailability]?
         }
         let MediaContainer: Container
     }
 
-    func getWatchlistMetadata(ratingKey: String) async throws -> PlexWatchlistEntry? {
+    func getWatchlistMetadata(ratingKey: String) async throws -> WatchlistEntry? {
         let data = try await discoverRequest(path: "/library/metadata/\(ratingKey)")
         return try decodeJSON(MetadataPage.self, from: data).MediaContainer.Metadata?.first
     }
@@ -340,7 +340,7 @@ extension PlexService {
 
 private struct WatchlistMatchJob: Sendable {
     let guid: String
-    let type: PlexMediaType
+    let type: MediaKind
     let serverID: String
 
     var missKey: String { "\(serverID)|\(guid)" }
@@ -348,7 +348,7 @@ private struct WatchlistMatchJob: Sendable {
 
 private struct WatchlistMatchResult: Sendable {
     let job: WatchlistMatchJob
-    let item: PlexItem?
+    let item: MediaItem?
     let failed: Bool
 }
 

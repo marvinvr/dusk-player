@@ -354,7 +354,7 @@ extension PlexService {
         queryItems: [URLQueryItem]? = nil,
         timeoutInterval: TimeInterval? = nil,
         serverID: String? = nil
-    ) async throws -> [PlexHub] {
+    ) async throws -> [HomeRow] {
         let targetID = try resolveServerID(serverID)
         let data = try await rawServerRequest(
             path: path,
@@ -485,7 +485,7 @@ struct HubResponse: Decodable {
         let size: Int?
         let totalSize: Int?
         let offset: Int?
-        let Hub: [PlexHub]?
+        let Hub: [HomeRow]?
     }
 }
 
@@ -496,8 +496,8 @@ struct HubItemsResponse: Decodable {
         let size: Int?
         let totalSize: Int?
         let offset: Int?
-        let Metadata: [PlexItem]?
-        let Directory: [PlexItem]?
+        let Metadata: [MediaItem]?
+        let Directory: [MediaItem]?
     }
 }
 

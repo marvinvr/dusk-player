@@ -8,10 +8,10 @@ import Foundation
 /// The list payload carries no `Guid` array; only the metadata call
 /// (`PlexService.getWatchlistMetadata`) does, which is where the TMDB id for
 /// Seerr comes from.
-struct PlexWatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
+struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     let ratingKey: String
     let guid: String
-    let type: PlexMediaType
+    let type: MediaKind
     let title: String
     let year: Int?
     let thumb: String?
@@ -33,7 +33,7 @@ struct PlexWatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     init(
         ratingKey: String,
         guid: String,
-        type: PlexMediaType,
+        type: MediaKind,
         title: String,
         year: Int? = nil,
         thumb: String? = nil,
@@ -62,7 +62,7 @@ struct PlexWatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         guid = try container.decode(String.self, forKey: .guid)
-        type = try container.decode(PlexMediaType.self, forKey: .type)
+        type = try container.decode(MediaKind.self, forKey: .type)
         title = try container.decode(String.self, forKey: .title)
         year = try container.decodeIfPresent(Int.self, forKey: .year)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
@@ -76,14 +76,14 @@ struct PlexWatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
 
     /// Built from a server item being added, so the Home row can show it
     /// before plex.tv's list is read again.
-    init?(item: PlexItem) {
-        guard let ratingKey = PlexWatchlistEntry.discoverRatingKey(guid: item.guid, type: item.type),
+    init?(item: MediaItem) {
+        guard let ratingKey = WatchlistEntry.discoverRatingKey(guid: item.guid, type: item.type),
               let guid = item.guid else { return nil }
         self.init(ratingKey: ratingKey, guid: guid, type: item.type, title: item.title, year: item.year)
     }
 
-    init?(details: PlexMediaDetails) {
-        guard let ratingKey = PlexWatchlistEntry.discoverRatingKey(guid: details.guid, type: details.type),
+    init?(details: MediaDetails) {
+        guard let ratingKey = WatchlistEntry.discoverRatingKey(guid: details.guid, type: details.type),
               let guid = details.guid else { return nil }
         self.init(
             ratingKey: ratingKey,
@@ -127,7 +127,7 @@ struct PlexWatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     /// Plex's Watchlist only takes movies and shows, and only through their
     /// global `plex://` id. Legacy-agent items (`com.plexapp.agents.*`,
     /// `local://`) have none, so they get no bookmark rather than a guess.
-    static func discoverRatingKey(guid: String?, type: PlexMediaType) -> String? {
+    static func discoverRatingKey(guid: String?, type: MediaKind) -> String? {
         guard let guid else { return nil }
         let prefix: String
         switch type {

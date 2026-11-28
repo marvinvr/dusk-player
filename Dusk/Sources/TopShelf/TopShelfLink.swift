@@ -4,7 +4,7 @@ import Observation
 
 /// A Top Shelf deep link: `dusk://play?…` resumes the item, `dusk://open?…`
 /// opens its detail page. Both carry the item's server, because rating keys
-/// collide across servers (see `PlexItemID`).
+/// collide across servers (see `MediaItemID`).
 struct TopShelfLink: Equatable {
     enum Action: String {
         case play
@@ -19,8 +19,8 @@ struct TopShelfLink: Equatable {
     private static let maxPendingAge: TimeInterval = 30
 
     let action: Action
-    let id: PlexItemID
-    let type: PlexMediaType
+    let id: MediaItemID
+    let type: MediaKind
     let isClip: Bool
     let receivedAt: Date
 
@@ -37,18 +37,18 @@ struct TopShelfLink: Equatable {
 
         guard let serverID = value("server"),
               let ratingKey = value("item"),
-              let type = value("type").flatMap(PlexMediaType.init(rawValue:)) else {
+              let type = value("type").flatMap(MediaKind.init(rawValue:)) else {
             return nil
         }
 
         self.action = action
-        self.id = PlexItemID(serverID: serverID, ratingKey: ratingKey)
+        self.id = MediaItemID(serverID: serverID, ratingKey: ratingKey)
         self.type = type
         self.isClip = value("clip") == "1"
         self.receivedAt = receivedAt
     }
 
-    static func url(_ action: Action, for item: PlexItem) -> URL? {
+    static func url(_ action: Action, for item: MediaItem) -> URL? {
         guard let serverID = item.serverID?.nilIfEmpty else { return nil }
 
         var components = URLComponents()

@@ -3,14 +3,14 @@ import Foundation
 /// What the player knows about an item it may play next: enough for the Up
 /// Next poster/screen, the Previous / Next controls and the loading cover,
 /// without another metadata round-trip. Built from the episode lookup
-/// (`PlexEpisode`) or from a playlist's own item list (`PlexItem`).
+/// (`Episode`) or from a playlist's own item list (`MediaItem`).
 ///
-/// The field names follow `PlexEpisode` so the Up Next views read the same
+/// The field names follow `Episode` so the Up Next views read the same
 /// for an episode and a playlist entry; movies simply leave the season and
 /// episode numbers empty.
 struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
-    let id: PlexItemID
-    let type: PlexMediaType
+    let id: MediaItemID
+    let type: MediaKind
     let subtype: String?
     let title: String
     let summary: String?
@@ -34,8 +34,8 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
     var ratingKey: String { id.ratingKey }
 
     init(
-        id: PlexItemID,
-        type: PlexMediaType,
+        id: MediaItemID,
+        type: MediaKind,
         subtype: String? = nil,
         title: String,
         summary: String? = nil,
@@ -69,7 +69,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
         self.isWatched = isWatched
     }
 
-    init(episode: PlexEpisode) {
+    init(episode: Episode) {
         self.init(
             id: episode.id,
             type: .episode,
@@ -88,7 +88,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
         )
     }
 
-    init(item: PlexItem) {
+    init(item: MediaItem) {
         self.init(
             id: item.id,
             type: item.type,
@@ -109,7 +109,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
         )
     }
 
-    init(details: PlexMediaDetails) {
+    init(details: MediaDetails) {
         let isEpisode = details.type == .episode
         self.init(
             id: details.id,
@@ -193,7 +193,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
 struct PlaybackQueue: Sendable, Equatable {
     enum Source: Sendable, Equatable {
         /// A Plex playlist, by its server-scoped id and title.
-        case playlist(id: PlexItemID, title: String)
+        case playlist(id: MediaItemID, title: String)
         /// A list of videos on screen — a Videos library or folder, a
         /// collection — in the order it is shown.
         case list(title: String)
@@ -206,7 +206,7 @@ struct PlaybackQueue: Sendable, Equatable {
     private(set) var position: Int
     /// Items found to be gone from the server since the list was read (their
     /// metadata no longer resolves). Skipped by `next`/`previous`.
-    private(set) var unavailableIDs: Set<PlexItemID> = []
+    private(set) var unavailableIDs: Set<MediaItemID> = []
 
     init(source: Source, items: [PlaybackQueueItem], position: Int = 0, isShuffled: Bool = false) {
         self.source = source
@@ -218,7 +218,7 @@ struct PlaybackQueue: Sendable, Equatable {
     /// A playlist in its own order, starting at `startIndex`. Items Dusk
     /// cannot play are dropped up front so positions never point at them.
     static func playlist(
-        id: PlexItemID,
+        id: MediaItemID,
         title: String,
         items: [PlaybackQueueItem],
         startIndex: Int = 0
@@ -245,7 +245,7 @@ struct PlaybackQueue: Sendable, Equatable {
     /// A playlist in a random order fixed for the session, starting at its
     /// first (random) item.
     static func shuffledPlaylist<G: RandomNumberGenerator>(
-        id: PlexItemID,
+        id: MediaItemID,
         title: String,
         items: [PlaybackQueueItem],
         using generator: inout G
@@ -260,7 +260,7 @@ struct PlaybackQueue: Sendable, Equatable {
         )
     }
 
-    static func shuffledPlaylist(id: PlexItemID, title: String, items: [PlaybackQueueItem]) -> PlaybackQueue? {
+    static func shuffledPlaylist(id: MediaItemID, title: String, items: [PlaybackQueueItem]) -> PlaybackQueue? {
         var generator = SystemRandomNumberGenerator()
         return shuffledPlaylist(id: id, title: title, items: items, using: &generator)
     }
@@ -306,7 +306,7 @@ struct PlaybackQueue: Sendable, Equatable {
         items[index] = item
     }
 
-    mutating func markUnavailable(_ id: PlexItemID) {
+    mutating func markUnavailable(_ id: MediaItemID) {
         unavailableIDs.insert(id)
     }
 

@@ -190,16 +190,16 @@ private func makeMedia(
     audioCodec: String = "aac",
     codecID: String?,
     subtitleCodec: String? = nil
-) throws -> PlexMedia {
+) throws -> MediaVersion {
     let json = streamsJSON(
         container: container, videoCodec: videoCodec, audioCodec: audioCodec,
         codecID: codecID, subtitleCodec: subtitleCodec
     )
-    return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+    return try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
 }
 
-private func makeDetails() throws -> PlexMediaDetails {
+private func makeDetails() throws -> MediaDetails {
     let media = streamsJSON(container: "mp4", videoCodec: "hevc", audioCodec: "aac", codecID: nil, subtitleCodec: nil)
     let json = #"{ "ratingKey": "1", "key": "/library/metadata/1", "type": "movie", "title": "T", "Media": [\#(media)] }"#
-    return try JSONDecoder().decode(PlexMediaDetails.self, from: Data(json.utf8))
+    return try JSONDecoder().decode(MediaDetails.self, from: Data(json.utf8))
 }

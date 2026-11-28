@@ -148,7 +148,7 @@ struct PlexDownloadQueueTests {
         record.downloadQuality = .p720
         record.convertedMediaData = try JSONEncoder().encode(converted)
         let sourcePartJSON = #"{"id":17,"key":"/library/parts/17/file.mkv","Stream":[{"id":101,"streamType":1,"codec":"hevc"},{"id":102,"streamType":2,"codec":"truehd"},{"id":103,"streamType":3,"codec":"pgs"},{"id":104,"streamType":3,"codec":"srt","key":"/library/streams/104"}]}"#
-        let sourcePart = try JSONDecoder().decode(PlexMediaPart.self, from: Data(sourcePartJSON.utf8))
+        let sourcePart = try JSONDecoder().decode(MediaPart.self, from: Data(sourcePartJSON.utf8))
 
         let version = try #require(record.convertedMediaVersion(sourcePart: sourcePart))
         #expect(version.part.streams.map(\.id) == [104])
@@ -173,7 +173,7 @@ struct PlexDownloadQueueTests {
 
     @Test func onlyExternalTextSubtitlesAreSavedForOffline() throws {
         let json = #"{"id":17,"key":"/library/parts/17/file.mp4","Stream":[{"id":101,"streamType":1,"codec":"h264"},{"id":102,"streamType":3,"codec":"mov_text"},{"id":103,"streamType":3,"codec":"srt","key":"/library/streams/103"},{"id":104,"streamType":3,"codec":"ass","key":"/library/streams/104"},{"id":105,"streamType":3,"codec":"ssa","key":"/library/streams/105"},{"id":106,"streamType":3,"codec":"vtt","key":"/library/streams/106"},{"id":107,"streamType":3,"codec":"vobsub","key":"/library/streams/107"},{"id":108,"streamType":3,"codec":"srt","key":""}]}"#
-        let part = try JSONDecoder().decode(PlexMediaPart.self, from: Data(json.utf8))
+        let part = try JSONDecoder().decode(MediaPart.self, from: Data(json.utf8))
         #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: part).map(\.id) == [103, 104, 105, 106])
         #expect(DownloadedMediaRecord.offlineSubtitleStreams(in: nil).isEmpty)
     }
@@ -224,8 +224,8 @@ struct PlexDownloadQueueTests {
         ]
     }
 
-    private func sourceMedia() throws -> PlexMedia {
+    private func sourceMedia() throws -> MediaVersion {
         let json = #"{"id":41,"container":"mkv","videoCodec":"hevc","audioCodec":"truehd","videoProfile":"main 10","audioProfile":"truehd atmos","width":3840,"height":2160,"duration":600000,"Part":[{"id":17,"key":"/library/parts/17/file.mkv","size":999999,"Stream":[{"id":101,"streamType":1,"codec":"hevc","DOVIPresent":true,"DOVIProfile":5},{"id":102,"streamType":2,"codec":"truehd"}]}]}"#
-        return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+        return try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
     }
 }

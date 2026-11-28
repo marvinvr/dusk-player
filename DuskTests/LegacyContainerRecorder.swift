@@ -20,7 +20,7 @@ struct LegacyContainerRecorder {
     private typealias V = LegacyValues
 
     @Test func recordDownloadsSnapshot() throws {
-        let converted = try JSONDecoder().decode(PlexMedia.self, from: Data(V.convertedMediaJSON.utf8))
+        let converted = try JSONDecoder().decode(MediaVersion.self, from: Data(V.convertedMediaJSON.utf8))
         // DownloadManager stores the prepared media exactly like this.
         let convertedData = try JSONEncoder().encode(converted)
 
@@ -203,15 +203,15 @@ struct LegacyContainerRecorder {
     @Test func recordPinnedPlaylists() throws {
         try LegacyFixture.withScratchDefaults { defaults in
             let store = PinnedPlaylistStore(defaults: defaults)
-            store.pin(PlexItemID(serverID: V.serverA, ratingKey: "5001"), title: "Friday Movie Night", profileID: V.ownerProfile)
-            store.pin(PlexItemID(serverID: nil, ratingKey: "5002"), title: "Old Pin", profileID: V.ownerProfile)
+            store.pin(MediaItemID(serverID: V.serverA, ratingKey: "5001"), title: "Friday Movie Night", profileID: V.ownerProfile)
+            store.pin(MediaItemID(serverID: nil, ratingKey: "5002"), title: "Old Pin", profileID: V.ownerProfile)
             let data = try #require(defaults.data(forKey: "PinnedHomePlaylists.v1.4f2a9c1d7e3b5a60"))
             try LegacyFixture.record(data, as: "LegacyContainer-PinnedHomePlaylists.json")
         }
     }
 
     @Test func recordShowTrackPreferences() throws {
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(V.trackEpisodeJSON.utf8))
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data(V.trackEpisodeJSON.utf8))
         let streams = details.media[0].parts[0].streams
         let audio = try #require(ShowTrackDescriptor(stream: streams[0]))
         let externalSDH = try #require(ShowTrackDescriptor(stream: streams[2]))
@@ -370,11 +370,11 @@ struct LegacyContainerRecorder {
         // captured container (LegacyContainer-real-siriTitleCatalog.json).
         let entries = [
             SiriCatalogEntry(
-                id: PlexItemID(serverID: V.serverA, ratingKey: "1001"),
+                id: MediaItemID(serverID: V.serverA, ratingKey: "1001"),
                 kind: .movie, title: "Arrival", year: 2016, lastViewedAt: 1_767_225_600
             ),
             SiriCatalogEntry(
-                id: PlexItemID(serverID: V.serverB, ratingKey: "2000"),
+                id: MediaItemID(serverID: V.serverB, ratingKey: "2000"),
                 kind: .show, title: "Severance", year: nil, lastViewedAt: nil
             ),
         ]
@@ -392,10 +392,10 @@ struct LegacyContainerRecorder {
     @Test func recordTopShelfSnapshot() throws {
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = V.serverA
-        let movie = try decoder.decode(PlexItem.self, from: Data(#"""
+        let movie = try decoder.decode(MediaItem.self, from: Data(#"""
             {"ratingKey":"1001","key":"/library/metadata/1001","type":"movie","title":"Arrival"}
             """#.utf8))
-        let clip = try decoder.decode(PlexItem.self, from: Data(#"""
+        let clip = try decoder.decode(MediaItem.self, from: Data(#"""
             {"ratingKey":"4001","key":"/library/metadata/4001","type":"movie","subtype":"clip","title":"Home Video"}
             """#.utf8))
         let snapshot = TopShelfSnapshot(sections: [

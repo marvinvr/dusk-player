@@ -17,7 +17,7 @@ struct PlaybackListContext: Hashable, Sendable {
 
     /// The movies and videos of `items`, in order; nil when there are fewer
     /// than two (nothing to continue to).
-    init?(title: String, plexItems: [PlexItem]) {
+    init?(title: String, plexItems: [MediaItem]) {
         let items = plexItems
             .filter { Self.joins($0) }
             .map(PlaybackQueueItem.init(item:))
@@ -25,11 +25,11 @@ struct PlaybackListContext: Hashable, Sendable {
         self.init(title: title, items: items)
     }
 
-    static func joins(_ item: PlexItem) -> Bool {
+    static func joins(_ item: MediaItem) -> Bool {
         item.isClip || item.type == .movie
     }
 
-    func queue(startingAt id: PlexItemID) -> PlaybackQueue? {
+    func queue(startingAt id: MediaItemID) -> PlaybackQueue? {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return nil }
         return PlaybackQueue.list(title: title, items: items, startIndex: index)
     }
@@ -49,7 +49,7 @@ struct PlaybackListContext: Hashable, Sendable {
 extension AppNavigationRoute {
     /// `destination(for:)`, except that a movie or video inside `list` opens
     /// its page knowing the list, so playing it continues through the rest.
-    static func destination(for item: PlexItem, in list: PlaybackListContext?) -> Self {
+    static func destination(for item: MediaItem, in list: PlaybackListContext?) -> Self {
         guard let list, PlaybackListContext.joins(item),
               list.items.contains(where: { $0.id == item.id }) else {
             return destination(for: item)

@@ -16,7 +16,7 @@ extension View {
 struct PosterNavigationCard<ContextMenuContent: View>: View {
     let route: AppNavigationRoute
     let imageURL: URL?
-    /// Loaded when `imageURL` fails; see `PlexItem.fallbackPosterPath`.
+    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPosterPath`.
     var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?
@@ -34,7 +34,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     /// See `PosterCard.showsWatchedBadge`.
     var showsWatchedBadge = false
     /// The item behind `route`, when known; see `tvQuickPlay(route:item:)`.
-    var playbackItem: PlexItem? = nil
+    var playbackItem: MediaItem? = nil
     /// See `PosterArtwork.placeholderTitle`.
     var artworkPlaceholderTitle: String? = nil
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
@@ -154,7 +154,7 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
 struct PosterActionCard<ContextMenuContent: View>: View {
     let action: () -> Void
     let imageURL: URL?
-    /// Loaded when `imageURL` fails; see `PlexItem.fallbackPosterPath`.
+    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPosterPath`.
     var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?

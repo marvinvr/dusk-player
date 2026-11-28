@@ -2,8 +2,8 @@ import Foundation
 
 /// One page of a paged collection listing, with the server's total when it
 /// sends one.
-struct PlexItemPage: Sendable {
-    let items: [PlexItem]
+struct MediaItemPage: Sendable {
+    let items: [MediaItem]
     let totalSize: Int?
     let start: Int
     let requestedSize: Int
@@ -34,7 +34,7 @@ extension PlexService {
         start: Int = 0,
         size: Int = 50,
         serverID: String? = nil
-    ) async throws -> PlexItemPage {
+    ) async throws -> MediaItemPage {
         try await fetchItemPage(
             path: "/library/sections/\(sectionId)/collections",
             start: start,
@@ -51,7 +51,7 @@ extension PlexService {
         size: Int = 50,
         sort: String? = nil,
         serverID: String? = nil
-    ) async throws -> PlexItemPage {
+    ) async throws -> MediaItemPage {
         try await fetchItemPage(
             path: "/library/metadata/\(ratingKey)/children",
             start: start,
@@ -62,8 +62,8 @@ extension PlexService {
     }
 
     /// The collection itself (title, summary, artwork, count).
-    func getCollection(ratingKey: String, serverID: String? = nil) async throws -> PlexItem? {
-        let items: [PlexItem] = try await fetchMetadata(
+    func getCollection(ratingKey: String, serverID: String? = nil) async throws -> MediaItem? {
+        let items: [MediaItem] = try await fetchMetadata(
             path: "/library/metadata/\(ratingKey)",
             serverID: serverID
         )
@@ -100,7 +100,7 @@ extension PlexService {
         size: Int,
         extraQueryItems: [URLQueryItem] = [],
         serverID: String?
-    ) async throws -> PlexItemPage {
+    ) async throws -> MediaItemPage {
         let targetID = try resolveServerID(serverID)
         let data = try await rawServerRequest(
             path: path,
@@ -110,9 +110,9 @@ extension PlexService {
             ] + extraQueryItems,
             serverID: targetID
         )
-        let container = try decodeJSON(MetadataResponse<PlexItem>.self, from: data, serverID: targetID)
+        let container = try decodeJSON(MetadataResponse<MediaItem>.self, from: data, serverID: targetID)
             .MediaContainer
-        return PlexItemPage(
+        return MediaItemPage(
             items: container.Metadata ?? [],
             totalSize: container.totalSize,
             start: start,

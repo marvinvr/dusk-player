@@ -260,7 +260,7 @@ extension PlayerViewModel {
 
     /// Handles a tap on a skip chip (Skip Intro, or Skip Credits where the Up
     /// Next poster does not cover them; see `activeSkipMarker`).
-    func handleSkipMarker(_ marker: PlexMarker, userInitiated: Bool = true) {
+    func handleSkipMarker(_ marker: Marker, userInitiated: Bool = true) {
         cancelAutoSkipCountdown()
         skipActiveMarker(userInitiated: userInitiated)
     }
@@ -675,7 +675,7 @@ extension PlayerViewModel {
         engine.recoverFromStall()
     }
 
-    private func startAutoSkipCountdown(for marker: PlexMarker) {
+    private func startAutoSkipCountdown(for marker: Marker) {
         cancelAutoSkipCountdown()
         autoSkipCountdownMarkerID = marker.id
         autoSkipCountdownProgress = 0
@@ -730,7 +730,7 @@ extension PlayerViewModel {
     /// on (Auto-Skip Intros / Auto-Skip Credits by marker type) skips it.
     /// Auto-skip off (including "always except episode 1" on the first episode)
     /// only hides the chip.
-    private func finishAutoSkipCountdown(for marker: PlexMarker) {
+    private func finishAutoSkipCountdown(for marker: Marker) {
         guard autoSkipCountdownMarkerID == marker.id else { return }
 
         guard let currentMarker = activeSkipMarker,
@@ -798,7 +798,7 @@ extension PlayerViewModel {
 
     /// Burns this marker's one-shot auto-skip for the session and tells the
     /// coordinator, which keeps the record across player rebuilds.
-    private func noteAutoSkipSpent(for marker: PlexMarker) {
+    private func noteAutoSkipSpent(for marker: Marker) {
         guard spentAutoSkipMarkerIDs.insert(marker.id).inserted else { return }
         autoSkipSpentHandler?(marker.id)
     }

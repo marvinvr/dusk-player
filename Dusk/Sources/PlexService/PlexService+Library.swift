@@ -6,7 +6,7 @@ import Foundation
 /// collection — must pass that model's own `serverID`, or the request lands on
 /// a different server's rating keys.
 extension PlexService {
-    func getLibraries(serverID: String? = nil) async throws -> [PlexLibrary] {
+    func getLibraries(serverID: String? = nil) async throws -> [Library] {
         try await fetchDirectories(path: "/library/sections", serverID: serverID)
     }
 
@@ -17,7 +17,7 @@ extension PlexService {
         sort: String? = nil,
         filters: [String: String] = [:],
         serverID: String? = nil
-    ) async throws -> [PlexItem] {
+    ) async throws -> [MediaItem] {
         var queryItems = [
             URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
             URLQueryItem(name: "X-Plex-Container-Size", value: String(size)),
@@ -33,7 +33,7 @@ extension PlexService {
                 .map { URLQueryItem(name: $0.key, value: $0.value) }
         )
 
-        let items: [PlexItem] = try await fetchMetadata(
+        let items: [MediaItem] = try await fetchMetadata(
             path: "/library/sections/\(sectionId)/all",
             queryItems: queryItems,
             serverID: serverID
@@ -63,7 +63,7 @@ extension PlexService {
             queryItems: queryItems,
             serverID: targetID
         )
-        let response = try decodeJSON(MetadataResponse<PlexItem>.self, from: data, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<MediaItem>.self, from: data, serverID: targetID)
         return response.MediaContainer.totalSize ?? response.MediaContainer.size ?? 0
     }
 
@@ -96,19 +96,19 @@ extension PlexService {
     /// have one per channel) via the section's `collection` filter values.
     /// Each returned `key` plugs directly into
     /// `getLibraryItems(sectionId:filters: ["collection": key])`.
-    func getLibraryCollections(sectionId: String, serverID: String? = nil) async throws -> [PlexLibraryCollection] {
+    func getLibraryCollections(sectionId: String, serverID: String? = nil) async throws -> [MediaCollection] {
         let targetID = try resolveServerID(serverID)
         let values: [PlexLibraryFilterValue] = try await fetchDirectories(
             path: "/library/sections/\(sectionId)/collection",
             serverID: targetID
         )
-        return values.compactMap { PlexLibraryCollection(filterValue: $0, serverID: targetID) }
+        return values.compactMap { MediaCollection(filterValue: $0, serverID: targetID) }
     }
 
     /// A library's hub rows. On a library of tens of thousands of titles this
     /// is the server's most expensive read (10s on a 43k-movie test server,
     /// far longer on slower hardware), so it gets more than the usual 30s.
-    func getLibraryHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [PlexHub] {
+    func getLibraryHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
         try await fetchHubs(
             path: "/hubs/sections/\(sectionId)",
             queryItems: [
@@ -124,7 +124,7 @@ extension PlexService {
     /// Added, the top of `getLibraryHubs` at a fraction of its cost (0.5s
     /// against 10s on the same server), so a big library paints before its
     /// full hub rows are in.
-    func getLibraryPromotedHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [PlexHub] {
+    func getLibraryPromotedHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
         let hubs = try await fetchHubs(
             path: "/hubs/promoted",
             queryItems: [
@@ -141,23 +141,23 @@ extension PlexService {
         }
     }
 
-    func getSeasons(showKey: String, serverID: String? = nil) async throws -> [PlexSeason] {
+    func getSeasons(showKey: String, serverID: String? = nil) async throws -> [Season] {
         try await fetchMetadata(path: "/library/metadata/\(showKey)/children", serverID: serverID)
     }
 
-    func getEpisodes(seasonKey: String, serverID: String? = nil) async throws -> [PlexEpisode] {
+    func getEpisodes(seasonKey: String, serverID: String? = nil) async throws -> [Episode] {
         try await fetchMetadata(path: "/library/metadata/\(seasonKey)/children", serverID: serverID)
     }
 
     /// Every episode of a show, across all its seasons, in one request.
-    func getAllEpisodes(showKey: String, serverID: String? = nil) async throws -> [PlexEpisode] {
+    func getAllEpisodes(showKey: String, serverID: String? = nil) async throws -> [Episode] {
         try await fetchMetadata(path: "/library/metadata/\(showKey)/allLeaves", serverID: serverID)
     }
 
     /// Walks forward from an episode to the next one. Everything it reads comes
     /// from the same server the episode came from — an episode's siblings and
     /// its show's later seasons only exist there.
-    func getNextEpisode(after episode: PlexMediaDetails) async throws -> PlexEpisode? {
+    func getNextEpisode(after episode: MediaDetails) async throws -> Episode? {
         guard episode.type == .episode,
               let seasonKey = episode.parentRatingKey,
               let showKey = episode.grandparentRatingKey else {
@@ -203,17 +203,17 @@ extension PlexService {
     /// current season is fetched once for both directions, and the show's
     /// seasons only when a neighbour lies outside it. Previous never steps from
     /// a regular season back into Specials (season 0).
-    func getAdjacentEpisodes(around episode: PlexMediaDetails) async throws -> PlexAdjacentEpisodes {
+    func getAdjacentEpisodes(around episode: MediaDetails) async throws -> AdjacentEpisodes {
         guard episode.type == .episode,
               let seasonKey = episode.parentRatingKey,
               let showKey = episode.grandparentRatingKey else {
-            return PlexAdjacentEpisodes()
+            return AdjacentEpisodes()
         }
 
         let serverID = episode.serverID
         let currentSeasonEpisodes = try await getEpisodes(seasonKey: seasonKey, serverID: serverID)
             .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
-        var adjacent = PlexAdjacentEpisodes.inSeason(currentSeasonEpisodes, around: episode)
+        var adjacent = AdjacentEpisodes.inSeason(currentSeasonEpisodes, around: episode)
         guard adjacent.previous == nil || adjacent.next == nil else { return adjacent }
 
         let seasons = try await getSeasons(showKey: showKey, serverID: serverID)
@@ -247,7 +247,7 @@ extension PlexService {
 
     /// `includeGuids=1` so merging across servers can match the same title by
     /// its global Plex guid instead of falling back to title/year heuristics.
-    func getHubs(serverID: String? = nil) async throws -> [PlexHub] {
+    func getHubs(serverID: String? = nil) async throws -> [HomeRow] {
         try await fetchHubs(
             path: "/hubs",
             queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
@@ -255,7 +255,7 @@ extension PlexService {
         )
     }
 
-    func getContinueWatching(serverID: String? = nil) async throws -> [PlexItem] {
+    func getContinueWatching(serverID: String? = nil) async throws -> [MediaItem] {
         let hubs = try await fetchHubs(
             path: "/hubs/continueWatching",
             queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
@@ -272,7 +272,7 @@ extension PlexService {
         start: Int = 0,
         size: Int? = nil,
         serverID: String? = nil
-    ) async throws -> [PlexItem] {
+    ) async throws -> [MediaItem] {
         var queryItems: [URLQueryItem] = [URLQueryItem(name: "includeGuids", value: "1")]
 
         if start > 0 || size != nil {
@@ -297,7 +297,7 @@ extension PlexService {
     /// Hidden libraries' titles never come back, nor those of libraries the
     /// server excludes from global search: search feeds both the Search screen
     /// and Siri.
-    func search(query: String, serverID: String? = nil) async throws -> [PlexSearchResult] {
+    func search(query: String, serverID: String? = nil) async throws -> [SearchSection] {
         let hubs = try await fetchHubs(
             path: "/hubs/search",
             queryItems: [
@@ -311,21 +311,21 @@ extension PlexService {
 
         return await loadedHiddenLibraryFilter(for: .search).filtering(hubs)
             .filter { !$0.items.isEmpty }
-            .flatMap { PlexSearchResult.results(from: $0) }
+            .flatMap { SearchSection.results(from: $0) }
     }
 
     func getMediaDetails(
         ratingKey: String,
         checkFiles: Bool = false,
         serverID: String? = nil
-    ) async throws -> PlexMediaDetails {
+    ) async throws -> MediaDetails {
         let targetID = try resolveServerID(serverID)
         let data = try await getMediaDetailsPayload(
             ratingKey: ratingKey,
             checkFiles: checkFiles,
             serverID: targetID
         )
-        let response = try decodeJSON(MetadataResponse<PlexMediaDetails>.self, from: data, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<MediaDetails>.self, from: data, serverID: targetID)
         let items = response.MediaContainer.Metadata ?? []
 
         guard let details = items.first else {

@@ -51,7 +51,7 @@ Normal single-item flow:
 
 ```text
 DownloadActionButton
-  -> DownloadManager.queueDownload(id:type:)   // id = PlexItemID
+  -> DownloadManager.queueDownload(id:type:)   // id = MediaItemID
   -> create DownloadedMediaRecord(.queued)
   -> processQueue()
   -> fetch/cache Plex metadata
@@ -140,7 +140,7 @@ VLCKit only when its saved copy exists. Like online playback, automatic
 language selection never switches engines by itself. Sidecars added to the
 server after an item finished downloading are not picked up.
 
-Every queue API is keyed by `PlexItemID`, and `DownloadScope` carries it too:
+Every queue API is keyed by `MediaItemID`, and `DownloadScope` carries it too:
 rating keys collide across servers, so a record is only ever matched by server +
 rating key. `DownloadManager.record(for:)` is strict about this: an id without a
 server resolves only when exactly one record carries that rating key, never by

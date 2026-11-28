@@ -7,8 +7,8 @@ import SwiftUI
 struct LibraryCollectionItemsView: View {
     @Environment(PlexService.self) private var plexService
 
-    let library: PlexLibrary
-    let collection: PlexLibraryCollection
+    let library: Library
+    let collection: MediaCollection
 
     var body: some View {
         LibraryItemsView(

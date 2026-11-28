@@ -46,7 +46,7 @@ struct SeriesDetailView: View {
 
     init(
         entry: SeriesDetailViewModel.Entry,
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
@@ -121,7 +121,7 @@ struct SeriesDetailView: View {
     }
 
     @ViewBuilder
-    private func contentView(_ season: SeasonDetailViewModel, details: PlexMediaDetails) -> some View {
+    private func contentView(_ season: SeasonDetailViewModel, details: MediaDetails) -> some View {
         GeometryReader { geometry in
             let heroBackgroundWidth = geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
 
@@ -224,7 +224,7 @@ struct SeriesDetailView: View {
     @ViewBuilder
     private func heroSection(
         _ season: SeasonDetailViewModel,
-        details: PlexMediaDetails,
+        details: MediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
         containerHeight: CGFloat,
@@ -276,7 +276,7 @@ struct SeriesDetailView: View {
     // (truncated) line and non-animated so the banner doesn't grow/shrink or
     // cross-fade as the user zaps the episode row.
     @ViewBuilder
-    private func episodeTitleView(_ episode: PlexEpisode?) -> some View {
+    private func episodeTitleView(_ episode: Episode?) -> some View {
         Text(episode?.title ?? "")
             .font(DuskFont.TV.heroSubtitle)
             .foregroundStyle(Color.duskTextPrimary)
@@ -291,8 +291,8 @@ struct SeriesDetailView: View {
     @ViewBuilder
     private func episodeHeroMetadata(
         _ season: SeasonDetailViewModel,
-        episode: PlexEpisode?,
-        details: PlexMediaDetails
+        episode: Episode?,
+        details: MediaDetails
     ) -> some View {
         Group {
             if let episode {
@@ -303,7 +303,7 @@ struct SeriesDetailView: View {
                     // The focused episode's own sources (IMDb, TMDB, …) share
                     // the meta line so the band keeps its fixed height. No
                     // user stars here: the hero's Rate button rates the show.
-                    let ratings = focusedEpisodeDetails(in: season).map(PlexRating.sources(for:)) ?? []
+                    let ratings = focusedEpisodeDetails(in: season).map(Rating.sources(for:)) ?? []
                     let metaLine = episodeMetaLine(season, episode: episode)
                     if metaLine != nil || !ratings.isEmpty {
                         HStack(spacing: 28) {
@@ -353,7 +353,7 @@ struct SeriesDetailView: View {
         }
     }
 
-    private func episodeMetaLine(_ season: SeasonDetailViewModel, episode: PlexEpisode) -> String? {
+    private func episodeMetaLine(_ season: SeasonDetailViewModel, episode: Episode) -> String? {
         [season.episodeLabel(episode), season.episodeSubtitle(episode)]
         .compactMap { $0 }
         .joined(separator: " · ")
@@ -361,7 +361,7 @@ struct SeriesDetailView: View {
     }
 
     @ViewBuilder
-    private func seasonTagline(_ season: SeasonDetailViewModel, details: PlexMediaDetails) -> some View {
+    private func seasonTagline(_ season: SeasonDetailViewModel, details: MediaDetails) -> some View {
         // Editions belong to the show, not the season.
         let parts = [
             viewModel.show?.details?.editionTitle,
@@ -380,7 +380,7 @@ struct SeriesDetailView: View {
     // The hero Play button plays whatever episode is focused in the row, keeping
     // it in sync with the banner the user is reading.
     @ViewBuilder
-    private func actionButtons(_ season: SeasonDetailViewModel, episode: PlexEpisode) -> some View {
+    private func actionButtons(_ season: SeasonDetailViewModel, episode: Episode) -> some View {
         HStack(spacing: detailHeroActionSpacing) {
             Button {
                 play(episode, in: season)
@@ -430,7 +430,7 @@ struct SeriesDetailView: View {
                 target: viewModel.show?.details.flatMap(AddToPlaylistTarget.init(details:))
             )
 
-            WatchlistHeroButton(entry: viewModel.show?.details.flatMap(PlexWatchlistEntry.init(details:)))
+            WatchlistHeroButton(entry: viewModel.show?.details.flatMap(WatchlistEntry.init(details:)))
         }
     }
 
@@ -461,7 +461,7 @@ struct SeriesDetailView: View {
     }
 
     @ViewBuilder
-    private func seasonContextMenu(_ season: PlexSeason) -> some View {
+    private func seasonContextMenu(_ season: Season) -> some View {
         if !season.isFullyWatched {
             Button {
                 Task { await viewModel.markSeason(season, watched: true) }
@@ -546,7 +546,7 @@ struct SeriesDetailView: View {
     }
 
     @ViewBuilder
-    private func episodeContextMenu(_ episode: PlexEpisode, in season: SeasonDetailViewModel) -> some View {
+    private func episodeContextMenu(_ episode: Episode, in season: SeasonDetailViewModel) -> some View {
         let downloadState = downloadManager.downloadState(for: DownloadScope(id: episode.id, type: .episode))
 
         if season.isPartiallyWatched(episode) {
@@ -632,13 +632,13 @@ struct SeriesDetailView: View {
 
     // MARK: - Focus
 
-    private func focusedEpisode(in season: SeasonDetailViewModel) -> PlexEpisode? {
+    private func focusedEpisode(in season: SeasonDetailViewModel) -> Episode? {
         season.displayEpisodes.first { $0.ratingKey == focusedEpisodeKey }
             ?? viewModel.anchorEpisode
             ?? season.displayEpisodes.first
     }
 
-    private func focusedEpisodeDetails(in season: SeasonDetailViewModel) -> PlexMediaDetails? {
+    private func focusedEpisodeDetails(in season: SeasonDetailViewModel) -> MediaDetails? {
         let ratingKey = focusedEpisode(in: season)?.ratingKey
         if season.focusedEpisodeDetails?.ratingKey == ratingKey {
             return season.focusedEpisodeDetails
@@ -649,7 +649,7 @@ struct SeriesDetailView: View {
         return nil
     }
 
-    private func focusedEpisodeVersions(in season: SeasonDetailViewModel) -> [PlexMedia] {
+    private func focusedEpisodeVersions(in season: SeasonDetailViewModel) -> [MediaVersion] {
         focusedEpisodeDetails(in: season)?.media.filter { !$0.parts.isEmpty } ?? []
     }
 
@@ -667,7 +667,7 @@ struct SeriesDetailView: View {
     }
 
     @MainActor
-    private func focusEpisode(_ episode: PlexEpisode, in season: SeasonDetailViewModel) {
+    private func focusEpisode(_ episode: Episode, in season: SeasonDetailViewModel) {
         guard focusedEpisodeKey != episode.ratingKey else { return }
 
         // Debounce the committed focus. The banner tracks the focused episode, so
@@ -705,7 +705,7 @@ struct SeriesDetailView: View {
     /// focus. Without this the page stayed on the episode the run started
     /// from, three episodes later costing three swipes to catch up.
     @MainActor
-    private func followPlayedEpisode(_ details: PlexMediaDetails, movesFocus: Bool) async {
+    private func followPlayedEpisode(_ details: MediaDetails, movesFocus: Bool) async {
         guard await viewModel.follow(playedEpisode: details),
               let season = viewModel.season,
               let episode = season.displayEpisodes.first(where: { $0.ratingKey == details.ratingKey }) else { return }
@@ -715,7 +715,7 @@ struct SeriesDetailView: View {
         await season.focusEpisode(episode)
     }
 
-    private func play(_ episode: PlexEpisode, in season: SeasonDetailViewModel) {
+    private func play(_ episode: Episode, in season: SeasonDetailViewModel) {
         guard !season.constrainsPlaybackToOfflineAvailability || season.isPlayableOffline(episode) else { return }
         playbackStartedFromEpisodeRow = true
         Task {
@@ -743,8 +743,8 @@ private struct SeriesSeasonPills<SeasonMenu: View>: View {
     let items: [ShowDetailViewModel.SeasonItem]
     let selectedSeasonKey: String?
     let seerrBadge: (SeerrSeasonSummary) -> String?
-    let onSelect: (PlexSeason) -> Void
-    @ViewBuilder let seasonMenu: (PlexSeason) -> SeasonMenu
+    let onSelect: (Season) -> Void
+    @ViewBuilder let seasonMenu: (Season) -> SeasonMenu
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -857,7 +857,7 @@ private extension View {
 // MARK: - Episode Card
 
 private struct SeriesEpisodeCard: View {
-    let episode: PlexEpisode
+    let episode: Episode
     let imageURL: URL?
     let progress: Double?
     let isUnavailableOffline: Bool

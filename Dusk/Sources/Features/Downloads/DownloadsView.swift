@@ -1055,7 +1055,7 @@ private struct DownloadQueueRow: View {
 
     var body: some View {
         Button {
-            let id = PlexItemID(serverID: record.serverID, ratingKey: record.ratingKey)
+            let id = MediaItemID(serverID: record.serverID, ratingKey: record.ratingKey)
             onOpen(
                 record.isClip
                     ? .downloadedVideo(id: id)

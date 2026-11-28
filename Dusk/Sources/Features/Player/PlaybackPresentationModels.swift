@@ -57,7 +57,7 @@ struct PlaybackPlaceholder: Sendable {
 }
 
 extension PlaybackPlaceholder {
-    init(item: PlexItem) {
+    init(item: MediaItem) {
         self.init(
             title: item.continueWatchingDisplayTitle,
             subtitle: item.standardPosterSubtitle,
@@ -87,7 +87,7 @@ extension PlaybackPlaceholder {
         }
     }
 
-    init(episode: PlexEpisode) {
+    init(episode: Episode) {
         self.init(
             title: episode.grandparentTitle ?? episode.title,
             subtitle: MediaTextFormatter.seasonEpisodeLabel(
@@ -100,7 +100,7 @@ extension PlaybackPlaceholder {
         )
     }
 
-    init(details: PlexMediaDetails) {
+    init(details: MediaDetails) {
         switch details.type {
         case .episode:
             self.init(
@@ -192,7 +192,7 @@ struct PlaybackSource: Sendable {
     }
     /// Present only for a tuned Plex Live TV session. The player uses it for
     /// channel identity, channel switching, and live-window seek semantics.
-    var liveTVContext: PlexLivePlaybackContext? = nil
+    var liveTVContext: LivePlaybackContext? = nil
     /// Present only for an IPTV channel. Always AVPlayer: the engine opens it
     /// with the source's headers and a FairPlay key session (`IPTVAsset`).
     var iptvStream: IPTVPlayableChannel? = nil
@@ -208,7 +208,7 @@ struct PlaybackSource: Sendable {
 }
 
 struct IPTVCatchUpPlayback: Sendable, Hashable {
-    let program: PlexLiveProgram
+    let program: LiveProgram
     /// "Channel · Tue 18:00".
     let subtitle: String
 }
@@ -217,8 +217,8 @@ struct PlaybackDebugInfo: Sendable {
     let title: String
     let engine: PlaybackEngineType
     let decision: PlaybackDecision
-    let media: PlexMedia
-    let part: PlexMediaPart
+    let media: MediaVersion
+    let part: MediaPart
     let attemptID: UUID
     let resolverReason: String
     let sanitizedPlaybackURL: String
@@ -372,16 +372,16 @@ struct PlaybackDebugInfo: Sendable {
         sanitizedPlaybackURL
     }
 
-    private var selectedVideoStream: PlexStream? {
+    private var selectedVideoStream: MediaStream? {
         part.streams.first { $0.streamType == .video }
     }
 
-    private var selectedAudioStream: PlexStream? {
+    private var selectedAudioStream: MediaStream? {
         part.streams.first { $0.streamType == .audio && ($0.isSelected ?? false) }
             ?? part.streams.first { $0.streamType == .audio }
     }
 
-    private var selectedSubtitleStream: PlexStream? {
+    private var selectedSubtitleStream: MediaStream? {
         part.streams.first { $0.streamType == .subtitle && ($0.isSelected ?? false) }
     }
 
@@ -555,7 +555,7 @@ enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
         .p240_320Kbps,
     ]
 
-    static func displayOrder(forOriginalMedia media: PlexMedia) -> [PlaybackQualityPreset] {
+    static func displayOrder(forOriginalMedia media: MediaVersion) -> [PlaybackQualityPreset] {
         let videoStreams = media.parts.flatMap { $0.streams }.filter { $0.streamType == .video }
         let originalHeight = media.height
             ?? videoStreams.compactMap(\.height).first
@@ -718,7 +718,7 @@ struct PlaybackAdjacentEpisodes: Sendable {
         var queueIndex: Int? = nil
     }
 
-    let itemID: PlexItemID
+    let itemID: MediaItemID
     /// The queue position they were read for. A playlist may hold the same
     /// item twice in a row, so the item alone cannot say they are stale.
     var queuePosition: Int? = nil

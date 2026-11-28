@@ -286,8 +286,8 @@ struct MacRootView: View {
 
     /// Destinations that exist only while a server offers them: Live TV with
     /// a DVR or IPTV source, Playlists once the account has a video playlist.
-    private var dataDrivenTypes: [PlexLibraryType] {
-        var types: [PlexLibraryType] = []
+    private var dataDrivenTypes: [LibraryKind] {
+        var types: [LibraryKind] = []
         if liveTVViewModel?.isAvailable == true {
             types.append(.liveTV)
         }

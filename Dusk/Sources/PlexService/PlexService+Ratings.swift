@@ -3,7 +3,7 @@ import Foundation
 extension PlexService {
     /// Sets the signed-in user's rating of a title on Plex's 0–10 scale (two
     /// per star), or clears it with nil (`PUT /:/rate`, `rating=-1`).
-    func setUserRating(_ rating: Int?, id: PlexItemID) async throws {
+    func setUserRating(_ rating: Int?, id: MediaItemID) async throws {
         _ = try await rawServerRequest(
             method: "PUT",
             path: "/:/rate",

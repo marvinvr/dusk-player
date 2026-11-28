@@ -12,7 +12,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   abstraction for playback unless another backend actually exists.
 
 ## End-to-End Play Flow
-1. Detail/list UI asks `PlaybackCoordinator` to play a `PlexItemID` (server +
+1. Detail/list UI asks `PlaybackCoordinator` to play a `MediaItemID` (server +
    rating key) through
    `play`, `playFromStart`, or `playVersion`, passing a `PlaybackPlaceholder`
    (the title/poster art paths the caller already holds). The coordinator
@@ -30,11 +30,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    on the metadata round-trip. The loading state is cancellable (iOS close
    button, tvOS Menu → `dismissFailedPlayback`), which supersedes the in-flight
    attempt so a slow/hung load never pins the user on a spinner.
-2. `startPlaybackSession` gets `PlexMediaDetails` from completed-download cache
+2. `startPlaybackSession` gets `MediaDetails` from completed-download cache
    when playable, otherwise from `plexService.getMediaDetails(checkFiles: true)`
    so each part carries accurate `accessible`/`exists` flags.
-3. The coordinator chooses a `PlexMedia` version, then its first *available*
-   part (`PlexMedia.firstAvailablePart`).
+3. The coordinator chooses a `MediaVersion` version, then its first *available*
+   part (`MediaVersion.firstAvailablePart`).
 4. If a matching completed download exists, playback uses the local file URL.
    Otherwise `PlexService.directPlayURL(for:)` builds
    `{connection.baseURL}{part.key}` from the connection of the item's own server
@@ -125,7 +125,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   item live. Timeline reports use `/livetv/sessions/{sessionID}` as their key
   and still send stopped so Plex can release the consumer.
 
-- IPTV channels (`PlexLiveChannel.iptv`) branch off in `playLiveTV` to
+- IPTV channels (`LiveChannel.iptv`) branch off in `playLiveTV` to
   `playIPTV`: always AVPlayer with the source's headers and a FairPlay key
   session, never VLCKit, never Plex timeline/scrobble. See `iptv.md`.
 
@@ -166,7 +166,7 @@ so the whole live HUD is derived from one instant.
   `fallbackWindowSpan`. `timelineRange` returns the window mapped onto the engine
   clock, so the shared seek-bar, scrubbing, and tvOS cursor code keeps working in
   playback positions, and seeks stay clamped to `seekableRange`.
-- The header leads with the **series** (`PlexLiveProgram.primaryDisplayTitle`),
+- The header leads with the **series** (`LiveProgram.primaryDisplayTitle`),
   with the episode below it and the channel name as the subtitle. Guides put the
   episode name in `title` and the series in `grandparentTitle`, so leading with
   `displayTitle` showed an episode name that rarely says what is on.
@@ -557,7 +557,7 @@ so the whole live HUD is derived from one instant.
   `HEVCSampleEntryProbe`. It reads the video format description through
   AVURLAsset (moov only; ~30 ms on a LAN mock), with a 4 s timeout and a
   per-file cache; nil keeps plain direct play. The tag is stamped on the
-  details' video streams as `PlexStream.codecID` (also decoded from Plex's
+  details' video streams as `MediaStream.codecID` (also decoded from Plex's
   `codecID` when the server sends one), so every later `StreamResolver` call
   in the session sees it.
 - Routing: `StreamResolver.evaluate` turns an AVPlayer decision for
@@ -1214,7 +1214,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   values force a software downmix. Set it before play, never repeatedly on a
   live output. [Apple's MPEG 5.1 A order](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_mpeg_5_1_a)
   defines the tag's sample order.
-- Plex's stream key is `audioChannelLayout`; `PlexStream.channelLayout` decodes
+- Plex's stream key is `audioChannelLayout`; `MediaStream.channelLayout` decodes
   that and still accepts the old Dusk offline-cache key `channelLayout`.
   This is metadata, not an instruction to reorder an encoded Dolby bitstream:
   AVPlayer owns AC-3/E-AC-3 decoding and its log includes the decoded layout tag.
@@ -1329,7 +1329,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   post-settle switch restarts a live output with one ~30 ms flush.
 
 ### External (sidecar) subtitles
-- Plex sidecars (`PlexStream.key != nil`, `/library/streams/{id}`) come either
+- Plex sidecars (`MediaStream.key != nil`, `/library/streams/{id}`) come either
   from the library itself or from the OpenSubtitles download the server performs
   (`PlexService+Subtitles.swift`). `PlexService.externalSubtitleURL(for:)` turns
   one into a token-bearing URL.
@@ -2188,7 +2188,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   have loaded (the countdown pauses while playback is paused). When it
   finishes, `AutoSkipIntroMode` is read again: off hides the chip and keeps
   playing; always, or always except episode 1 of a season, skips to just past
-  the intro. The episode check uses `PlexMediaDetails.index`, so a missing
+  the intro. The episode check uses `MediaDetails.index`, so a missing
   episode number is not treated as episode 1. Hiding lasts until the playhead
   leaves that marker; seeking back into the intro shows the chip again. A
   marker already auto-skipped this session does not count down again. Credits
@@ -2345,7 +2345,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
   the tabs of `PlayerTVInfoPanel`.
-- Marker skip buttons come from `PlexMarker.skipButtonTitle`, chosen by
+- Marker skip buttons come from `Marker.skipButtonTitle`, chosen by
   `PlayerViewModel.activeSkipMarker`. The intro always gets one. The last credits
   marker belongs to the bottom-right Up Next poster (see "Timeline, Scrobble, and
   Up Next") unless nothing follows the item (a film, a show's last episode, a
@@ -2981,7 +2981,7 @@ Plex clients do. There is no app setting: the server decides.
 - Concrete playback: `AVPlayerEngine.swift`, `VLCKitEngine.swift`, and the
   platform `VLCKitRenderer*.swift` files.
 - Plex playback calls: `PlexService+Playback.swift`; metadata shape/fetching:
-  `PlexService+Library.swift` and `PlexMediaDetails.swift`.
+  `PlexService+Library.swift` and `MediaDetails.swift`.
 - Dolby Atmos / spatial audio, HDR and Dolby Vision remux: eligibility in
   `StreamResolver` (`spatialAudioRemuxBlocker`, `hdrVideoRemuxBlocker`,
   `dolbyVisionRemuxBlocker`), Plex request in `PlexService+Playback.swift`,

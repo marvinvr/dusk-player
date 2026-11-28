@@ -82,7 +82,7 @@ struct HDRVideoRemuxRoutingTests {
     // MARK: - Helpers
 
     private func blocker(
-        for media: PlexMedia,
+        for media: MediaVersion,
         subtitleID: Int? = nil,
         displaySupportsHDR: Bool = true
     ) -> String? {
@@ -194,9 +194,9 @@ struct HDRPictureFirstRoutingTests {
     }
 
     @Test func dtsSpellingsAreConverted() throws {
-        func stream(_ codec: String) throws -> PlexStream {
+        func stream(_ codec: String) throws -> MediaStream {
             try JSONDecoder().decode(
-                PlexStream.self,
+                MediaStream.self,
                 from: Data(#"{ "id": 2, "streamType": 2, "codec": "\#(codec)" }"#.utf8)
             )
         }
@@ -211,7 +211,7 @@ struct HDRPictureFirstRoutingTests {
     // MARK: - Helpers
 
     private func route(
-        for media: PlexMedia,
+        for media: MediaVersion,
         subtitleID: Int? = nil,
         displaySupportsHDR: Bool = true,
         hdrVideoRemuxEnabled: Bool = true
@@ -253,7 +253,7 @@ struct HDRPictureFirstRoutingTests {
         video: String,
         audio: String,
         subtitleCodec: String? = nil
-    ) throws -> PlexMedia {
+    ) throws -> MediaVersion {
         let subtitle = subtitleCodec.map { #", { "id": 3, "streamType": 3, "codec": "\#($0)" }"# } ?? ""
         let json = """
         {
@@ -270,7 +270,7 @@ struct HDRPictureFirstRoutingTests {
             }]
         }
         """
-        return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+        return try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
     }
 }
 
@@ -370,7 +370,7 @@ struct RemuxVariantCodecsTests {
     }
 
     @Test func coordinatorDeclaresTheRemuxAudio() throws {
-        let part = try JSONDecoder().decode(PlexMediaPart.self, from: Data("""
+        let part = try JSONDecoder().decode(MediaPart.self, from: Data("""
         { "id": 20, "key": "/library/parts/20/file.mkv", "Stream": [
             { "id": 1, "streamType": 1, "codec": "hevc", "profile": "main 10", "level": 153 },
             { "id": 2, "streamType": 2, "codec": "truehd", "channels": 8, "selected": true },
@@ -389,15 +389,15 @@ struct RemuxVariantCodecsTests {
         #expect(playback.remuxVariantCodecs(in: part) == nil)
     }
 
-    private func video(_ fields: String, codec: String = "hevc") throws -> PlexStream {
+    private func video(_ fields: String, codec: String = "hevc") throws -> MediaStream {
         let frameRate = fields.contains("frameRate") ? "" : #""frameRate": 23.976, "#
-        return try JSONDecoder().decode(PlexStream.self, from: Data("""
+        return try JSONDecoder().decode(MediaStream.self, from: Data("""
         { "id": 1, "streamType": 1, "codec": "\(codec)", "width": 3840, "height": 2160, \(frameRate)\(fields) }
         """.utf8))
     }
 
     private func configuration(profile: Int, compat: Int) throws -> DolbyVisionConfiguration {
-        let stream = try JSONDecoder().decode(PlexStream.self, from: Data("""
+        let stream = try JSONDecoder().decode(MediaStream.self, from: Data("""
         { "id": 1, "streamType": 1, "codec": "hevc", "DOVIPresent": true, "DOVIProfile": \(profile),
           "DOVILevel": 6, "DOVIBLCompatID": \(compat), "width": 3840, "height": 2160,
           "frameRate": 23.976, "bitrate": 20000 }
@@ -538,7 +538,7 @@ struct DolbyVisionSignalingTests {
           "DOVIProfile": \(profile), "DOVILevel": 6, "DOVIBLCompatID": \(compat),
           "width": 3840, "height": 2160, "frameRate": \(frameRate)\(bitrateField) }
         """
-        let stream = try JSONDecoder().decode(PlexStream.self, from: Data(json.utf8))
+        let stream = try JSONDecoder().decode(MediaStream.self, from: Data(json.utf8))
         return try #require(DolbyVisionConfiguration(stream: stream))
     }
 
@@ -586,7 +586,7 @@ private func makeMedia(
     video: String,
     audioCodec: String = "eac3",
     subtitleCodec: String? = nil
-) throws -> PlexMedia {
+) throws -> MediaVersion {
     let subtitle = subtitleCodec.map { #", { "id": 3, "streamType": 3, "codec": "\#($0)" }"# } ?? ""
     let json = """
     {
@@ -603,7 +603,7 @@ private func makeMedia(
         }]
     }
     """
-    return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+    return try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
 }
 
 @Suite("HLS media playlist fallback after a display refusal")

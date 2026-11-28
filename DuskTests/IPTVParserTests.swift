@@ -310,7 +310,7 @@ struct IPTVLineupBuilderTests {
         headerName: "Authorization"
     )
 
-    private func lineup() throws -> PlexLiveTVLineup {
+    private func lineup() throws -> LiveTVLineup {
         let playlist = M3UParser.parse(IPTVFixtures.extendedPlaylist)
         // The same filter the loader uses: the case-insensitive and the
         // by-name matches below must survive it.
@@ -331,7 +331,7 @@ struct IPTVLineupBuilderTests {
         )
     }
 
-    private func guide(_ title: String) throws -> PlexLiveChannelGuide {
+    private func guide(_ title: String) throws -> LiveChannelGuide {
         try #require(try lineup().guides.first { $0.channel.title == title })
     }
 

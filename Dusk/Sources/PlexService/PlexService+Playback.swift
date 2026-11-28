@@ -220,7 +220,7 @@ extension PlexService {
     /// - Parameter serverID: The server holding the file. Parts are per-server
     ///   paths, so playing one from the wrong base URL either 404s or, worse,
     ///   streams a different title that happens to share the key.
-    func directPlayURL(for part: PlexMediaPart, serverID: String? = nil) -> URL? {
+    func directPlayURL(for part: MediaPart, serverID: String? = nil) -> URL? {
         guard let connection = pool.connection(for: serverID) else {
             plexPlaybackLogger.error(
                 "Failed to build direct play URL for part \(part.id, privacy: .public): missing server base URL"

@@ -31,7 +31,7 @@ struct SeasonBackdropTests {
             ServerPool.forget(serverID: serverID)
         }
         let model = SeasonDetailViewModel(
-            id: PlexItemID(serverID: serverID, ratingKey: "season"), plexService: service
+            id: MediaItemID(serverID: serverID, ratingKey: "season"), plexService: service
         )
         await model.load()
         #expect(model.error == nil)

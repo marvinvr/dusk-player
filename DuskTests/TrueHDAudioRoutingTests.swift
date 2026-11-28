@@ -275,7 +275,7 @@ struct TrueHDAudioRoutingTests {
         """
 
     private func convertedBlocker(
-        for media: PlexMedia,
+        for media: MediaVersion,
         subtitleID: Int? = nil,
         displaySupportsHDR: Bool = true,
         hdrVideoRemuxEnabled: Bool = true
@@ -294,7 +294,7 @@ struct TrueHDAudioRoutingTests {
         )
     }
 
-    private func makePart(audio: String) throws -> PlexMediaPart {
+    private func makePart(audio: String) throws -> MediaPart {
         try makeMedia(video: #""colorTrc": "bt709""#, audio: audio).parts[0]
     }
 
@@ -302,7 +302,7 @@ struct TrueHDAudioRoutingTests {
         video: String,
         audio: String,
         subtitleCodec: String? = nil
-    ) throws -> PlexMedia {
+    ) throws -> MediaVersion {
         let subtitle = subtitleCodec.map { #", { "id": 9, "streamType": 3, "codec": "\#($0)" }"# } ?? ""
         let json = """
         {
@@ -319,6 +319,6 @@ struct TrueHDAudioRoutingTests {
             }]
         }
         """
-        return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+        return try JSONDecoder().decode(MediaVersion.self, from: Data(json.utf8))
     }
 }

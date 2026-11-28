@@ -12,7 +12,7 @@ private let plexSubtitlesLogger = Logger(
 /// OpenSubtitles account, API key, or rate-limit handling of its own. The server
 /// searches, downloads the chosen file, writes it as a sidecar next to the media,
 /// and refreshes the item. Afterwards the new track appears in
-/// `getMediaDetails(ratingKey:)` as a `PlexStream` with `streamType == .subtitle`
+/// `getMediaDetails(ratingKey:)` as a `MediaStream` with `streamType == .subtitle`
 /// and a non-nil `key` (`/library/streams/{id}`), which `externalSubtitleURL(for:)`
 /// turns into a URL the playback engine can attach as a slave.
 extension PlexService {
@@ -35,7 +35,7 @@ extension PlexService {
         hearingImpaired: Bool = false,
         forced: Bool = false,
         serverID: String? = nil
-    ) async throws -> [PlexSubtitleSearchResult] {
+    ) async throws -> [SubtitleSearchResult] {
         let language = languageCode
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -53,7 +53,7 @@ extension PlexService {
             serverID: targetID
         )
         let response = try decodeJSON(
-            StreamResponse<PlexSubtitleSearchResult>.self,
+            StreamResponse<SubtitleSearchResult>.self,
             from: data,
             serverID: targetID
         )
@@ -77,7 +77,7 @@ extension PlexService {
     /// what Plex Web does.
     func downloadSubtitle(
         ratingKey: String,
-        result: PlexSubtitleSearchResult,
+        result: SubtitleSearchResult,
         serverID: String? = nil
     ) async throws {
         var queryItems = [URLQueryItem(name: "key", value: result.key)]
@@ -120,7 +120,7 @@ extension PlexService {
     /// Returns nil for embedded streams: only external (sidecar) subtitle
     /// streams carry a `key`, and embedded tracks are selected in the engine
     /// instead of fetched.
-    func externalSubtitleURL(for stream: PlexStream, serverID: String? = nil) -> URL? {
+    func externalSubtitleURL(for stream: MediaStream, serverID: String? = nil) -> URL? {
         guard stream.streamType == .subtitle, let key = stream.key?.nilIfEmpty else { return nil }
         guard let connection = pool.connection(for: serverID) else {
             plexSubtitlesLogger.error(

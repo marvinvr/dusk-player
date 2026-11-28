@@ -147,8 +147,8 @@ struct DownloadFileStore: Sendable {
 
     func targetVideoURL(
         accountProfileID: String,
-        for details: PlexMediaDetails,
-        part: PlexMediaPart
+        for details: MediaDetails,
+        part: MediaPart
     ) throws -> URL {
         let relativePath = relativeVideoPath(
             accountProfileID: accountProfileID,
@@ -264,8 +264,8 @@ struct DownloadFileStore: Sendable {
 
     private func relativeVideoPath(
         accountProfileID: String,
-        for details: PlexMediaDetails,
-        part: PlexMediaPart
+        for details: MediaDetails,
+        part: MediaPart
     ) -> String {
         let ext = preferredExtension(for: details, part: part)
         let profileComponents = ["Profiles", sanitized(accountProfileID)]
@@ -288,7 +288,7 @@ struct DownloadFileStore: Sendable {
         }
     }
 
-    private func preferredExtension(for details: PlexMediaDetails, part: PlexMediaPart) -> String {
+    private func preferredExtension(for details: MediaDetails, part: MediaPart) -> String {
         let candidates = [
             part.file.flatMap { URL(fileURLWithPath: $0).pathExtension.nilIfEmpty },
             URL(string: part.key)?.pathExtension.nilIfEmpty,

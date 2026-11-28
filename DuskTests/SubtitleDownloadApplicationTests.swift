@@ -9,8 +9,8 @@ struct SubtitleDownloadApplicationTests {
     /// Normalized the way the coordinator normalizes a download result's `ger`.
     private static let german = PlayerViewModel.normalizedLanguageCode("ger")
 
-    private func streams(_ json: String) throws -> [PlexStream] {
-        try JSONDecoder().decode([PlexStream].self, from: Data("[\(json)]".utf8))
+    private func streams(_ json: String) throws -> [MediaStream] {
+        try JSONDecoder().decode([MediaStream].self, from: Data("[\(json)]".utf8))
     }
 
     private let before = #"""

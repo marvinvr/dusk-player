@@ -71,11 +71,11 @@ enum PlexExtraType: Int, Sendable, Hashable, CaseIterable {
 
 /// One extra of a movie, show, season, or episode: a playable clip with its own
 /// rating key (`/library/metadata/{key}/extras`).
-struct PlexExtra: Identifiable, Sendable, Hashable {
-    let item: PlexItem
+struct Extra: Identifiable, Sendable, Hashable {
+    let item: MediaItem
     let kind: PlexExtraType?
 
-    var id: PlexItemID { item.id }
+    var id: MediaItemID { item.id }
 
     /// "Trailer · 2 min". Extras rarely have an air date worth showing, so
     /// this replaces the clip card's date line. An extra titled after its kind
@@ -90,7 +90,7 @@ struct PlexExtra: Identifiable, Sendable, Hashable {
     }
 }
 
-/// The extra-specific fields of an `/extras` row. `PlexItem` decodes the rest;
+/// The extra-specific fields of an `/extras` row. `MediaItem` decodes the rest;
 /// both read the same payload.
 struct PlexExtraFields: Decodable, Sendable {
     let ratingKey: String
@@ -116,15 +116,15 @@ struct PlexExtraFields: Decodable, Sendable {
     }
 }
 
-extension PlexExtra {
+extension Extra {
     /// Pairs decoded items with their extra fields by rating key, in Plex's
     /// order. Only clips are extras; anything else in the payload is dropped.
-    static func extras(items: [PlexItem], fields: [PlexExtraFields]) -> [PlexExtra] {
+    static func extras(items: [MediaItem], fields: [PlexExtraFields]) -> [Extra] {
         let fieldsByKey = Dictionary(fields.map { ($0.ratingKey, $0) }, uniquingKeysWith: { first, _ in first })
         return items.compactMap { item in
             guard item.isClip else { return nil }
             let field = fieldsByKey[item.ratingKey]
-            return PlexExtra(
+            return Extra(
                 item: item,
                 kind: PlexExtraType(extraType: field?.extraType, subtype: field?.subtype ?? item.subtype)
             )

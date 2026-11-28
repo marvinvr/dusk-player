@@ -124,9 +124,9 @@ struct AV1RoutingTests {
 
     private func media(container: String = "mkv", width: Int = 1920, height: Int = 1080,
                        transfer: String = "bt709", fps: Int = 24, bitrate: Int = 5000,
-                       audio: String = "aac", subtitle: String? = nil) throws -> PlexMedia {
+                       audio: String = "aac", subtitle: String? = nil) throws -> MediaVersion {
         let subs = subtitle.map { ", {\"id\":3,\"streamType\":3,\"codec\":\"\($0)\"}" } ?? ""
-        return try JSONDecoder().decode(PlexMedia.self, from: Data("""
+        return try JSONDecoder().decode(MediaVersion.self, from: Data("""
         {"id":1,"container":"\(container)","videoCodec":"av1","audioCodec":"\(audio)",
          "width":\(width),"height":\(height),"bitrate":\(bitrate),"Part":[{"id":1,"key":"/sample","Stream":[
          {"id":1,"streamType":1,"codec":"av1","width":\(width),"height":\(height),

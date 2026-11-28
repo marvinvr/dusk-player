@@ -9,10 +9,10 @@ import Foundation
 final class CollectionDetailViewModel {
     private let plexService: PlexService
     private let sortStore: CollectionSortStore
-    let id: PlexItemID
-    let pager: PlexItemPager
+    let id: MediaItemID
+    let pager: MediaItemPager
 
-    private(set) var collection: PlexItem?
+    private(set) var collection: MediaItem?
     private(set) var isLoading = false
     private(set) var error: String?
     /// `nil` is the collection's own order.
@@ -21,7 +21,7 @@ final class CollectionDetailViewModel {
     /// loaded and sorted here.
     private(set) var sortsOnDevice = false
     /// The sorted titles while `sortsOnDevice`; `nil` until they are loaded.
-    private(set) var deviceSortedItems: [PlexItem]?
+    private(set) var deviceSortedItems: [MediaItem]?
 
     /// What the pager sends as `sort=`; read by its fetch closure.
     @ObservationIgnored private let serverSort: ServerSort
@@ -32,7 +32,7 @@ final class CollectionDetailViewModel {
         var value: String?
     }
 
-    init(id: PlexItemID, plexService: PlexService, sortStore: CollectionSortStore = CollectionSortStore()) {
+    init(id: MediaItemID, plexService: PlexService, sortStore: CollectionSortStore = CollectionSortStore()) {
         self.id = id
         self.plexService = plexService
         self.sortStore = sortStore
@@ -43,7 +43,7 @@ final class CollectionDetailViewModel {
         let serverSort = ServerSort()
         serverSort.value = selectedSort?.plexValue
         self.serverSort = serverSort
-        self.pager = PlexItemPager { [plexService] start, size in
+        self.pager = MediaItemPager { [plexService] start, size in
             try await plexService.getCollectionItems(
                 ratingKey: ratingKey,
                 start: start,
@@ -55,7 +55,7 @@ final class CollectionDetailViewModel {
     }
 
     var serverID: String? { id.serverID }
-    var items: [PlexItem] {
+    var items: [MediaItem] {
         guard sortsOnDevice, selectedSort != nil else { return pager.items }
         return deviceSortedItems ?? []
     }
@@ -112,7 +112,7 @@ final class CollectionDetailViewModel {
     private var itemCountLabel: String? {
         guard let collection else { return nil }
         let count = pager.totalSize ?? collection.childCount
-        return count.map { PlexItem.collectionCountLabel($0, subtype: collection.subtype) }
+        return count.map { MediaItem.collectionCountLabel($0, subtype: collection.subtype) }
     }
 
     /// Movies (and clips) can be played straight from the collection; a show
@@ -122,13 +122,13 @@ final class CollectionDetailViewModel {
         !playableItems.isEmpty
     }
 
-    private var playableItems: [PlexItem] {
+    private var playableItems: [MediaItem] {
         items.filter { $0.type == .movie || $0.isClip }
     }
 
     /// What Play starts: the title already in progress, else the first one
     /// not yet watched, else the first title.
-    var nextUp: PlexItem? {
+    var nextUp: MediaItem? {
         let playable = playableItems
         return playable.first(where: \.isPartiallyWatched)
             ?? playable.first(where: { !$0.isWatched })
@@ -210,11 +210,11 @@ final class CollectionDetailViewModel {
         deviceSortedItems = CollectionSort.sorted(pager.items, by: sort)
     }
 
-    func loadMoreIfNeeded(currentItem: PlexItem) async {
+    func loadMoreIfNeeded(currentItem: MediaItem) async {
         await pager.loadMoreIfNeeded(currentItem: currentItem)
     }
 
-    func setWatched(_ watched: Bool, for item: PlexItem) async {
+    func setWatched(_ watched: Bool, for item: MediaItem) async {
         try? await plexService.setWatchedAcrossServers(watched, id: item.id)
         await loadItems()
     }
@@ -225,11 +225,11 @@ final class CollectionDetailViewModel {
         return plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.standardPosterSubtitle
     }
 }

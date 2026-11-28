@@ -47,7 +47,7 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
     /// (nothing is known past it, so a marker would point at nothing).
     init(
         window: LiveTVGuideWindow,
-        lineup: PlexLiveTVLineup,
+        lineup: LiveTVLineup,
         now: Date,
         pointsPerMinute: CGFloat,
         collapsedWidth: CGFloat,
@@ -98,7 +98,7 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
     /// it has, whatever day the Plex section is on, so it scrolls on its own.
     /// With nothing coming up it still runs `openEndLength` past the start of
     /// the now zone, so a channel without a guide has a tunable cell, not a stub.
-    static func wholeGuideWindow(of lineup: PlexLiveTVLineup, now: Date) -> LiveTVGuideWindow {
+    static func wholeGuideWindow(of lineup: LiveTVLineup, now: Date) -> LiveTVGuideWindow {
         let zoneStart = nowZone(now).lowerBound
         var start = zoneStart
         var end = zoneStart.addingTimeInterval(openEndLength)
@@ -212,7 +212,7 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
     }
 }
 
-extension PlexLiveTVLineup {
+extension LiveTVLineup {
     /// An airing at least this long is a placeholder, not a programme.
     static let fillerAiringLength: TimeInterval = 12 * 60 * 60
 
@@ -223,15 +223,15 @@ extension PlexLiveTVLineup {
     /// would leave a gap. A title that runs for `fillerAiringLength` or more
     /// at a stretch on a channel is that placeholder; its shorter airings on
     /// the same channel (between two sessions on one day) go too.
-    func removingFillerAirings() -> PlexLiveTVLineup {
-        PlexLiveTVLineup(provider: provider, guides: guides.map { guide in
+    func removingFillerAirings() -> LiveTVLineup {
+        LiveTVLineup(provider: provider, guides: guides.map { guide in
             let fillerTitles = Set(guide.programs.compactMap { program -> String? in
                 guard let beginsAt = program.beginsAt, let endsAt = program.endsAt,
                       endsAt.timeIntervalSince(beginsAt) >= Self.fillerAiringLength else { return nil }
                 return program.title
             })
             guard !fillerTitles.isEmpty else { return guide }
-            return PlexLiveChannelGuide(
+            return LiveChannelGuide(
                 channel: guide.channel,
                 programs: guide.programs.filter { !fillerTitles.contains($0.title) }
             )
@@ -247,7 +247,7 @@ struct LiveTVGuideCell: Identifiable, Hashable, Sendable {
     let start: Date
     let end: Date
     /// Nil for a gap.
-    let program: PlexLiveProgram?
+    let program: LiveProgram?
 
     /// Whether the programme began before the grid does (drawn with a
     /// leading chevron, like a cable guide).
@@ -271,7 +271,7 @@ struct LiveTVGuideCell: Identifiable, Hashable, Sendable {
 /// cells laid edge to edge across the timeline.
 struct LiveTVGuideRow: Identifiable, Hashable, Sendable {
     let id: String
-    let channel: PlexLiveChannel
+    let channel: LiveChannel
     let cells: [LiveTVGuideCell]
 
     /// The cell on at `date`, else the first after it, else the last. What a
@@ -293,17 +293,17 @@ struct LiveTVGuideRow: Identifiable, Hashable, Sendable {
 struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
-    let lineup: PlexLiveTVLineup
+    let lineup: LiveTVLineup
     let timeline: LiveTVGuideTimeline
     let rows: [LiveTVGuideRow]
 
     init(
         id: String,
         title: String,
-        lineup: PlexLiveTVLineup,
+        lineup: LiveTVLineup,
         timeline: LiveTVGuideTimeline,
         now: Date,
-        isReplayable: (PlexLiveProgram, PlexLiveChannel) -> Bool = { _, _ in false }
+        isReplayable: (LiveProgram, LiveChannel) -> Bool = { _, _ in false }
     ) {
         self.id = id
         self.title = title
@@ -331,11 +331,11 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
     /// collapsed stretch always gets its marker, past or not: it is the way
     /// through to the catch-up on the other side.
     static func cells(
-        for guide: PlexLiveChannelGuide,
+        for guide: LiveChannelGuide,
         rowID: String,
         timeline: LiveTVGuideTimeline,
         now: Date,
-        isReplayable: (PlexLiveProgram, PlexLiveChannel) -> Bool = { _, _ in false }
+        isReplayable: (LiveProgram, LiveChannel) -> Bool = { _, _ in false }
     ) -> [LiveTVGuideCell] {
         var cells: [LiveTVGuideCell] = []
         var cursor = timeline.start

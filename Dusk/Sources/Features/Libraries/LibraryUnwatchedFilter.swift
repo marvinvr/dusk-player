@@ -9,14 +9,14 @@ import Foundation
 /// unwatched and drops out once every episode is. These are the parameters
 /// Plex's own clients send for the "Unplayed" filter.
 enum LibraryUnwatchedFilter {
-    static func parameterName(for libraryType: PlexLibraryType?) -> String {
+    static func parameterName(for libraryType: LibraryKind?) -> String {
         libraryType == .show ? "unwatchedLeaves" : "unwatched"
     }
 
     /// The query filters for one grid fetch: collection scoping, the
     /// unwatched filter, and (when Plex filters it) the genre.
     static func serverFilters(
-        libraryType: PlexLibraryType?,
+        libraryType: LibraryKind?,
         collectionKey: String?,
         unwatchedOnly: Bool,
         genreValue: String?
@@ -35,7 +35,7 @@ enum LibraryUnwatchedFilter {
     }
 }
 
-/// Remembers the Unwatched choice per library (`PlexLibrary.id`, so two
+/// Remembers the Unwatched choice per library (`Library.id`, so two
 /// servers' "Movies" sections keep their own). Device-local, like every
 /// other browse preference; it applies to every grid of that library
 /// (all titles, a genre, a collection).
@@ -48,7 +48,7 @@ struct LibraryUnwatchedFilterStore {
         self.defaults = defaults
     }
 
-    /// - Parameter libraryID: `PlexLibrary.id` (`"<serverID>|<key>"`).
+    /// - Parameter libraryID: `Library.id` (`"<serverID>|<key>"`).
     func isEnabled(forLibraryID libraryID: String) -> Bool {
         defaults.bool(forKey: Self.key(forLibraryID: libraryID))
     }
@@ -66,7 +66,7 @@ struct LibraryUnwatchedFilterStore {
     }
 }
 
-/// Remembers the last sort picked per library (`PlexLibrary.id`), device-local
+/// Remembers the last sort picked per library (`Library.id`), device-local
 /// like the Unwatched choice. A stored sort the library type no longer offers
 /// falls back to the type's default.
 struct LibrarySortStore {
@@ -78,7 +78,7 @@ struct LibrarySortStore {
         self.defaults = defaults
     }
 
-    func sort(for library: PlexLibrary) -> LibrarySortOption {
+    func sort(for library: Library) -> LibrarySortOption {
         let fields = LibrarySortOption.fields(for: library.libraryType)
         guard let stored = defaults.string(forKey: Self.key(forLibraryID: library.id))
             .flatMap(LibrarySortOption.init(rawValue:)),
@@ -88,7 +88,7 @@ struct LibrarySortStore {
         return stored
     }
 
-    func setSort(_ sort: LibrarySortOption, for library: PlexLibrary) {
+    func setSort(_ sort: LibrarySortOption, for library: Library) {
         if sort == LibrarySortOption.defaultOption(for: library.libraryType) {
             defaults.removeObject(forKey: Self.key(forLibraryID: library.id))
         } else {

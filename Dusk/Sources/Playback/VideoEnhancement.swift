@@ -112,8 +112,8 @@ struct VideoEnhancementRequest: Sendable, Equatable {
 
     static func make(
         mode: VideoEnhancementMode,
-        media: PlexMedia,
-        part: PlexMediaPart
+        media: MediaVersion,
+        part: MediaPart
     ) -> VideoEnhancementRequest {
         let videoStream = part.streams.first { $0.streamType == .video }
         let width = media.width ?? videoStream?.width
@@ -218,7 +218,7 @@ final class VideoEnhancementFrame: @unchecked Sendable {
     }
 }
 
-extension PlexStream {
+extension MediaStream {
     var isHDRVideo: Bool {
         let normalizedValues = [
             colorSpace,

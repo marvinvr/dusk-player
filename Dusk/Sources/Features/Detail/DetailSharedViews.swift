@@ -855,7 +855,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
 /// app's: a grid of labelled cells (Video, Audio, Subtitles, File), each a
 /// small semibold label above secondary values.
 struct DetailMacMediaSection: View {
-    let media: PlexMedia?
+    let media: MediaVersion?
 
     private struct Cell: Identifiable {
         let label: String
@@ -913,7 +913,7 @@ struct DetailMacMediaSection: View {
         .accessibilityElement(children: .combine)
     }
 
-    private static func cells(for media: PlexMedia) -> [Cell] {
+    private static func cells(for media: MediaVersion) -> [Cell] {
         let part = media.firstAvailablePart
         let streams = part?.streams ?? []
         var cells: [Cell] = []
@@ -956,11 +956,11 @@ struct DetailMacMediaSection: View {
         return Array(lines.prefix(3)) + ["and \(lines.count - 3) more"]
     }
 
-    private static func trackTitle(_ stream: PlexStream) -> String {
+    private static func trackTitle(_ stream: MediaStream) -> String {
         stream.displayTitle ?? stream.language ?? stream.codec?.uppercased() ?? "Unknown"
     }
 
-    private static func resolutionLine(media: PlexMedia, stream: PlexStream?) -> String? {
+    private static func resolutionLine(media: MediaVersion, stream: MediaStream?) -> String? {
         let name = media.videoResolution.map(resolution)
         let width = stream?.width ?? media.width
         let height = stream?.height ?? media.height
@@ -978,7 +978,7 @@ struct DetailMacMediaSection: View {
         return rounded.formatted(.number.precision(.fractionLength(0...3))) + " fps"
     }
 
-    private static func dynamicRange(_ stream: PlexStream) -> String? {
+    private static func dynamicRange(_ stream: MediaStream) -> String? {
         if stream.doviPresent == true { return "Dolby Vision" }
         switch stream.colorTrc?.lowercased() {
         case "smpte2084": return "HDR10"
@@ -1156,8 +1156,8 @@ struct MovieCopyVersionMenu: View {
 }
 
 struct PlayVersionContextMenu: View {
-    let versions: [PlexMedia]
-    let onSelectVersion: (PlexMedia) -> Void
+    let versions: [MediaVersion]
+    let onSelectVersion: (MediaVersion) -> Void
 
     var body: some View {
         if !playableVersions.isEmpty {
@@ -1170,7 +1170,7 @@ struct PlayVersionContextMenu: View {
         }
     }
 
-    private var playableVersions: [PlexMedia] {
+    private var playableVersions: [MediaVersion] {
         versions.filter { !$0.parts.isEmpty }
     }
 }
@@ -1728,7 +1728,7 @@ struct ActorCreditCard: View {
 }
 
 struct DetailCastSection: View {
-    let roles: [PlexRole]
+    let roles: [Person]
     /// The server the item's metadata came from; its cast lives there too.
     let serverID: String?
     let plexService: PlexService

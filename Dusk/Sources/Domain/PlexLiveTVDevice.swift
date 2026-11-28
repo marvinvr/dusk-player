@@ -14,10 +14,10 @@ struct PlexLiveTVDevice: Sendable, Hashable, Identifiable {
 struct PlexLiveTVDeviceLineup: Sendable, Hashable, Identifiable {
     let id: String
     let title: String
-    let lineup: PlexLiveTVLineup
+    let lineup: LiveTVLineup
 }
 
-extension PlexLiveTVLineup {
+extension LiveTVLineup {
     /// The lineup split per device, in the server's device order, channels
     /// in lineup order. A channel no device claims stays in a last group
     /// under the provider's title. With fewer than two groups there is
@@ -33,7 +33,7 @@ extension PlexLiveTVLineup {
             groups.append(PlexLiveTVDeviceLineup(
                 id: "plex-\(device.id)",
                 title: device.title,
-                lineup: PlexLiveTVLineup(provider: provider, guides: guides)
+                lineup: LiveTVLineup(provider: provider, guides: guides)
             ))
         }
         let rest = guides.filter { !claimed.contains($0.channel.id) }
@@ -41,7 +41,7 @@ extension PlexLiveTVLineup {
             groups.append(PlexLiveTVDeviceLineup(
                 id: "plex",
                 title: provider.title,
-                lineup: PlexLiveTVLineup(provider: provider, guides: rest)
+                lineup: LiveTVLineup(provider: provider, guides: rest)
             ))
         }
         return groups.count > 1 ? groups : nil

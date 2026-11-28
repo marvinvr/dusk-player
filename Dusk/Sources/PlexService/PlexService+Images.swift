@@ -8,7 +8,7 @@ import AppKit
 extension PlexService {
     /// - Parameter serverID: The server the artwork path belongs to. nil means
     ///   the primary server, which is only correct for artwork that has no item
-    ///   behind it; everything derived from a `PlexItem`/`PlexMediaDetails`
+    ///   behind it; everything derived from a `MediaItem`/`MediaDetails`
     ///   passes that model's `serverID`.
     func imageURL(for path: String?, serverID: String? = nil, width: Int? = nil, height: Int? = nil) -> URL? {
         guard let path else { return nil }

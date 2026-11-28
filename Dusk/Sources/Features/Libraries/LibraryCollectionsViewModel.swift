@@ -6,15 +6,15 @@ import Foundation
 @Observable
 final class LibraryCollectionsViewModel {
     private let plexService: PlexService
-    let library: PlexLibrary
-    let pager: PlexItemPager
+    let library: Library
+    let pager: MediaItemPager
 
-    init(library: PlexLibrary, plexService: PlexService) {
+    init(library: Library, plexService: PlexService) {
         self.library = library
         self.plexService = plexService
         let sectionID = library.key
         let serverID = library.serverID
-        self.pager = PlexItemPager { [plexService] start, size in
+        self.pager = MediaItemPager { [plexService] start, size in
             try await plexService.getCollections(
                 sectionId: sectionID,
                 start: start,
@@ -24,7 +24,7 @@ final class LibraryCollectionsViewModel {
         }
     }
 
-    var items: [PlexItem] { pager.items }
+    var items: [MediaItem] { pager.items }
 
     var navigationTitle: String { "Collections" }
 
@@ -36,15 +36,15 @@ final class LibraryCollectionsViewModel {
         await pager.reload()
     }
 
-    func loadMoreIfNeeded(currentItem: PlexItem) async {
+    func loadMoreIfNeeded(currentItem: MediaItem) async {
         await pager.loadMoreIfNeeded(currentItem: currentItem)
     }
 
-    func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+    func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
-    func subtitle(for item: PlexItem) -> String? {
+    func subtitle(for item: MediaItem) -> String? {
         item.collectionCountLabel
     }
 }

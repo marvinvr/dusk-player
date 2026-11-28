@@ -8,13 +8,13 @@ struct SeerrMediaDetailView: View {
     private let horizontalPadding = DuskPosterMetrics.detailHorizontalPadding
     /// Set when the page stands in for a Plex Watchlist title: the hero then
     /// also carries its bookmark.
-    private let watchlistEntry: PlexWatchlistEntry?
+    private let watchlistEntry: WatchlistEntry?
 
     init(
         mediaType: SeerrMediaType,
         mediaID: Int,
         service: SeerrService,
-        watchlistEntry: PlexWatchlistEntry? = nil
+        watchlistEntry: WatchlistEntry? = nil
     ) {
         _viewModel = State(initialValue: SeerrMediaDetailViewModel(
             mediaType: mediaType,

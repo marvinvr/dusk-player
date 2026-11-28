@@ -27,7 +27,7 @@ extension Decoder {
 /// `serverID` is optional because items can still arrive from a decoder with no
 /// server stamped on it (an offline metadata cache, for example). Such an item
 /// is only ever equal to another equally unstamped one.
-struct PlexItemID: Hashable, Codable, Sendable {
+struct MediaItemID: Hashable, Codable, Sendable {
     let serverID: String?
     let ratingKey: String
 
@@ -37,7 +37,7 @@ struct PlexItemID: Hashable, Codable, Sendable {
     }
 }
 
-extension PlexItemID: CustomStringConvertible {
+extension MediaItemID: CustomStringConvertible {
     /// Round-trippable `"<serverID>|<ratingKey>"` form. Rating keys are numeric
     /// on every Plex server, so the first `|` is always the separator.
     var storageKey: String {

@@ -225,7 +225,7 @@ private struct MacPlayerSessionView: View {
 
     private let playbackSource: PlaybackSource
     private let presentationID: UUID
-    private let mediaDetails: PlexMediaDetails?
+    private let mediaDetails: MediaDetails?
     private let debugInfo: PlaybackDebugInfo?
     private let commandTarget: MacPlayerCommandTarget
     private let onDismiss: () -> Void
@@ -235,7 +235,7 @@ private struct MacPlayerSessionView: View {
         engine: any PlaybackEngine,
         playbackSource: PlaybackSource,
         presentationID: UUID,
-        mediaDetails: PlexMediaDetails?,
+        mediaDetails: MediaDetails?,
         debugInfo: PlaybackDebugInfo?,
         commandTarget: MacPlayerCommandTarget,
         onDismiss: @escaping () -> Void
@@ -488,7 +488,7 @@ private struct MacPlayerSessionView: View {
         }
     }
 
-    private func skipMarkerOverlay(_ marker: PlexMarker) -> some View {
+    private func skipMarkerOverlay(_ marker: Marker) -> some View {
         VStack {
             Spacer()
             HStack {
@@ -713,7 +713,7 @@ private struct MacPlayerSessionView: View {
 
     /// See `PlayerSessionView.handleReachedCreditsMarker`.
     @MainActor
-    private func handleReachedCreditsMarker(_ marker: PlexMarker?) {
+    private func handleReachedCreditsMarker(_ marker: Marker?) {
         guard let marker else {
             playback.dismissUpNextPoster()
             return

@@ -2,7 +2,7 @@ import Foundation
 
 /// Identity of a *piece of content*, independent of which server holds it.
 ///
-/// `PlexItemID` answers "which copy is this"; `PlexContentKey` answers "is this
+/// `MediaItemID` answers "which copy is this"; `ContentKey` answers "is this
 /// the same movie/show/episode as that one" so the merge layers can collapse
 /// the same title appearing on several servers into one row.
 ///
@@ -28,7 +28,7 @@ import Foundation
 /// copies carrying the same one really are the same file elsewhere. A heuristic
 /// key is good enough to collapse a row on screen, never good enough to send
 /// playback to another server — see `ContentAlternatesIndex`.
-enum PlexContentKey: Hashable, Sendable {
+enum ContentKey: Hashable, Sendable {
     /// Plex's own global metadata id (`plex://movie/5d776...`).
     case plex(String)
     /// `provider:namespace:id`, e.g. tmdb for a movie.
@@ -38,7 +38,7 @@ enum PlexContentKey: Hashable, Sendable {
     /// This one copy, and nothing else. Used when the heuristic would carry no
     /// information (no title, no numbering) or would be unsafe (clips and other
     /// personal-media videos, whose titles collide constantly).
-    case instance(PlexItemID)
+    case instance(MediaItemID)
 
     /// True when the key identifies the *content*, so another copy carrying it
     /// is genuinely the same thing.
@@ -50,7 +50,7 @@ enum PlexContentKey: Hashable, Sendable {
     }
 }
 
-extension PlexContentKey {
+extension ContentKey {
     /// Providers in descending order of how reliably Plex populates them.
     static let externalProviders = ["tmdb", "imdb", "tvdb"]
 
@@ -75,14 +75,14 @@ extension PlexContentKey {
     static func resolve(
         guid: String?,
         guids: [PlexGuid],
-        type: PlexMediaType,
+        type: MediaKind,
         title: String,
         year: Int?,
         episode: EpisodeCoordinates? = nil,
         edition: String? = nil,
         isClip: Bool = false,
-        identity: PlexItemID
-    ) -> PlexContentKey {
+        identity: MediaItemID
+    ) -> ContentKey {
         let editionSuffix = edition.map(normalized).flatMap(\.nilIfEmpty).map { "|edition:\($0)" } ?? ""
         if let plexGUID = guid?.nilIfEmpty, plexGUID.lowercased().hasPrefix("plex://") {
             return .plex(plexGUID.lowercased() + editionSuffix)
@@ -132,7 +132,7 @@ extension PlexContentKey {
     /// The kinds whose title (or show + numbering) is a safe enough match to
     /// collapse two servers' rows into one. Clips and personal-media videos are
     /// deliberately not among them: "Trailer" is not an identity.
-    private static func mergesHeuristically(_ type: PlexMediaType) -> Bool {
+    private static func mergesHeuristically(_ type: MediaKind) -> Bool {
         switch type {
         case .movie, .show, .season, .episode:
             return true
@@ -149,8 +149,8 @@ extension PlexContentKey {
     }
 }
 
-extension PlexContentKey {
-    init(item: PlexItem) {
+extension ContentKey {
+    init(item: MediaItem) {
         self = Self.resolve(
             guid: item.guid,
             guids: item.guids,
@@ -172,7 +172,7 @@ extension PlexContentKey {
         )
     }
 
-    init(details: PlexMediaDetails) {
+    init(details: MediaDetails) {
         self = Self.resolve(
             guid: details.guid,
             guids: details.guids,
@@ -196,7 +196,7 @@ extension PlexContentKey {
     /// Show coordinates for the kinds that need them. A season keys on its show
     /// plus its own index; an episode adds the episode number.
     private static func coordinates(
-        type: PlexMediaType,
+        type: MediaKind,
         showTitle: String?,
         season: Int?,
         episode: Int?
@@ -212,19 +212,19 @@ extension PlexContentKey {
     }
 }
 
-extension PlexItem {
-    /// Cross-server content identity. See `PlexContentKey`.
-    var contentKey: PlexContentKey { PlexContentKey(item: self) }
+extension MediaItem {
+    /// Cross-server content identity. See `ContentKey`.
+    var contentKey: ContentKey { ContentKey(item: self) }
 }
 
-extension PlexMediaDetails {
-    /// Cross-server content identity. See `PlexContentKey`.
-    var contentKey: PlexContentKey { PlexContentKey(details: self) }
+extension MediaDetails {
+    /// Cross-server content identity. See `ContentKey`.
+    var contentKey: ContentKey { ContentKey(details: self) }
 }
 
 // Movie copies may use different Plex agents but still share an external ID.
 // Keep editions in every alias, just as in the primary content key.
-extension PlexContentKey {
+extension ContentKey {
     var isMovie: Bool {
         switch self {
         case .plex(let guid): guid.hasPrefix("plex://movie/")
@@ -245,9 +245,9 @@ extension PlexContentKey {
 
     static func movieKeys(
         guid: String?, guids: [PlexGuid], title: String, year: Int?,
-        edition: String?, identity: PlexItemID
-    ) -> Set<PlexContentKey> {
-        var keys = Set<PlexContentKey>()
+        edition: String?, identity: MediaItemID
+    ) -> Set<ContentKey> {
+        var keys = Set<ContentKey>()
         for external in guids {
             let key = resolve(guid: nil, guids: [external], type: .movie,
                               title: title, year: year, edition: edition, identity: identity)
@@ -260,18 +260,18 @@ extension PlexContentKey {
     }
 }
 
-extension PlexItem {
-    var movieContentKeys: Set<PlexContentKey> {
+extension MediaItem {
+    var movieContentKeys: Set<ContentKey> {
         guard type == .movie, !isClip else { return [] }
-        return PlexContentKey.movieKeys(guid: guid, guids: guids, title: title,
+        return ContentKey.movieKeys(guid: guid, guids: guids, title: title,
                                        year: year, edition: editionTitle, identity: id)
     }
 }
 
-extension PlexMediaDetails {
-    var movieContentKeys: Set<PlexContentKey> {
+extension MediaDetails {
+    var movieContentKeys: Set<ContentKey> {
         guard type == .movie, !isClip else { return [] }
-        return PlexContentKey.movieKeys(guid: guid, guids: guids, title: title,
+        return ContentKey.movieKeys(guid: guid, guids: guids, title: title,
                                        year: year, edition: editionTitle, identity: id)
     }
 }

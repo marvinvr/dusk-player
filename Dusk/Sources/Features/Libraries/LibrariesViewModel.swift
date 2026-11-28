@@ -27,7 +27,7 @@ final class LibrariesViewModel {
     /// libraries hidden in Library Order.
     /// So are "Other Videos" and photo sections until they are known to hold
     /// something: an empty one would otherwise put a tab in front of everyone.
-    var libraries: [PlexLibrary] {
+    var libraries: [Library] {
         plexService.libraryOrder.visibleSections.filter { library in
             guard let type = library.libraryType else { return false }
             return !Self.countedTypes.contains(type) || libraryHasItems[library.id] == true
@@ -36,7 +36,7 @@ final class LibrariesViewModel {
 
     /// Types whose sections commonly exist empty (Plex creates them on a
     /// whim, people forget them), so they stay hidden until counted.
-    private static let countedTypes: Set<PlexLibraryType> = [.video, .photo]
+    private static let countedTypes: Set<LibraryKind> = [.video, .photo]
 
     /// Any browsable section, counted or not, so an uncounted video section
     /// does not read as "nothing loaded yet".
@@ -44,7 +44,7 @@ final class LibrariesViewModel {
         plexService.libraryOrder.orderedSections.contains { $0.libraryType != nil }
     }
 
-    /// Whether each counted section (`PlexLibrary.id`) holds any items.
+    /// Whether each counted section (`Library.id`) holds any items.
     /// Missing means not counted yet, which keeps the section hidden; a failed
     /// count shows it rather than hiding a library that may well have content.
     private var libraryHasItems: [String: Bool] = [:]
@@ -67,15 +67,15 @@ final class LibrariesViewModel {
         self.plexService = plexService
     }
 
-    var availableLibraryTypes: [PlexLibraryType] {
-        PlexLibraryType.allCases.filter { hasLibraries(for: $0) }
+    var availableLibraryTypes: [LibraryKind] {
+        LibraryKind.allCases.filter { hasLibraries(for: $0) }
     }
 
-    func libraries(for type: PlexLibraryType) -> [PlexLibrary] {
+    func libraries(for type: LibraryKind) -> [Library] {
         libraries.filter { $0.libraryType == type }
     }
 
-    func hasLibraries(for type: PlexLibraryType) -> Bool {
+    func hasLibraries(for type: LibraryKind) -> Bool {
         libraries.contains { $0.libraryType == type }
     }
 
@@ -156,12 +156,12 @@ final class LibrariesViewModel {
         }
     }
 
-    func iconName(for library: PlexLibrary) -> String {
+    func iconName(for library: Library) -> String {
         library.libraryType?.systemImage ?? "folder"
     }
 
     /// Composite artwork lives on the library's own server.
-    func artURL(for library: PlexLibrary, width: Int, height: Int) -> URL? {
+    func artURL(for library: Library, width: Int, height: Int) -> URL? {
         plexService.imageURL(
             for: library.composite ?? library.art ?? library.thumb,
             serverID: library.serverID,
@@ -172,7 +172,7 @@ final class LibrariesViewModel {
 
     /// The row title, with the server appended only when another library of the
     /// same type has the same name. See `ServerLabeling`.
-    func displayTitle(for library: PlexLibrary) -> String {
+    func displayTitle(for library: Library) -> String {
         ServerLabeling.displayTitle(for: library, labels: serverLabels)
     }
 

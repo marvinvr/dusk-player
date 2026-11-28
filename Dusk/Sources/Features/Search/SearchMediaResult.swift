@@ -1,7 +1,7 @@
 import Foundation
 
 enum SearchMediaResult: Identifiable {
-    case plex(PlexItem)
+    case plex(MediaItem)
     case seerr(SeerrSearchMedia)
 
     /// Includes the server: merged results can hold the same rating key from
@@ -14,7 +14,7 @@ enum SearchMediaResult: Identifiable {
         }
     }
 
-    var plexItem: PlexItem? {
+    var plexItem: MediaItem? {
         if case .plex(let item) = self { item } else { nil }
     }
 

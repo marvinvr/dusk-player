@@ -76,7 +76,7 @@ struct PlaybackIdleTimerTests {
         let playback = PlaybackCoordinator(plexService: PlexService())
         playback.showPlayer = true
         let episode = try JSONDecoder().decode(
-            PlexEpisode.self,
+            Episode.self,
             from: Data(#"{"ratingKey":"2","key":"/library/metadata/2","title":"Next episode"}"#.utf8)
         )
 

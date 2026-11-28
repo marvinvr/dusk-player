@@ -22,13 +22,13 @@ struct MovieLibraryMergeTests {
         return value
     }
 
-    private func item(_ fields: [String: Any], server: String = "a") throws -> PlexItem {
+    private func item(_ fields: [String: Any], server: String = "a") throws -> MediaItem {
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexItem.self, from: JSONSerialization.data(withJSONObject: fields))
+        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: fields))
     }
 
-    private func details(_ key: String, section: Int, mediaID: Int, height: Int, size: Int, hdr: Bool = false) throws -> PlexMediaDetails {
+    private func details(_ key: String, section: Int, mediaID: Int, height: Int, size: Int, hdr: Bool = false) throws -> MediaDetails {
         var value = fields(key, section: section)
         value["Media"] = [[
             "id": mediaID, "videoResolution": height == 2160 ? "4k" : "1080",
@@ -39,13 +39,13 @@ struct MovieLibraryMergeTests {
         ]]
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(PlexMediaDetails.self, from: JSONSerialization.data(withJSONObject: value))
+        return try decoder.decode(MediaDetails.self, from: JSONSerialization.data(withJSONObject: value))
     }
 
     @Test func singleServerSearchMergesLibrariesAndRetainsEveryCopy() throws {
         let hd = try item(fields("hd"))
         let uhd = try item(fields("uhd", section: 2, offset: 40_000))
-        let group = PlexSearchResult(title: "Movies", type: "movie", items: [hd, uhd])
+        let group = SearchSection(title: "Movies", type: "movie", items: [hd, uhd])
         let merged = SearchMerge.merge([[group]])
         #expect(merged.groups.count == 1)
         #expect(merged.groups[0].items.map(\.id) == [uhd.id])
@@ -58,7 +58,7 @@ struct MovieLibraryMergeTests {
         let first = try item(fields("1", guids: ["tmdb://11"]))
         let bridge = try item(fields("2", section: 2, guid: "plex://movie/other", guids: ["tmdb://11", "imdb://tt12"]))
         let legacy = try item(fields("3", section: 3, guid: nil, guids: ["imdb://tt12"]))
-        let merged = PlexItemMerge.interleave([[first, bridge, legacy]])
+        let merged = MediaItemMerge.interleave([[first, bridge, legacy]])
         #expect(merged.items.count == 1)
         #expect(merged.alternates.values.first == [first.id, bridge.id, legacy.id])
         var seen = RecommendationSeenTitles()
@@ -74,7 +74,7 @@ struct MovieLibraryMergeTests {
         for guid in ["tmdb://11", "imdb://tt12"] {
             let scalar = try item(fields("scalar", guid: guid))
             let array = try item(fields("array", section: 2, guid: nil, guids: [guid]))
-            let merged = PlexItemMerge.interleave([[scalar, array]])
+            let merged = MediaItemMerge.interleave([[scalar, array]])
             #expect(scalar.contentKey.isStrong)
             #expect(merged.items.count == 1)
             #expect(merged.alternates.values.first == [scalar.id, array.id])
@@ -84,40 +84,40 @@ struct MovieLibraryMergeTests {
     @Test func weakIdentityAndEditionsNeverMergeWithinOneServer() throws {
         let weak = try item(fields("1", guid: nil))
         let otherWeak = try item(fields("2", section: 2, guid: nil))
-        #expect(PlexItemMerge.interleave([[weak, otherWeak]]).items.count == 2)
-        #expect(PlexItemMerge.alternates(in: [[weak, otherWeak]]).isEmpty)
+        #expect(MediaItemMerge.interleave([[weak, otherWeak]]).items.count == 2)
+        #expect(MediaItemMerge.alternates(in: [[weak, otherWeak]]).isEmpty)
         #expect(ContinueWatchingMerge.merge([[weak, otherWeak], []]).items.count == 2)
         let theatrical = try item(fields("3", guids: ["tmdb://11"]))
         let extended = try item(fields("4", section: 2, guids: ["tmdb://11"], edition: "Extended"))
-        #expect(PlexItemMerge.interleave([[theatrical, extended]]).items.count == 2)
+        #expect(MediaItemMerge.interleave([[theatrical, extended]]).items.count == 2)
     }
 
     @Test func movieAndShowWithSameExternalIDStaySeparate() throws {
         let movie = try item(fields("1", guid: nil, guids: ["tmdb://11"]))
         let show = try item(fields("2", guid: nil, guids: ["tmdb://11"], type: "show"))
-        #expect(PlexItemMerge.interleave([[movie, show]]).items.count == 2)
+        #expect(MediaItemMerge.interleave([[movie, show]]).items.count == 2)
         // The same show in two libraries of one server is one entry.
         let otherShow = try item(fields("3", section: 2, guid: nil, guids: ["tmdb://11"], type: "show"))
-        #expect(PlexItemMerge.interleave([[show, otherShow]]).items.count == 1)
+        #expect(MediaItemMerge.interleave([[show, otherShow]]).items.count == 1)
     }
 
     @Test func progressUsesFurthestFractionThenWatchedState() throws {
         let long = try item(fields("long", offset: 60_000, duration: 200_000))
         let advanced = try item(fields("advanced", section: 2, offset: 40_000))
-        #expect(PlexItemMerge.interleave([[long, advanced]]).items.first?.id == advanced.id)
+        #expect(MediaItemMerge.interleave([[long, advanced]]).items.first?.id == advanced.id)
         #expect(ContinueWatchingMerge.merge([[long, advanced]]).items.first?.id == advanced.id)
         let watched = try item(fields("watched", section: 3, watched: 1))
-        #expect(PlexItemMerge.interleave([[long, advanced, watched]]).items.first?.id == watched.id)
+        #expect(MediaItemMerge.interleave([[long, advanced, watched]]).items.first?.id == watched.id)
     }
 
     @Test func homeAndLibraryTypeHubsCollapseCopiesWithoutLosingSources() throws {
-        func hub(_ items: [[String: Any]], section: Int) throws -> PlexHub {
+        func hub(_ items: [[String: Any]], section: Int) throws -> HomeRow {
             let value: [String: Any] = ["title": "Recently Added Movies", "type": "movie",
                 "hubIdentifier": "movie.recentlyadded.\(section)", "librarySectionID": section,
                 "key": "/library/sections/\(section)/all", "Metadata": items]
             let decoder = JSONDecoder()
             decoder.userInfo[.duskServerID] = "a"
-            return try decoder.decode(PlexHub.self, from: JSONSerialization.data(withJSONObject: value))
+            return try decoder.decode(HomeRow.self, from: JSONSerialization.data(withJSONObject: value))
         }
         let a = try hub([fields("1"), fields("2", section: 2)], section: 1)
         #expect(HubMerge.merge([[a]]).hubs[0].items.count == 1)
@@ -134,7 +134,7 @@ struct MovieLibraryMergeTests {
         let remote = try item(fields("3"), server: "b")
         let index = ContentAlternatesIndex()
         index.register([a.id, b.id], for: a.contentKey)
-        let external = PlexContentKey.external(provider: "imdb", namespace: "movie", id: "tt12")
+        let external = ContentKey.external(provider: "imdb", namespace: "movie", id: "tt12")
         index.register([remote.id], for: external)
         index.register([b.id, remote.id], for: external)
         #expect(Set(index.instances(of: a.id)) == Set([a.id, b.id, remote.id]))
@@ -162,7 +162,7 @@ struct MovieLibraryMergeTests {
         }
         let hd = try item(fields("hd"), server: serverID)
         let uhd = try item(fields("uhd", section: 2), server: serverID)
-        service.registerAlternates(PlexItemMerge.alternates(in: [[hd, uhd]]))
+        service.registerAlternates(MediaItemMerge.alternates(in: [[hd, uhd]]))
         let resolver = PlaybackSourceResolver(plexService: service)
         #expect(resolver.resolve(for: hd.id).identifiers == [hd.id, uhd.id])
         #expect(resolver.resolve(for: uhd.id, restrictToItemServer: true).identifiers == [uhd.id])

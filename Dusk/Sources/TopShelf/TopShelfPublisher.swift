@@ -27,7 +27,7 @@ final class TopShelfPublisher {
     /// One Home row, as Home shows it: in order, hidden items already gone.
     struct Row {
         let title: String
-        let items: [PlexItem]
+        let items: [MediaItem]
     }
 
     /// Per section. Every tile is a cached image, so these also bound the
@@ -42,7 +42,7 @@ final class TopShelfPublisher {
     private var publishedSignature: [String]?
     private var writeTask: Task<Void, Never>?
 
-    func publish(continueWatching: [PlexItem], recentlyAdded: [Row], plexService: PlexService) {
+    func publish(continueWatching: [MediaItem], recentlyAdded: [Row], plexService: PlexService) {
         let sections = Self.sections(
             continueWatching: continueWatching,
             recentlyAdded: recentlyAdded,
@@ -82,14 +82,14 @@ final class TopShelfPublisher {
     /// once, in the first section that has it: tvOS tracks focus by identifier,
     /// and a new film someone already started would otherwise fill two tiles.
     private static func sections(
-        continueWatching: [PlexItem],
+        continueWatching: [MediaItem],
         recentlyAdded: [Row],
         plexService: PlexService
     ) -> [Section] {
         var seen: Set<String> = []
         var sections: [Section] = []
 
-        func appendSection(title: String, items: [PlexItem]) -> Bool {
+        func appendSection(title: String, items: [MediaItem]) -> Bool {
             var entries: [Entry] = []
             for item in items where entries.count < itemLimit {
                 guard !seen.contains(item.id.storageKey),
@@ -222,7 +222,7 @@ private extension TopShelfPublisher {
         var imageFileName: String { item.imageFileName }
 
         @MainActor
-        init?(item: PlexItem, plexService: PlexService) {
+        init?(item: MediaItem, plexService: PlexService) {
             // The focused tile in points, poster or 16:9. `imageURL` scales for
             // the screen, and Plex never upscales.
             let (imagePath, width, height) = item.isClip
@@ -282,7 +282,7 @@ private extension TopShelfPublisher {
         }
 
         /// A show or season has nothing to resume, so Play opens its page too.
-        private static func isPlayable(_ item: PlexItem) -> Bool {
+        private static func isPlayable(_ item: MediaItem) -> Bool {
             switch item.type {
             case .show, .season: false
             default: true
@@ -291,7 +291,7 @@ private extension TopShelfPublisher {
 
         /// "Show · S2 E3" for an episode, "Show · Season 2" for a season, the
         /// plain title otherwise.
-        private static func title(for item: PlexItem) -> String {
+        private static func title(for item: MediaItem) -> String {
             let title = item.continueWatchingDisplayTitle
             if item.type == .season, let show = item.parentTitle?.nilIfEmpty {
                 return "\(show) · \(title)"

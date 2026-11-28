@@ -5,7 +5,7 @@ import UIKit
 
 enum MainTabItem: Hashable, Identifiable {
     case home
-    case library(PlexLibraryType)
+    case library(LibraryKind)
     case liveTV
     case playlists
     case downloads
@@ -45,7 +45,7 @@ enum MainTabItem: Hashable, Identifiable {
         case .liveTV:
             "dot.radiowaves.left.and.right"
         case .playlists:
-            PlexLibraryType.playlists.systemImage
+            LibraryKind.playlists.systemImage
         case .downloads:
             "arrow.down.circle"
         case .search:

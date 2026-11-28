@@ -8,7 +8,7 @@ has a separate boundary documented in `docs/seerr-integration.md`.
 ## Responsibilities
 - `PlexService/` owns auth, discovery, request helpers, endpoints, playback
   reporting, direct-play/transcode URLs, and image helpers.
-- `Models/` owns Plex response shapes plus app-level playback models.
+- `Domain/` owns Plex response shapes plus app-level playback models.
 - `PlexService` is `@MainActor @Observable` and is injected from `DuskApp`.
 - Plex is the source of truth. Do not persist metadata except for explicit
   offline/download support.
@@ -365,7 +365,7 @@ Pitfalls:
 File: `PlexService+Library.swift`.
 
 Library:
-- `getLibraries()` -> `/library/sections`, decoded as `[PlexLibrary]`.
+- `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
 - `getLibraryItems(sectionId:start:size:sort:filters:)` ->
   `/library/sections/{sectionId}/all` with Plex pagination.
 - `getLibraryItemCount(sectionId:filters:)` reads `totalSize`/`size` from a
@@ -373,12 +373,12 @@ Library:
 - `getLibraryFilters(sectionId:)` and `getLibraryFilterValues(path:)` decode
   filter directories.
 - `getLibraryCollections(sectionId:)` -> `/library/sections/{sectionId}/collection`
-  filter values, decoded as `[PlexLibraryCollection]` (key + title). Fetch a
+  filter values, decoded as `[MediaCollection]` (key + title). Fetch a
   collection's items with `getLibraryItems(filters: ["collection": key])`.
   This filter view is what video libraries use for their channel rows.
 
 Plex collections (`PlexService+Collections.swift`, movie and TV libraries):
-- A collection is a metadata item of `type: "collection"` (`PlexMediaType.collection`);
+- A collection is a metadata item of `type: "collection"` (`MediaKind.collection`);
   `subtype` says what it holds, `smart` ("1"/"0") whether a saved filter fills it,
   `index` is the tag id. Before `.collection` existed these decoded as `.unknown`
   and were dropped everywhere, which is why "collections" never showed up.
@@ -386,7 +386,7 @@ Plex collections (`PlexService+Collections.swift`, movie and TV libraries):
   `getCollectionItems(ratingKey:start:size:)` -> `/library/metadata/{rk}/children`
   (the server resolves a smart collection's filter here, in the collection's sort),
   `getCollection(ratingKey:)` -> `/library/metadata/{rk}`. The two listings return
-  `PlexItemPage` (items + `totalSize`) and page with `X-Plex-Container-Start/Size`.
+  `MediaItemPage` (items + `totalSize`) and page with `X-Plex-Container-Start/Size`.
 - An item's `Collection` tags carry `id` (= the collection's `index`) and `tag`
   (title), never a rating key: `DetailCollectionShelvesModel` resolves them against
   the section's collection listing (id first, title as fallback). Smart collections
@@ -406,15 +406,15 @@ letters that have titles; "#" for digits/symbols) and honours the same filters a
 `/all` (type, unwatched, genre, collection). Cheap (<1 s on 60k titles); cumulative
 sizes are exact offsets into `/all?sort=titleSort` (verified on plex-demo Stress Movies).
 
-Extras (`PlexService+Extras.swift`, `Models/PlexExtra.swift`):
+Extras (`PlexService+Extras.swift`, `Domain/Extra.swift`):
 - `getExtras(ratingKey:)` -> `/library/metadata/{rk}/extras` for a movie, show,
   season, or episode. Rows are `type: "clip"` items with a numeric `extraType`
   (1 trailer, 2 deleted scene, 3 interview, 4 music video, 5 behind the scenes,
   6 scene/sample, 7 live music video, 8 lyric video, 9 concert, 10 featurette,
   11 short, 12 other) and the same kind as a camelCase `subtype`; `PlexExtraType`
   takes the number (int or string) and falls back to the subtype. The payload is
-  decoded twice (`PlexItem` + `PlexExtraFields`) and paired by rating key, so
-  `PlexItem` carries no extra-only fields; non-clip rows are dropped.
+  decoded twice (`MediaItem` + `PlexExtraFields`) and paired by rating key, so
+  `MediaItem` carries no extra-only fields; non-clip rows are dropped.
 - Each extra has its own rating key and plays like any clip (`PlaybackCoordinator.play`),
   so pre-rolls (movies only), Up Next and adjacent-episode controls never apply. Its
   content key is instance-only (guid-less clips never merge across servers), so an
@@ -424,11 +424,11 @@ Extras (`PlexService+Extras.swift`, `Models/PlexExtra.swift`):
 
 Hubs and search:
 - `getHubs()` -> `/hubs`.
-- `PlexHub.librarySectionID` decodes int-or-string; `resolvedLibrarySectionID`
+- `HomeRow.librarySectionID` decodes int-or-string; `resolvedLibrarySectionID`
   falls back to the numeric suffix of `hubIdentifier`
   ("movie.recentlyadded.3" -> "3") because not every server sends the field.
   That id is what lets Home group a library's rows together.
-- Build a changed hub with `PlexHub.replacingItems(_:)`, not the memberwise
+- Build a changed hub with `HomeRow.replacingItems(_:)`, not the memberwise
   init: the init drops any field the call site forgets.
 - `getLibraryHubs(sectionId:count:)` -> `/hubs/sections/{sectionId}` with
   `includeGuids=1`.
@@ -436,7 +436,7 @@ Hubs and search:
 - `getHubItems(hubKey:start:size:)` follows the hub key and merges `Metadata`
   plus `Directory`.
 - `search(query:)` -> `/hubs/search` with `limit=10`, no collections, and GUIDs,
-  wrapped as `[PlexSearchResult]`.
+  wrapped as `[SearchSection]`.
 
 Account library order (`PlexService+LibraryOrder.swift`, `LibraryOrderStore`) —
 the user's library order is **not** a PMS setting. It lives on plex.tv, per Plex
@@ -491,7 +491,7 @@ same array: `sidebarSettings.pinnedSources`. Array position is the order.
   server's sections the moment they land (`applyServerSections`), so the library list
   paints from the first server rather than the slowest. `sections` is reassembled in
   server-priority order each time. Identify a section by `orderedSectionIdentities`
-  (`PlexLibrary.id`, `"<serverID>|<key>"`), never by the bare section key — those
+  (`Library.id`, `"<serverID>|<key>"`), never by the bare section key — those
   are per-server counters that collide.
 
 Traps:
@@ -532,7 +532,7 @@ Subtitle search and download (`PlexService+Subtitles.swift`):
   account, API key, or rate limiting of its own.
 - `searchSubtitles(ratingKey:languageCode:hearingImpaired:forced:)` ->
   `GET /library/metadata/{ratingKey}/subtitles?language=&hearingImpaired=0|1&forced=0|1`,
-  decoded through `StreamResponse<PlexSubtitleSearchResult>`. `language` is the
+  decoded through `StreamResponse<SubtitleSearchResult>`. `language` is the
   ISO 639-1 code Plex Web sends (`en`); servers also accept 639-2 (`eng`), and
   the value is only trimmed/lowercased, never mapped. Servers may answer
   `size: 0` with no `Stream` array, which decodes to `[]`.
@@ -562,11 +562,11 @@ Where to edit:
 - Subtitle search/download endpoints: `PlexService+Subtitles.swift`.
 - Account-level plex.tv settings (library order): `PlexService+LibraryOrder.swift`,
   with the shared state in `LibraryOrderStore.swift`.
-- New response shapes: `Dusk/Sources/Models/`, near the closest model.
+- New response shapes: `Dusk/Sources/Domain/`, near the closest model.
 
 ## Live TV And Guide Endpoints
 
-Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
+Files: `PlexService+LiveTV.swift` and `LiveTV.swift`.
 
 - Live TV uses one server only (v1): the highest-priority connected server
   whose `/media/providers` lists an EPG provider. Every connected server is
@@ -605,7 +605,7 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   back with nothing at all, 21 days, or 20 000 airings. The section draws its
   whole guide on one axis (`timelineWindow(of:)`); the day menu only scrolls.
   Past days in the menu exist only while an IPTV source has catch-up.
-- Catch-up on Plex: Plex has none. A past airing (`PlexLiveProgram.guid`,
+- Catch-up on Plex: Plex has none. A past airing (`LiveProgram.guid`,
   `plex://…`) is playable only when `/library/all?guid=` on the DVR's server
   finds a library copy (`liveTVRecording`, normally the DVR recording);
   `LiveTVViewModel.findRecordings` looks up ended airings, 40 per pass,
@@ -616,7 +616,7 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   and `keepFresh()` re-checks every minute while it is on screen. Issue #17:
   a date captured at launch kept an Apple TV on an old day, and the
   calendar-day window showed only the last hour of the evening.
-- Grid items list every airing in `Media`; `PlexLiveTVLineup(provider:channels:programs:)`
+- Grid items list every airing in `Media`; `LiveTVLineup(provider:channels:programs:)`
   splits them into one program per airing and files each through
   `PlexLiveChannelMatcher`: identifiers first (`gridKey`, `channelIdentifier`,
   `channelID` against the channel's `gridKey`/`id`/`identifier`/`key`), then
@@ -698,8 +698,8 @@ File: `PlexService+Playback.swift`.
 - Never log raw playback URLs; use `sanitizedPlaybackURLString(for:)`.
 
 ## Plex Watchlist (plex.tv Discover)
-File: `PlexService+Watchlist.swift`, models `Models/PlexWatchlist.swift`
-(`PlexWatchlistEntry`, `PlexWatchlistAvailability`, `PlexHomeHubSetting`), shared
+File: `PlexService+Watchlist.swift`, models `Domain/Watchlist.swift`
+(`WatchlistEntry`, `PlexWatchlistAvailability`, `PlexHomeHubSetting`), shared
 state `PlexService/WatchlistStore.swift` (`plexService.watchlist`).
 - Account-level, on `https://discover.provider.plex.tv` (`PlexService.discoverBase`,
   the mock's `/discover` prefix in screenshot mode), with the active profile's token.
@@ -710,7 +710,7 @@ state `PlexService/WatchlistStore.swift` (`plexService.watchlist`).
   with `title`, `offerType` subscription/buy/…).
 - The discover `ratingKey` is the hex id that ends a modern item's `plex://movie|show/…`
   guid, so adding a server item needs no lookup. Legacy-agent / `local://` items have
-  none and get no bookmark (`PlexWatchlistEntry.discoverRatingKey`).
+  none and get no bookmark (`WatchlistEntry.discoverRatingKey`).
 - Matching to servers: `GET /library/all?guid=plex://…` per title per connected
   server, 4 at a time, skipping hidden libraries; the highest-priority server wins.
   Misses are cached 30 min per server, hits are re-read every load (progress). No
@@ -736,8 +736,8 @@ state `PlexService/WatchlistStore.swift` (`plexService.watchlist`).
   (`PlexManagedHub.matches`). Owner-only. See `PlexService+HomeRows.swift`.
 
 ## Playlists
-File: `PlexService+Playlists.swift`, models `Models/PlexPlaylist.swift`
-(`PlexPlaylist`, `PlexPlaylistEntry`, `PlexPlaylistAddResult`), shared state
+File: `PlexService+Playlists.swift`, models `Domain/Playlist.swift`
+(`Playlist`, `PlaylistEntry`, `PlexPlaylistAddResult`), shared state
 `PlexService/PlaylistStore.swift` (`plexService.playlists`).
 - A playlist belongs to one server and to the signed-in (Home) user. Every call
   routes to the playlist's server; an item can only be added to a playlist on
@@ -760,8 +760,8 @@ File: `PlexService+Playlists.swift`, models `Models/PlexPlaylist.swift`
 - `HomeHubFilter` still keeps Plex's own playlist hub off Home.
 
 ## Photo Libraries
-File: `PlexService+Photos.swift`, model `Models/PlexPhoto.swift`.
-- Photo sections are decoded as `PlexPhotoItem`, never `PlexItem` (which keeps
+File: `PlexService+Photos.swift`, model `Domain/PhotoItem.swift`.
+- Photo sections are decoded as `PhotoItem`, never `MediaItem` (which keeps
   `type: "photo"` as `.unknown`, and that is what keeps photos off Home, Search and the
   detail routes). In JSON an album and a photo are both `type: "photo"` under
   `Metadata`; only an album's `key` ends in `/children`. Clips are `type: "clip"`,
@@ -773,7 +773,7 @@ File: `PlexService+Photos.swift`, model `Models/PlexPhoto.swift`.
   root). Not `/children`: it mixes sub-albums into the photos, so a sorted, paged walk
   would bury the albums on the last page. Paging is the usual
   `X-Plex-Container-Start/Size` + `totalSize`.
-- `originallyAvailableAt` is a camera-local day; `PlexPhotoItem.displayDate` parses it
+- `originallyAvailableAt` is a camera-local day; `PhotoItem.displayDate` parses it
   in the device's time zone. Place names (`Place` tags) only exist when the server
   saves location names (and are admin-only by default); there is no lat/lon.
 - Sources: python-plexapi `photo.py`/`library.py`, the LukeHagar plex-api-spec, and
@@ -817,16 +817,16 @@ Rating keys, section keys, and hub identifiers are **per server** counters: two
 servers hand out the same `ratingKey` for different titles. Identity therefore
 always carries the server.
 
-- `Models/PlexServerScoped.swift` defines `CodingUserInfoKey.duskServerID`,
-  `Decoder.duskServerID`, and `PlexItemID { serverID, ratingKey }`. Each model's
+- `Domain/MediaItemID.swift` defines `CodingUserInfoKey.duskServerID`,
+  `Decoder.duskServerID`, and `MediaItemID { serverID, ratingKey }`. Each model's
   `init(from:)` reads `decoder.duskServerID` and stamps it, so nested items are
   stamped automatically. Do not add post-decode copy helpers or wrappers.
-- `PlexItem.id`, `PlexMediaDetails.id`, `PlexEpisode.id`, and `PlexSeason.id` are
-  `PlexItemID`; `==`/`hash` include the server. `PlexLibrary.id` is
-  `"<serverID>|<key>"`. `AppNavigationRoute` carries a `PlexItemID`.
+- `MediaItem.id`, `MediaDetails.id`, `Episode.id`, and `Season.id` are
+  `MediaItemID`; `==`/`hash` include the server. `Library.id` is
+  `"<serverID>|<key>"`. `AppNavigationRoute` carries a `MediaItemID`.
 - `serverID` is `String?`: nil means "not stamped" (a model built locally or
   decoded outside the pool), not "the primary server".
-- `Models/PlexContentKey.swift` is the *cross-server* identity used for merging:
+- `Domain/ContentKey.swift` is the *cross-server* identity used for merging:
   the scalar `guid` when it starts with `plex://`, else tmdb > imdb > tvdb from
   the `guids` array namespaced by type, else `type|normalizedTitle|year`
   (seasons: show|season, episodes: show|season|episode), else `.instance(id)` —
@@ -855,7 +855,7 @@ always carries the server.
 ## Merging Rules
 `PlexService/MultiServer/` merges what the connected servers return. Fan-outs use
 a `TaskGroup`, a server that fails contributes `[]`, and results are grouped by
-`PlexContentKey`.
+`ContentKey`.
 
 Entry points on `PlexService` (`PlexService+MultiServer.swift`):
 `mergeServerIDs` (connected servers in priority order),
@@ -883,14 +883,14 @@ the greatest progress fraction (offset/duration); equal progress keeps source
 order. This also governs movie Continue Watching representatives.
 
 - `ContentAlternatesIndex` (`plexService.alternates`) is the side table the merges
-  fill and playback reads: `register(_:for:)` records that these `PlexItemID`s are
+  fill and playback reads: `register(_:for:)` records that these `MediaItemID`s are
   the same content, `instances(of:)` returns every known copy. It accumulates for
   the whole session and is cleared by `tearDownServerSessions()` (sign-out, Plex Home switch),
   because rating keys only mean something for the account that fetched them.
   Only strong keys are recorded, and every server-scoped rating key is kept,
   including multiple libraries on the same server (so dismissing from Continue
   Watching and watched fan-out reach the hidden library copy too). A later registration bridging two keys joins their known copies.
-  `PlexItemMerge.alternates(in:)`/`combine(_:_:)` retain the same identities.
+  `MediaItemMerge.alternates(in:)`/`combine(_:_:)` retain the same identities.
 - `PlexService.movieCopies(for:)` discovers movies with per-title
   `/library/all?guid=…&includeGuids=1` lookups, filtered against strong aliases,
   edition and hidden-library rules, then loads each copy's details. It also
@@ -908,12 +908,12 @@ order. This also governs movie Continue Watching representatives.
 - Hubs: keyed on `hubIdentifier` with its trailing numeric section suffix
   stripped, plus type (normalized title as fallback). Deduped by content key and
   round-robin interleaved in priority order, except merged Recently Added Movies:
-  `PlexItemMerge.hubItems` sorts those by `addedAt` descending before deduplication
+  `MediaItemMerge.hubItems` sorts those by `addedAt` descending before deduplication
   (newest addition determines placement; movie progress determines the displayed
   copy; ties keep source priority/order; missing dates come last).
   This applies to full and promoted hub rows, repeated-title folding before its
   cap, inline expansion, and Show All. Single-source rows and TV grouping retain
-  Plex's order; update/release dates never replace `addedAt`. `PlexHub.sources` records each
+  Plex's order; update/release dates never replace `addedAt`. `HomeRow.sources` records each
   contributing (serverID, key, size, more) so "Show All" can page each source and
   re-merge. `HubMerge.Mode` decides what "the same row" means, and getting it
   wrong makes whole libraries disappear from Home:
@@ -933,7 +933,7 @@ order. This also governs movie Continue Watching representatives.
     rows are generated per library under a title that does not name the library
     — the seasonal "Oh, the Horror!" row exists once per movie library — so an
     account with eleven movie libraries otherwise got eleven identical rows.
-  - A merged row's `id` is the merge key (`PlexHub.mergeIdentity`), never the
+  - A merged row's `id` is the merge key (`HomeRow.mergeIdentity`), never the
     representative's `hubIdentifier`: that identifier carries one server's
     section id and two merged rows can carry the same one.
 - Search: fanned out to every connected server and **republished as each server
@@ -947,40 +947,40 @@ order. This also governs movie Continue Watching representatives.
 - Live TV uses the highest-priority connected server that has a DVR.
 
 ## Model Conventions
-- List, hub, and search rows use `PlexItem`; full metadata uses
-  `PlexMediaDetails`.
-- `ratingKey` is stable only *within* one server; `PlexItemID` is the identity.
+- List, hub, and search rows use `MediaItem`; full metadata uses
+  `MediaDetails`.
+- `ratingKey` is stable only *within* one server; `MediaItemID` is the identity.
 - Plex capitalized arrays map directly: `Media`, `Part`, `Stream`, `Genre`,
   `Role`, `Marker`, `Image`, etc.
 - Most fields are optional because Plex varies by endpoint, media type, agent,
   library, and ownership.
-- `PlexMediaType` decodes unknown raw values to `.unknown`.
+- `MediaKind` decodes unknown raw values to `.unknown`.
 - "Other Videos" (personal media / YouTube) sections report `type="movie"`; the
-  section-level discriminator is `PlexLibrary.libraryType == .video`, classified
+  section-level discriminator is `Library.libraryType == .video`, classified
   from section `subtype == "clip"`, the none-agents
   (`tv.plex.agents.none`/`com.plexapp.agents.none`), or a "Plex Video Files"
   scanner prefix. Items from those sections are `type="movie"` with item
-  `subtype == "clip"` — `PlexItem.isClip`/`PlexMediaDetails.isClip` is the
+  `subtype == "clip"` — `MediaItem.isClip`/`MediaDetails.isClip` is the
   per-item marker that drives 16:9 rendering and video-detail routing anywhere
   clips surface (hubs, search, continue watching, downloads).
-- `PlexHub` decodes items lossily because search can return suggestion records
+- `HomeRow` decodes items lossily because search can return suggestion records
   that are not media-shaped.
 - `PlexPinnedSource` is a typed *read view* over one `pinnedSources` element; its
   `raw` is the element exactly as plex.tv sent it and writes mutate `raw`, so
   unmodeled fields round-trip intact.
 - `DuskJSONValue` is the loss-free JSON tree used for the plex.tv blob. Ints stay
   ints, so `schemaVersion` is never rewritten as `12.0`.
-- `PlexStream` decodes selected/default/forced/hearing-impaired as bool-ish
+- `MediaStream` decodes selected/default/forced/hearing-impaired as bool-ish
   values because Plex sends both ints and bools.
-- `PlexSubtitleSearchResult` models one provider hit from the subtitle search.
+- `SubtitleSearchResult` models one provider hit from the subtitle search.
   Only `key` (the provider download handle) is required; `id` falls back to `key`
   because search hits are not library streams and usually arrive as `id: 0`.
   `score` tolerates int, double, and string, and the flags reuse the same bool-ish
-  handling as `PlexStream` through a file-local container helper, so `PlexStream`
+  handling as `MediaStream` through a file-local container helper, so `MediaStream`
   stays untouched. `displayTitle`/`detailText` are the list-UI labels.
-- `PlexItem` and `PlexMediaDetails` resolve `clearLogo` from either an explicit
+- `MediaItem` and `MediaDetails` resolve `clearLogo` from either an explicit
   field or the `Image` array.
-- `PlexMediaDetails.markers` are sorted for skip-intro/credits UI.
+- `MediaDetails.markers` are sorted for skip-intro/credits UI.
 - Person id helpers tolerate `id`, filter query, and key suffixes.
 - `AudioTrack` and `SubtitleTrack` are engine-facing app models, not raw
   responses.

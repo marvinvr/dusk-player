@@ -182,7 +182,7 @@ struct VideoEnhancementSubtitleTests {
     }
 
     private func directDecision(
-        _ media: PlexMedia, mode: VideoEnhancementMode, subtitleID: Int?
+        _ media: MediaVersion, mode: VideoEnhancementMode, subtitleID: Int?
     ) -> StreamResolver.Decision {
         StreamResolver.evaluateForDirectPlayback(
             media: media, part: media.parts[0], enhancementMode: mode,
@@ -190,8 +190,8 @@ struct VideoEnhancementSubtitleTests {
         )
     }
 
-    private func engineSelectionMedia(videoFields: String, container: String = "mp4") throws -> PlexMedia {
-        try JSONDecoder().decode(PlexMedia.self, from: Data("""
+    private func engineSelectionMedia(videoFields: String, container: String = "mp4") throws -> MediaVersion {
+        try JSONDecoder().decode(MediaVersion.self, from: Data("""
             {"id":1,"container":"\(container)","videoCodec":"h264","audioCodec":"aac","Part":[
               {"id":1,"key":"/clip.mp4","Stream":[
                 {"id":2,"streamType":1,"codec":"h264"\(videoFields)},
@@ -242,7 +242,7 @@ struct VideoEnhancementSubtitleTests {
         preferences.forceVLCKit = false
         let media = try engineSelectionMedia(videoFields: #","bitDepth":8"#)
         let encodedMedia = String(decoding: try JSONEncoder().encode(media), as: UTF8.self)
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"1","key":"/library/metadata/1","type":"movie","title":"SDR","Media":[\(encodedMedia)]}
             """.utf8))
 
@@ -301,8 +301,8 @@ struct VideoEnhancementSubtitleTests {
     }
     #endif
 
-    private func mediaWithStreams(_ streams: String) throws -> PlexMedia {
-        try JSONDecoder().decode(PlexMedia.self, from: Data("""
+    private func mediaWithStreams(_ streams: String) throws -> MediaVersion {
+        try JSONDecoder().decode(MediaVersion.self, from: Data("""
             {"id":1,"Part":[{"id":1,"key":"/clip","Stream":[\(streams)]}]}
             """.utf8))
     }

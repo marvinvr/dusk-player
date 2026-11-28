@@ -89,7 +89,7 @@ extension PlayerViewModel {
     /// intro. Credits only when the Up Next poster does not cover them: an
     /// earlier credits marker (a post-credits scene follows it), or the last one
     /// when nothing comes next (a film, a show's last episode, a queue's end).
-    var activeSkipMarker: PlexMarker? {
+    var activeSkipMarker: Marker? {
         let positionMs = Int(displayPosition * 1000)
         let upNextCreditsMarkerID = upNextCreditsMarker?.id
         return markers.first { marker in
@@ -105,7 +105,7 @@ extension PlayerViewModel {
 
     /// The credits marker the episode actually ends on. Plex can ship several
     /// (sorted by start): an earlier one must not advance past what follows it.
-    private var upNextCreditsMarker: PlexMarker? {
+    private var upNextCreditsMarker: Marker? {
         markers.last(where: { $0.isCredits })
     }
 
@@ -113,7 +113,7 @@ extension PlayerViewModel {
     /// chapter list through the endpoints this app uses, so intro and credits
     /// markers are it: they drive the Chapters tab, which stays hidden when this
     /// is empty.
-    var chapterMarkers: [PlexMarker] {
+    var chapterMarkers: [Marker] {
         markers.filter { $0.isIntro || $0.isCredits }
     }
 
@@ -123,7 +123,7 @@ extension PlayerViewModel {
     /// credits start — matching the Up Next poster's "appears at the credits and
     /// stays until the episode ends" lifetime. Based on actual playback time so
     /// scrubbing previews don't flicker it.
-    var reachedCreditsMarker: PlexMarker? {
+    var reachedCreditsMarker: Marker? {
         guard duration > 0 else { return nil }
         let positionMs = Int(currentTime * 1000)
 
@@ -151,7 +151,7 @@ extension PlayerViewModel {
     /// Synthesized credits marker for items Plex has no marker for. Spans
     /// `duration − clamp(4% of duration, 45 s, 2 min)` to the end. Never added
     /// to `markers`, so it can't surface a "Skip" button (which only intros do).
-    private var estimatedCreditsMarker: PlexMarker? {
+    private var estimatedCreditsMarker: Marker? {
         guard duration > 0 else { return nil }
         let durationMs = duration * 1000
         let leadMs = min(
@@ -159,8 +159,8 @@ extension PlayerViewModel {
             Self.estimatedCreditsMaxLeadMs
         )
         let startMs = Int((durationMs - leadMs).rounded())
-        return PlexMarker(
-            id: PlexMarker.estimatedCreditsID,
+        return Marker(
+            id: Marker.estimatedCreditsID,
             type: "credits",
             startTimeOffset: startMs,
             endTimeOffset: Int(durationMs.rounded()),

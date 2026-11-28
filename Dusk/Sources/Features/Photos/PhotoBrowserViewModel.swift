@@ -26,13 +26,13 @@ enum PhotoBrowseMode: String, CaseIterable, Identifiable {
 @Observable
 final class PhotoBrowserViewModel {
     private let plexService: PlexService
-    let library: PlexLibrary
+    let library: Library
     let album: PhotoAlbumRoute?
 
     private(set) var mode: PhotoBrowseMode
-    private(set) var albums: [PlexPhotoItem] = []
+    private(set) var albums: [PhotoItem] = []
     /// Photos and clips, in grid order. The viewer pages through this list.
-    private(set) var media: [PlexPhotoItem] = []
+    private(set) var media: [PhotoItem] = []
     private(set) var isLoading = false
     private(set) var isLoadingMore = false
     private(set) var error: String?
@@ -47,7 +47,7 @@ final class PhotoBrowserViewModel {
     private let firstPageSize = 60
     private let pageSize = 150
 
-    init(library: PlexLibrary, album: PhotoAlbumRoute? = nil, plexService: PlexService) {
+    init(library: Library, album: PhotoAlbumRoute? = nil, plexService: PlexService) {
         self.library = library
         self.album = album
         self.plexService = plexService
@@ -123,7 +123,7 @@ final class PhotoBrowserViewModel {
     }
 
     /// Called as cells appear; only the tail of the list being filled counts.
-    func loadMoreIfNeeded(currentItem: PlexPhotoItem) async {
+    func loadMoreIfNeeded(currentItem: PhotoItem) async {
         guard hasMore, !isLoading, !isLoadingMore else { return }
         let tail = media.isEmpty ? albums.suffix(30) : media.suffix(60)
         guard tail.contains(where: { $0.id == currentItem.id }) else { return }
@@ -145,11 +145,11 @@ final class PhotoBrowserViewModel {
         }
     }
 
-    func thumbnailURL(for item: PlexPhotoItem, side: CGFloat) -> URL? {
+    func thumbnailURL(for item: PhotoItem, side: CGFloat) -> URL? {
         plexService.photoThumbnailURL(for: item, side: Int(side.rounded(.up)))
     }
 
-    func route(for albumItem: PlexPhotoItem) -> AppNavigationRoute {
+    func route(for albumItem: PhotoItem) -> AppNavigationRoute {
         .photoAlbum(PhotoAlbumRoute(library: library, ratingKey: albumItem.ratingKey, title: albumItem.title))
     }
 
@@ -192,7 +192,7 @@ final class PhotoBrowserViewModel {
         }
     }
 
-    private static func modeKey(for library: PlexLibrary) -> String {
+    private static func modeKey(for library: Library) -> String {
         "photoBrowseMode.\(library.id)"
     }
 }

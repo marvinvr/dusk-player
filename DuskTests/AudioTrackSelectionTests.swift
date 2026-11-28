@@ -88,8 +88,8 @@ struct AudioTrackSelectionTests {
         #expect(playback.rememberedShowTrackSelection() == nil)
     }
 
-    private func makePart() throws -> PlexMediaPart {
-        try JSONDecoder().decode(PlexMediaPart.self, from: Data(#"""
+    private func makePart() throws -> MediaPart {
+        try JSONDecoder().decode(MediaPart.self, from: Data(#"""
         {"id":1,"key":"/fixture.mkv","Stream":[
           {"id":11,"streamType":2,"codec":"eac3","channels":6,"audioChannelLayout":"5.1(side)","languageCode":"eng","selected":true},
           {"id":12,"streamType":2,"codec":"eac3","channels":6,"audioChannelLayout":"5.1(side)","languageCode":"ita"}

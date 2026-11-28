@@ -1,6 +1,6 @@
 import Foundation
 
-enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
+enum LibraryKind: String, Codable, Sendable, CaseIterable {
     case movie
     case show
     case video
@@ -77,7 +77,7 @@ enum PlexLibraryVisibility: Int, Codable, Sendable, Hashable {
 
 /// A library section on the Plex server (e.g. "Movies", "TV Shows").
 /// Returned from `GET /library/sections` in the `Directory` array.
-struct PlexLibrary: Codable, Sendable, Identifiable {
+struct Library: Codable, Sendable, Identifiable {
     /// Section keys are per-server counters, so the server has to be part of
     /// the identity or two servers' "3" sections alias each other.
     var id: String {
@@ -91,7 +91,7 @@ struct PlexLibrary: Codable, Sendable, Identifiable {
 
     /// Plex reports "Other Videos" sections as `type == "movie"`, so they are
     /// told apart by their clip subtype, metadata-less agent, or video scanner.
-    var libraryType: PlexLibraryType? {
+    var libraryType: LibraryKind? {
         switch type {
         case "movie":
             isVideoSection ? .video : .movie

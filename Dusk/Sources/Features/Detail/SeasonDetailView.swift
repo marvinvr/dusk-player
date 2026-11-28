@@ -7,7 +7,7 @@ struct SeasonDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SeasonDetailViewModel
-    @State private var episodeToDownload: PlexEpisode?
+    @State private var episodeToDownload: Episode?
     /// The episode the player closed on after Up Next / Next Episode moved it
     /// on; the list scrolls to it instead of staying where the run began.
     @State private var playedEpisodeScrollTarget: String?
@@ -15,7 +15,7 @@ struct SeasonDetailView: View {
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
@@ -78,7 +78,7 @@ struct SeasonDetailView: View {
     }
 
     @ViewBuilder
-    private func contentView(_ details: PlexMediaDetails) -> some View {
+    private func contentView(_ details: MediaDetails) -> some View {
         GeometryReader { geometry in
             ScrollViewReader { proxy in
                 ScrollView {
@@ -136,7 +136,7 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func heroSection(
-        _ details: PlexMediaDetails,
+        _ details: MediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
         containerHeight: CGFloat,
@@ -178,7 +178,7 @@ struct SeasonDetailView: View {
     }
 
     @ViewBuilder
-    private func metadataTagline(_ details: PlexMediaDetails) -> some View {
+    private func metadataTagline(_ details: MediaDetails) -> some View {
         let parts = [
             viewModel.episodeCountText,
             viewModel.watchedEpisodeCountText,
@@ -337,7 +337,7 @@ struct SeasonDetailView: View {
     }
 
     @ViewBuilder
-    private func episodeContextMenu(_ episode: PlexEpisode) -> some View {
+    private func episodeContextMenu(_ episode: Episode) -> some View {
         let downloadState = downloadManager.downloadState(for: DownloadScope(id: episode.id, type: .episode))
 
         if viewModel.isPartiallyWatched(episode) {
@@ -398,13 +398,13 @@ struct SeasonDetailView: View {
 }
 
 private struct SeasonHeroActions: View {
-    let nextEpisode: PlexEpisode?
+    let nextEpisode: Episode?
     let playButtonLabel: String
-    let nextEpisodePlayableVersions: [PlexMedia]
+    let nextEpisodePlayableVersions: [MediaVersion]
     let nextEpisodeRoute: AppNavigationRoute?
     let nextEpisodeMenuLabel: String
-    let onPlay: (PlexEpisode) -> Void
-    let onPlayVersion: (PlexEpisode, PlexMedia) -> Void
+    let onPlay: (Episode) -> Void
+    let onPlayVersion: (Episode, MediaVersion) -> Void
 
     var body: some View {
         Button {
@@ -435,7 +435,7 @@ private struct SeasonHeroActions: View {
 }
 
 private struct SeasonEpisodeRow: View {
-    let episode: PlexEpisode
+    let episode: Episode
     let destination: AppNavigationRoute
     let imageURL: URL?
     let label: String?
@@ -547,7 +547,7 @@ private struct SeasonEpisodePosterArtwork: View {
 }
 
 private struct SeasonEpisodeTextContent: View {
-    let episode: PlexEpisode
+    let episode: Episode
     let label: String?
     let subtitle: String?
     let downloadStatus: DownloadStatus?
@@ -622,7 +622,7 @@ private struct SeasonEpisodeTextContent: View {
 private struct SeasonEpisodeSummaryText: View {
     @Environment(\.blursUnwatchedEpisodes) private var hidesSpoilers
 
-    let episode: PlexEpisode
+    let episode: Episode
     let isWatched: Bool
     let lineLimit: Int
 

@@ -54,7 +54,7 @@ final class PlaybackNowPlayingController {
     private static let pausedElapsedUpdateThreshold: TimeInterval = 0.5
 
     func beginSession(
-        details: PlexMediaDetails,
+        details: MediaDetails,
         engine: any PlaybackEngine,
         plexService: PlexService,
         skipBackwardInterval: TimeInterval,
@@ -310,7 +310,7 @@ private extension PlaybackNowPlayingController {
         lastPublishedRate = 0
     }
 
-    func publishInitialMetadata(for details: PlexMediaDetails) {
+    func publishInitialMetadata(for details: MediaDetails) {
         nowPlayingInfo = [
             MPMediaItemPropertyTitle: nowPlayingTitle(for: details),
             MPNowPlayingInfoPropertyExternalContentIdentifier: details.ratingKey,
@@ -424,7 +424,7 @@ private extension PlaybackNowPlayingController {
 
     /// Episodes are `<title> (SxxEyy)`. The show name stays in the artist field
     /// so Control Centre, the lock screen, and tvOS do not repeat it in the title.
-    func nowPlayingTitle(for details: PlexMediaDetails) -> String {
+    func nowPlayingTitle(for details: MediaDetails) -> String {
         guard details.type == .episode,
               let season = details.parentIndex,
               let episode = details.index else {
@@ -436,7 +436,7 @@ private extension PlaybackNowPlayingController {
 
     /// Show poster, then season poster, then the episode still. Every other
     /// type keeps its own poster (`thumb`) ahead of the inherited images.
-    func nowPlayingArtworkPath(for details: PlexMediaDetails) -> String? {
+    func nowPlayingArtworkPath(for details: MediaDetails) -> String? {
         switch details.type {
         case .episode:
             return details.grandparentThumb
@@ -451,7 +451,7 @@ private extension PlaybackNowPlayingController {
         }
     }
 
-    func nowPlayingSubtitle(for details: PlexMediaDetails) -> String? {
+    func nowPlayingSubtitle(for details: MediaDetails) -> String? {
         switch details.type {
         case .episode:
             return details.grandparentTitle
@@ -467,7 +467,7 @@ private extension PlaybackNowPlayingController {
         }
     }
 
-    func loadArtwork(for details: PlexMediaDetails, using plexService: PlexService) {
+    func loadArtwork(for details: MediaDetails, using plexService: PlexService) {
         // Lock screen and Control Centre. An episode still is a screenshot;
         // the show poster reads cleaner there (#57). Movies keep their poster.
         let artworkPath = nowPlayingArtworkPath(for: details)

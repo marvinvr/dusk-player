@@ -4,7 +4,7 @@ extension PlexService {
     /// Live TV comes from one server only (v1). A DVR lineup is
     /// server-specific, tuners are a scarce per-server resource, and merging
     /// two guides has no sane UI yet — so everything here runs against the
-    /// server discovery found the DVR on (`PlexLiveTVProvider.serverID`), and
+    /// server discovery found the DVR on (`LiveTVProvider.serverID`), and
     /// only falls back to the highest-priority connected one.
     var liveTVServerID: String? {
         pool.primary?.serverID
@@ -36,7 +36,7 @@ extension PlexService {
             // or a DVR turned up and every higher-priority server has answered
             // (or had a short grace to). An unreachable server would otherwise
             // hold the tab back for its whole timeout.
-            var results: [String: Result<PlexLiveTVProvider?, Error>] = [:]
+            var results: [String: Result<LiveTVProvider?, Error>] = [:]
             var decision: LiveTVDiscovery?
             var graceStarted = false
             for await event in group {
@@ -77,7 +77,7 @@ extension PlexService {
         }
     }
 
-    func getLiveTVProvider(serverID: String? = nil) async throws -> PlexLiveTVProvider? {
+    func getLiveTVProvider(serverID: String? = nil) async throws -> LiveTVProvider? {
         let targetID = try resolveServerID(serverID ?? liveTVServerID)
         // A timeout above `requestResourceTimeout` sends this through
         // `slowQuerySession`, i.e. its own connections to the server: on a big
@@ -99,9 +99,9 @@ extension PlexService {
     }
 
     func getLiveTVChannels(
-        provider: PlexLiveTVProvider,
+        provider: LiveTVProvider,
         serverID: String? = nil
-    ) async throws -> [PlexLiveChannel] {
+    ) async throws -> [LiveChannel] {
         let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
         let data = try await rawServerRequest(path: provider.channelsKey, serverID: targetID)
         let response = try decodeJSON(PlexLiveChannelsResponse.self, from: data, serverID: targetID)
@@ -113,7 +113,7 @@ extension PlexService {
     /// The DVR's tuner devices and the channels mapped to each, so the guide
     /// can show one section per device.
     func getLiveTVDevices(
-        provider: PlexLiveTVProvider,
+        provider: LiveTVProvider,
         serverID: String? = nil
     ) async throws -> [PlexLiveTVDevice] {
         let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
@@ -122,23 +122,23 @@ extension PlexService {
     }
 
     func getLiveTVNowPlaying(
-        provider: PlexLiveTVProvider,
-        channels: [PlexLiveChannel],
+        provider: LiveTVProvider,
+        channels: [LiveChannel],
         serverID: String? = nil
-    ) async throws -> PlexLiveTVLineup {
-        let programs: [PlexLiveProgram] = try await fetchMetadata(
+    ) async throws -> LiveTVLineup {
+        let programs: [LiveProgram] = try await fetchMetadata(
             path: provider.watchNowKey,
             serverID: serverID ?? provider.serverID ?? liveTVServerID
         )
-        return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        return LiveTVLineup(provider: provider, channels: channels, programs: programs)
     }
 
     func getLiveTVGuide(
-        provider: PlexLiveTVProvider,
-        channels: [PlexLiveChannel],
+        provider: LiveTVProvider,
+        channels: [LiveChannel],
         date: Date,
         serverID: String? = nil
-    ) async throws -> PlexLiveTVLineup {
+    ) async throws -> LiveTVLineup {
         try await getLiveTVGuide(provider: provider, channels: channels, dates: [date], serverID: serverID)
     }
 
@@ -146,11 +146,11 @@ extension PlexService {
     /// days). Programs that span midnight come back for both days; the lineup
     /// files each airing once.
     func getLiveTVGuide(
-        provider: PlexLiveTVProvider,
-        channels: [PlexLiveChannel],
+        provider: LiveTVProvider,
+        channels: [LiveChannel],
         dates: [Date],
         serverID: String? = nil
-    ) async throws -> PlexLiveTVLineup {
+    ) async throws -> LiveTVLineup {
         let dateValues = dates.map { Self.liveTVDateFormatter.string(from: $0) }
         let targetID = serverID ?? provider.serverID ?? liveTVServerID
         let requests = channels.flatMap { channel in dateValues.map { (channel, $0) } }
@@ -159,7 +159,7 @@ extension PlexService {
         // repeated `channelGridKey` values (XMLTV and cloud guides alike), so
         // batching left every channel but one per batch empty (issue #17).
         // A few run at a time so long lineups stay quick.
-        let results = await withTaskGroup(of: Result<[PlexLiveProgram], Error>.self) { group in
+        let results = await withTaskGroup(of: Result<[LiveProgram], Error>.self) { group in
             var pending = requests.makeIterator()
             for _ in 0..<Self.liveTVGuideConcurrency {
                 guard let (channel, dateValue) = pending.next() else { break }
@@ -167,7 +167,7 @@ extension PlexService {
                     await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
                 }
             }
-            var results: [Result<[PlexLiveProgram], Error>] = []
+            var results: [Result<[LiveProgram], Error>] = []
             for await result in group {
                 results.append(result)
                 if let (channel, dateValue) = pending.next() {
@@ -181,7 +181,7 @@ extension PlexService {
 
         // A channel whose guide failed keeps an empty (still tunable) row;
         // only a guide that failed for every channel is an error.
-        var programs: [PlexLiveProgram] = []
+        var programs: [LiveProgram] = []
         var firstError: Error?
         for result in results {
             switch result {
@@ -195,7 +195,7 @@ extension PlexService {
             throw firstError
         }
 
-        return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        return LiveTVLineup(provider: provider, channels: channels, programs: programs)
     }
 
     /// Every channel's airings that overlap `window`, in one request: the
@@ -204,10 +204,10 @@ extension PlexService {
     /// day's range costs one request however many channels there are, where
     /// `date=` needs one per channel (see `getLiveTVGuide(dates:)`).
     func getLiveTVGuideAirings(
-        provider: PlexLiveTVProvider,
+        provider: LiveTVProvider,
         window: LiveTVGuideWindow,
         serverID: String? = nil
-    ) async throws -> [PlexLiveProgram] {
+    ) async throws -> [LiveProgram] {
         try await fetchMetadata(
             path: provider.gridKey,
             queryItems: [
@@ -220,13 +220,13 @@ extension PlexService {
     }
 
     private func liveTVGridPrograms(
-        provider: PlexLiveTVProvider,
-        channel: PlexLiveChannel,
+        provider: LiveTVProvider,
+        channel: LiveChannel,
         date: String,
         serverID: String?
-    ) async -> Result<[PlexLiveProgram], Error> {
+    ) async -> Result<[LiveProgram], Error> {
         do {
-            let programs: [PlexLiveProgram] = try await fetchMetadata(
+            let programs: [LiveProgram] = try await fetchMetadata(
                 path: provider.gridKey,
                 queryItems: [
                     URLQueryItem(name: "channelGridKey", value: channel.gridKey),
@@ -245,7 +245,7 @@ extension PlexService {
     /// metadata guid the way Plex matches recordings. Nil when the airing
     /// has no guid or nothing in the library carries it. Plex has no
     /// catch-up of its own: a past airing plays only from such a recording.
-    func liveTVRecording(for program: PlexLiveProgram, provider: PlexLiveTVProvider) async throws -> PlexItem? {
+    func liveTVRecording(for program: LiveProgram, provider: LiveTVProvider) async throws -> MediaItem? {
         guard let guid = program.guid?.nilIfEmpty,
               let serverID = provider.serverID ?? liveTVServerID else { return nil }
         let items = try await serverItems(guid: guid, serverID: serverID)
@@ -260,8 +260,8 @@ extension PlexService {
     /// the tuned stream plays in AVPlayer as is (`allowsDirectPlay`, see
     /// `TuneMedia.supportsLiveDirectPlay`), otherwise a Plex transcode.
     func tuneLiveTV(
-        provider: PlexLiveTVProvider,
-        channel: PlexLiveChannel,
+        provider: LiveTVProvider,
+        channel: LiveChannel,
         serverID: String? = nil,
         allowsDirectPlay: Bool = true
     ) async throws -> PlexLiveTuneResult {
@@ -357,8 +357,8 @@ extension PlexService {
         )
     }
 
-    private func makeFallbackLiveTVMedia(sessionPath: String) -> PlexMedia {
-        let part = PlexMediaPart(
+    private func makeFallbackLiveTVMedia(sessionPath: String) -> MediaVersion {
+        let part = MediaPart(
             id: 0,
             key: sessionPath,
             file: nil,
@@ -371,7 +371,7 @@ extension PlexService {
             exists: true,
             streams: []
         )
-        return PlexMedia(
+        return MediaVersion(
             id: 0,
             container: "hls",
             videoCodec: nil,
@@ -389,7 +389,7 @@ extension PlexService {
         )
     }
 
-    private static func channelSortKey(_ channel: PlexLiveChannel) -> [Int] {
+    private static func channelSortKey(_ channel: LiveChannel) -> [Int] {
         let components = (channel.vcn ?? channel.id)
             .split(whereSeparator: { !$0.isNumber })
             .compactMap { Int($0) }
@@ -411,14 +411,14 @@ extension PlexService {
 }
 
 private enum LiveTVDiscoveryEvent: Sendable {
-    case answer(String, Result<PlexLiveTVProvider?, Error>)
+    case answer(String, Result<LiveTVProvider?, Error>)
     case graceElapsed
 }
 
 /// The outcome of one Live TV discovery pass over the connected servers.
 enum LiveTVDiscovery {
     /// The highest-priority server with a DVR answered.
-    case found(PlexLiveTVProvider)
+    case found(LiveTVProvider)
     /// Every connected server answered, and none has a DVR.
     case none
     /// No DVR found, but at least one server could not answer. Ask again.
@@ -426,7 +426,7 @@ enum LiveTVDiscovery {
 
     /// `serverIDs` in priority order. A found DVR wins over servers that failed,
     /// even higher-priority ones: a DVR in hand is better than a guess.
-    init(serverIDs: [String], results: [String: Result<PlexLiveTVProvider?, Error>]) {
+    init(serverIDs: [String], results: [String: Result<LiveTVProvider?, Error>]) {
         var failure: Error?
         for serverID in serverIDs {
             switch results[serverID] {

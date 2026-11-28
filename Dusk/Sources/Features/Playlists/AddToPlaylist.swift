@@ -4,22 +4,22 @@ import SwiftUI
 /// show or season (Plex adds all its episodes). It only ever goes to a
 /// playlist on its own server.
 struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
-    let id: PlexItemID
-    let type: PlexMediaType
+    let id: MediaItemID
+    let type: MediaKind
     let title: String
     /// Episodes a show or season expands to, when the caller knows.
     var episodeCount: Int?
 
     var expandsToEpisodes: Bool { type == .show || type == .season }
 
-    init(id: PlexItemID, type: PlexMediaType, title: String, episodeCount: Int? = nil) {
+    init(id: MediaItemID, type: MediaKind, title: String, episodeCount: Int? = nil) {
         self.id = id
         self.type = type
         self.title = title
         self.episodeCount = episodeCount
     }
 
-    init?(item: PlexItem) {
+    init?(item: MediaItem) {
         guard Self.supports(item.type) else { return nil }
         self.init(
             id: item.id,
@@ -29,7 +29,7 @@ struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
         )
     }
 
-    init?(details: PlexMediaDetails) {
+    init?(details: MediaDetails) {
         guard Self.supports(details.type) else { return nil }
         self.init(
             id: details.id,
@@ -39,11 +39,11 @@ struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
         )
     }
 
-    init(episode: PlexEpisode) {
+    init(episode: Episode) {
         self.init(id: episode.id, type: .episode, title: episode.title)
     }
 
-    init(season: PlexSeason) {
+    init(season: Season) {
         self.init(
             id: season.id,
             type: .season,
@@ -52,7 +52,7 @@ struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
         )
     }
 
-    static func supports(_ type: PlexMediaType) -> Bool {
+    static func supports(_ type: MediaKind) -> Bool {
         switch type {
         case .movie, .episode, .clip, .show, .season: true
         default: false
@@ -114,7 +114,7 @@ struct AddToPlaylistHeroButton: View {
 @Observable
 final class AddToPlaylistViewModel {
     enum PendingAdd: Equatable {
-        case existing(PlexPlaylist)
+        case existing(Playlist)
         case new(title: String)
     }
 
@@ -135,7 +135,7 @@ final class AddToPlaylistViewModel {
         self.episodeCount = target.episodeCount
     }
 
-    var playlists: [PlexPlaylist] {
+    var playlists: [Playlist] {
         plexService.playlists.editablePlaylists(serverID: target.id.serverID)
     }
 
@@ -241,7 +241,7 @@ struct AddToPlaylistSheet: View {
         isNaming = true
     }
 
-    private func countText(_ playlist: PlexPlaylist) -> String? {
+    private func countText(_ playlist: Playlist) -> String? {
         playlist.leafCount.map { $0 == 1 ? "1 item" : "\($0) items" }
     }
 

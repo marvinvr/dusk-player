@@ -414,7 +414,7 @@ enum AnalyticsErrorSanitizer {
     /// `sdr`, `hdr10`, `hlg`, `hdr`, or `dv<profile>[.<compat>]` from the
     /// video stream's signalling. Profile and compatibility ID are small
     /// integers, so only those digits make it into the string.
-    static func hdr(of stream: PlexStream?) -> String? {
+    static func hdr(of stream: MediaStream?) -> String? {
         guard let stream else { return nil }
         if let profile = stream.doviProfile, (0...10).contains(profile) {
             if let compat = stream.doviBLCompatID, (0...10).contains(compat) {
@@ -558,8 +558,8 @@ enum AnalyticsErrorSanitizer {
         engine: PlaybackEngineType?,
         decision: PlaybackDecision?,
         locality: PlaybackSourceLocality?,
-        media: PlexMedia?,
-        part: PlexMediaPart?
+        media: MediaVersion?,
+        part: MediaPart?
     ) -> AnalyticsMediaProfile {
         let video = part?.streams.first { $0.streamType == .video }
         return AnalyticsMediaProfile(

@@ -6,7 +6,7 @@ import Testing
 struct TraktMappingTests {
     private let date = Date(timeIntervalSince1970: 1_793_000_000)
 
-    private func entry(_ type: PlexMediaType, guid: String? = nil, _ guids: [String] = []) -> TraktHistoryEntry? {
+    private func entry(_ type: MediaKind, guid: String? = nil, _ guids: [String] = []) -> TraktHistoryEntry? {
         TraktHistoryMapper.entry(
             type: type,
             guid: guid,
@@ -70,7 +70,7 @@ struct TraktMappingTests {
     }
 
     @Test func onlyMoviesAndEpisodesAreTracked() {
-        for type: PlexMediaType in [.show, .season, .clip, .track, .collection] {
+        for type: MediaKind in [.show, .season, .clip, .track, .collection] {
             #expect(entry(type, ["tmdb://1"]) == nil)
         }
     }

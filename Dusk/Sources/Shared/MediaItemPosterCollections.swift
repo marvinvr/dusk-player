@@ -126,26 +126,26 @@ private var showsShowAllTile: Bool {
     #endif
 }
 
-struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
+struct MediaItemPosterCarouselSection<ContextMenuContent: View>: View {
     @Environment(PlexService.self) private var plexService
 
     let title: String
-    let items: [PlexItem]
+    let items: [MediaItem]
     var posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding
     var showAllRoute: AppNavigationRoute? = nil
-    var subtitle: (PlexItem) -> String?
-    var posterURL: (PlexItem, Int, Int) -> URL?
-    var progress: (PlexItem) -> Double? = { $0.posterProgress }
+    var subtitle: (MediaItem) -> String?
+    var posterURL: (MediaItem, Int, Int) -> URL?
+    var progress: (MediaItem) -> Double? = { $0.posterProgress }
     /// Set where the row is a list of videos to play through (a video
     /// library's rows): its movies and videos open knowing the row.
     var playThroughTitle: String? = nil
     /// A card's title line; nil keeps `posterCardTitle`.
-    var cardTitle: ((PlexItem) -> String)? = nil
+    var cardTitle: ((MediaItem) -> String)? = nil
     /// Whether `posterURL` hands back an unwatched episode's own still.
-    var isUnwatchedEpisodeImage: (PlexItem) -> Bool = { _ in false }
-    @ViewBuilder let contextMenuContent: (PlexItem) -> ContextMenuContent
+    var isUnwatchedEpisodeImage: (MediaItem) -> Bool = { _ in false }
+    @ViewBuilder let contextMenuContent: (MediaItem) -> ContextMenuContent
 
     var body: some View {
         let imageWidth = Int(posterWidth.rounded(.up))
@@ -194,17 +194,17 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     }
 }
 
-extension PlexItemPosterCarouselSection where ContextMenuContent == EmptyView {
+extension MediaItemPosterCarouselSection where ContextMenuContent == EmptyView {
     init(
         title: String,
-        items: [PlexItem],
+        items: [MediaItem],
         posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth,
         imageAspectRatio: CGFloat = 2.0 / 3.0,
         horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding,
         showAllRoute: AppNavigationRoute? = nil,
-        subtitle: @escaping (PlexItem) -> String?,
-        posterURL: @escaping (PlexItem, Int, Int) -> URL?,
-        progress: @escaping (PlexItem) -> Double? = { $0.posterProgress }
+        subtitle: @escaping (MediaItem) -> String?,
+        posterURL: @escaping (MediaItem, Int, Int) -> URL?,
+        progress: @escaping (MediaItem) -> Double? = { $0.posterProgress }
     ) {
         self.title = title
         self.items = items
@@ -219,23 +219,23 @@ extension PlexItemPosterCarouselSection where ContextMenuContent == EmptyView {
     }
 }
 
-struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
+struct MediaItemActionCarouselSection<ContextMenuContent: View>: View {
     let title: String
-    let items: [PlexItem]
-    let action: (PlexItem) -> Void
+    let items: [MediaItem]
+    let action: (MediaItem) -> Void
     var posterWidth: CGFloat
     var imageAspectRatio: CGFloat
     var horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding
     var showAllRoute: AppNavigationRoute? = nil
-    var subtitle: (PlexItem) -> String?
-    var posterURL: (PlexItem, Int, Int) -> URL?
+    var subtitle: (MediaItem) -> String?
+    var posterURL: (MediaItem, Int, Int) -> URL?
     /// Loaded when `posterURL` fails, for rows of posters; see
-    /// `PlexItem.fallbackPosterPath`. Nil for rows of stills.
-    var fallbackPosterURL: ((PlexItem, Int, Int) -> URL?)? = nil
-    var progress: (PlexItem) -> Double? = { $0.posterProgress }
+    /// `MediaItem.fallbackPosterPath`. Nil for rows of stills.
+    var fallbackPosterURL: ((MediaItem, Int, Int) -> URL?)? = nil
+    var progress: (MediaItem) -> Double? = { $0.posterProgress }
     /// Whether `posterURL` hands back an unwatched episode's own still.
-    var isUnwatchedEpisodeImage: (PlexItem) -> Bool = { _ in false }
-    @ViewBuilder let contextMenuContent: (PlexItem) -> ContextMenuContent
+    var isUnwatchedEpisodeImage: (MediaItem) -> Bool = { _ in false }
+    @ViewBuilder let contextMenuContent: (MediaItem) -> ContextMenuContent
 
     var body: some View {
         let imageWidth = Int(posterWidth.rounded(.up))
@@ -279,27 +279,27 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
     }
 }
 
-struct PlexItemPosterGrid<ContextMenuContent: View>: View {
+struct MediaItemPosterGrid<ContextMenuContent: View>: View {
     @Environment(PlexService.self) private var plexService
 
-    let items: [PlexItem]
+    let items: [MediaItem]
     let layout: AdaptivePosterGridLayout
     var rowSpacing: CGFloat = DuskPosterMetrics.detailGridRowSpacing
     var imageAspectRatio: CGFloat = 2.0 / 3.0
-    var posterURL: (PlexItem, Int, Int) -> URL?
-    var subtitle: (PlexItem) -> String?
-    var progress: (PlexItem) -> Double? = { $0.posterProgress }
-    var onItemAppear: (PlexItem) -> Void = { _ in }
+    var posterURL: (MediaItem, Int, Int) -> URL?
+    var subtitle: (MediaItem) -> String?
+    var progress: (MediaItem) -> Double? = { $0.posterProgress }
+    var onItemAppear: (MediaItem) -> Void = { _ in }
     /// Set where the grid is a list of videos to play through (a Videos
     /// library or folder, a collection): its movies and videos open knowing
     /// the grid, in its current order.
     var playThroughTitle: String? = nil
     /// Lets the screen read and move focus between cards (the tvOS A–Z jump).
-    var focusedItemID: FocusState<PlexItemID?>.Binding? = nil
+    var focusedItemID: FocusState<MediaItemID?>.Binding? = nil
     /// Makes the cards (tvOS: the rows, identified by their first item)
     /// scroll targets, for a `ScrollPosition` that scrolls to an item id.
     var isScrollTargetLayout = false
-    @ViewBuilder let contextMenuContent: (PlexItem) -> ContextMenuContent
+    @ViewBuilder let contextMenuContent: (MediaItem) -> ContextMenuContent
 
     var body: some View {
         let imageWidth = Int(layout.posterWidth.rounded(.up))
@@ -393,7 +393,7 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
     #endif
 
     private func card(
-        for item: PlexItem,
+        for item: MediaItem,
         imageWidth: Int,
         imageHeight: Int,
         playThrough: PlaybackListContext?
@@ -425,8 +425,8 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
 }
 
 private struct OptionalItemFocus: ViewModifier {
-    let binding: FocusState<PlexItemID?>.Binding?
-    let id: PlexItemID
+    let binding: FocusState<MediaItemID?>.Binding?
+    let id: MediaItemID
 
     func body(content: Content) -> some View {
         if let binding {
@@ -441,8 +441,8 @@ private struct OptionalItemFocus: ViewModifier {
 /// One row of a poster grid. Identified by its first item so paging does not
 /// rebuild the rows above it.
 private struct TVPosterRow: Identifiable {
-    let id: PlexItemID
-    let items: [PlexItem]
+    let id: MediaItemID
+    let items: [MediaItem]
 }
 
 /// Occupies the columns a short row does not fill. A move into that space
@@ -545,16 +545,16 @@ private final class TVGridFocusGuideHost: UIView {
 }
 #endif
 
-extension PlexItemPosterGrid where ContextMenuContent == EmptyView {
+extension MediaItemPosterGrid where ContextMenuContent == EmptyView {
     init(
-        items: [PlexItem],
+        items: [MediaItem],
         layout: AdaptivePosterGridLayout,
         rowSpacing: CGFloat = DuskPosterMetrics.detailGridRowSpacing,
         imageAspectRatio: CGFloat = 2.0 / 3.0,
-        posterURL: @escaping (PlexItem, Int, Int) -> URL?,
-        subtitle: @escaping (PlexItem) -> String?,
-        progress: @escaping (PlexItem) -> Double? = { $0.posterProgress },
-        onItemAppear: @escaping (PlexItem) -> Void = { _ in }
+        posterURL: @escaping (MediaItem, Int, Int) -> URL?,
+        subtitle: @escaping (MediaItem) -> String?,
+        progress: @escaping (MediaItem) -> Double? = { $0.posterProgress },
+        onItemAppear: @escaping (MediaItem) -> Void = { _ in }
     ) {
         self.items = items
         self.layout = layout

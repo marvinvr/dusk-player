@@ -15,7 +15,7 @@ struct StillWatchingInteractionTests {
     func explicitPlaybackActionsResetToZero(action: String) throws {
         let playback = PlaybackCoordinator(plexService: PlexService())
         let engine = InteractionPlaybackEngine()
-        let marker = PlexMarker(id: 42, type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
+        let marker = Marker(id: 42, type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
         let model = PlayerViewModel(engine: engine, markers: [marker])
         defer { model.cleanup() }
         model.userInteractionHandler = { playback.noteUserInteraction() }
@@ -90,7 +90,7 @@ struct StillWatchingInteractionTests {
     @Test func automaticSeeksTrackSelectionAndStateUpdatesDoNotReset() {
         let playback = PlaybackCoordinator(plexService: PlexService())
         let engine = InteractionPlaybackEngine()
-        let marker = PlexMarker(id: 42, type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
+        let marker = Marker(id: 42, type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
         let model = PlayerViewModel(engine: engine, markers: [marker])
         defer { model.cleanup() }
         model.userInteractionHandler = { playback.noteUserInteraction() }
@@ -122,7 +122,7 @@ struct StillWatchingInteractionTests {
         let playback = PlaybackCoordinator(plexService: PlexService(), preferences: preferences)
         defer { playback.cancelUpNextCountdown() }
         let candidate = UpNextCandidate(item: PlaybackQueueItem(
-            id: PlexItemID(serverID: "interaction-test", ratingKey: "2"), type: .episode, title: "Next"
+            id: MediaItemID(serverID: "interaction-test", ratingKey: "2"), type: .episode, title: "Next"
         ), queueIndex: nil)
         playback.continuousPlayEpisodeRunCount = 3
         playback.presentUpNext(for: candidate)
@@ -176,13 +176,13 @@ struct StillWatchingInteractionTests {
     #endif
 
     private func audioTrack() throws -> AudioTrack {
-        AudioTrack(stream: try JSONDecoder().decode(PlexStream.self, from: Data(
+        AudioTrack(stream: try JSONDecoder().decode(MediaStream.self, from: Data(
             #"{"id":11,"streamType":2,"codec":"aac","language":"English","languageCode":"eng"}"#.utf8
         )))
     }
 
     private func subtitleTrack() throws -> SubtitleTrack {
-        SubtitleTrack(stream: try JSONDecoder().decode(PlexStream.self, from: Data(
+        SubtitleTrack(stream: try JSONDecoder().decode(MediaStream.self, from: Data(
             #"{"id":12,"streamType":3,"codec":"srt","language":"English","languageCode":"eng"}"#.utf8
         )))
     }

@@ -15,7 +15,7 @@ struct SiriTitleMatchingTests {
         lastViewedAt: Int? = nil
     ) -> SiriTitleCandidate {
         SiriTitleCandidate(
-            id: PlexItemID(serverID: server, ratingKey: key ?? title),
+            id: MediaItemID(serverID: server, ratingKey: key ?? title),
             kind: kind,
             title: title,
             year: year,
@@ -183,7 +183,7 @@ struct SiriTitleMatchingTests {
         lastViewedAt: Int? = nil
     ) -> SiriNextEpisodePicker.Episode {
         SiriNextEpisodePicker.Episode(
-            id: PlexItemID(serverID: "server-a", ratingKey: "\(season)x\(number)"),
+            id: MediaItemID(serverID: "server-a", ratingKey: "\(season)x\(number)"),
             season: season,
             index: number,
             isWatched: watched,

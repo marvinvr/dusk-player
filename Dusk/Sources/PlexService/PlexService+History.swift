@@ -18,14 +18,14 @@ extension PlexService {
         limit: Int = 400,
         pageSize: Int = 200,
         serverID: String? = nil
-    ) async throws -> [PlexPlaybackHistoryEntry] {
+    ) async throws -> [PlaybackHistoryEntry] {
         let epochSeconds = Int(viewedSince.timeIntervalSince1970.rounded(.down))
         let clampedLimit = max(limit, 0)
         let clampedPageSize = max(pageSize, 1)
 
         guard clampedLimit > 0 else { return [] }
 
-        var entries: [PlexPlaybackHistoryEntry] = []
+        var entries: [PlaybackHistoryEntry] = []
         var start = 0
 
         while entries.count < clampedLimit {
@@ -42,7 +42,7 @@ extension PlexService {
                 queryItems.append(URLQueryItem(name: "accountId", value: String(accountId)))
             }
 
-            let page: [PlexPlaybackHistoryEntry] = try await fetchMetadata(
+            let page: [PlaybackHistoryEntry] = try await fetchMetadata(
                 path: "/status/sessions/history/all",
                 queryItems: queryItems,
                 serverID: serverID

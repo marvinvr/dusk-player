@@ -82,7 +82,7 @@ struct AudioOffsetCoordinatorTests {
         let video = hdr
             ? #"{"id":3,"streamType":1,"codec":"hevc","bitDepth":10,"colorTrc":"smpte2084"}"#
             : #"{"id":3,"streamType":1,"codec":"h264","bitDepth":8,"colorTrc":"bt709"}"#
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"1","key":"/library/metadata/1","type":"movie","title":"Clip",
              "Media":[{"id":1,"container":"mp4","Part":[{"id":2,"key":"/clip.mp4","Stream":[
                \(video),

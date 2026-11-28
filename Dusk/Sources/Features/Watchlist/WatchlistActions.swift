@@ -6,8 +6,8 @@ import SwiftUI
 @MainActor
 enum WatchlistActions {
     static func toggle(
-        entry: PlexWatchlistEntry,
-        match: PlexItem?,
+        entry: WatchlistEntry,
+        match: MediaItem?,
         plexService: PlexService
     ) async throws {
         let isWatchlisted = plexService.watchlist.contains(guid: entry.guid) ?? false
@@ -30,8 +30,8 @@ struct WatchlistHeroButton: View {
     @Environment(PlexService.self) private var plexService
     @State private var error: String?
 
-    let entry: PlexWatchlistEntry?
-    var match: PlexItem? = nil
+    let entry: WatchlistEntry?
+    var match: MediaItem? = nil
 
     var body: some View {
         if let entry, let isWatchlisted = plexService.watchlist.contains(guid: entry.guid) {
@@ -64,16 +64,16 @@ struct WatchlistHeroButton: View {
 struct WatchlistMenuButton: View {
     @Environment(PlexService.self) private var plexService
 
-    let entry: PlexWatchlistEntry?
-    var match: PlexItem? = nil
+    let entry: WatchlistEntry?
+    var match: MediaItem? = nil
 
-    init(entry: PlexWatchlistEntry?, match: PlexItem? = nil) {
+    init(entry: WatchlistEntry?, match: MediaItem? = nil) {
         self.entry = entry
         self.match = match
     }
 
-    init(item: PlexItem) {
-        self.init(entry: PlexWatchlistEntry(item: item), match: item)
+    init(item: MediaItem) {
+        self.init(entry: WatchlistEntry(item: item), match: item)
     }
 
     var body: some View {

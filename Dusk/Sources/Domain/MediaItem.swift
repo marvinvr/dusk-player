@@ -3,10 +3,10 @@ import Foundation
 /// Core metadata type representing a Plex library item.
 /// Used for movies, shows, seasons, and episodes in lists, hubs, and search results.
 /// Fields are optional because different item types populate different subsets.
-struct PlexItem: Decodable, Sendable, Identifiable {
+struct MediaItem: Decodable, Sendable, Identifiable {
     /// Server-scoped identity. Rating keys collide across servers, so nothing
     /// may key, compare, or route on `ratingKey` alone.
-    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+    var id: MediaItemID { MediaItemID(serverID: serverID, ratingKey: ratingKey) }
 
     /// Machine identifier of the server this item was decoded from. Stamped by
     /// `ServerPool.decoder(for:)` through `decoder.duskServerID`.
@@ -14,13 +14,13 @@ struct PlexItem: Decodable, Sendable, Identifiable {
 
     let ratingKey: String
     let key: String
-    let type: PlexMediaType
+    let type: MediaKind
     let subtype: String?
     let librarySectionID: String?
     let title: String
     /// Plex edition name ("Director's Cut") when the server holds several
     /// editions of one movie or show. Each edition is its own item with the
-    /// same guid, so this is also part of its `PlexContentKey`.
+    /// same guid, so this is also part of its `ContentKey`.
     let editionTitle: String?
 
     let summary: String?
@@ -70,10 +70,10 @@ struct PlexItem: Decodable, Sendable, Identifiable {
     let smart: Bool?
 
     // Metadata tags
-    let genres: [PlexTag]?
-    let directors: [PlexTag]?
-    let writers: [PlexTag]?
-    let roles: [PlexRole]?
+    let genres: [Tag]?
+    let directors: [Tag]?
+    let writers: [Tag]?
+    let roles: [Person]?
     /// Plex's scalar guid. Modern servers send a `plex://` global metadata id
     /// here, which is the strongest cross-server content identity we get.
     let guid: String?
@@ -104,7 +104,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
         serverID = decoder.duskServerID
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         key = try container.decode(String.self, forKey: .key)
-        type = try container.decode(PlexMediaType.self, forKey: .type)
+        type = try container.decode(MediaKind.self, forKey: .type)
         subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
         if let sectionID = try? container.decode(Int.self, forKey: .librarySectionID) {
             librarySectionID = String(sectionID)
@@ -151,16 +151,16 @@ struct PlexItem: Decodable, Sendable, Identifiable {
         childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
         smart = container.decodeLenientBoolIfPresent(forKey: .smart)
 
-        genres = try container.decodeIfPresent([PlexTag].self, forKey: .genres)
-        directors = try container.decodeIfPresent([PlexTag].self, forKey: .directors)
-        writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
-        roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
+        genres = try container.decodeIfPresent([Tag].self, forKey: .genres)
+        directors = try container.decodeIfPresent([Tag].self, forKey: .directors)
+        writers = try container.decodeIfPresent([Tag].self, forKey: .writers)
+        roles = try container.decodeIfPresent([Person].self, forKey: .roles)
         guid = try container.decodeIfPresent(String.self, forKey: .guid)
         guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
     }
 }
 
-extension PlexItem {
+extension MediaItem {
     /// Plex sends `editionTitle` only when an edition is set, but a hand-edited
     /// blank one should still read as "no edition" everywhere.
     static func trimmedEditionTitle(_ value: String?) -> String? {
@@ -168,8 +168,8 @@ extension PlexItem {
     }
 }
 
-extension PlexItem: Hashable {
-    static func == (lhs: PlexItem, rhs: PlexItem) -> Bool {
+extension MediaItem: Hashable {
+    static func == (lhs: MediaItem, rhs: MediaItem) -> Bool {
         lhs.id == rhs.id &&
         lhs.viewOffset == rhs.viewOffset &&
         lhs.viewCount == rhs.viewCount &&
@@ -186,7 +186,7 @@ struct PlexImageResource: Decodable, Sendable {
     let url: String?
 }
 
-private extension KeyedDecodingContainer where Key == PlexItem.CodingKeys {
+private extension KeyedDecodingContainer where Key == MediaItem.CodingKeys {
     func decodePlexImageURLIfPresent(type: String, explicitKey: Key, arrayKey: Key) throws -> String? {
         if let explicitValue = try decodeIfPresent(String.self, forKey: explicitKey) {
             return explicitValue
@@ -206,7 +206,7 @@ private extension KeyedDecodingContainer where Key == PlexItem.CodingKeys {
 
 // MARK: - Convenience
 
-extension PlexItem {
+extension MediaItem {
     /// Whether the item is a video clip (e.g. from an "Other Videos" library).
     /// Plex marks clips with `subtype == "clip"` even when `type` is `movie`.
     /// A collection of clips is still a collection.
@@ -291,7 +291,7 @@ extension PlexItem {
 // MARK: - Nested tag types
 
 /// A simple key-value tag used for genres, directors, writers, etc.
-struct PlexTag: Codable, Sendable, Hashable {
+struct Tag: Codable, Sendable, Hashable {
     let tag: String
     /// The tag's id. For a `Collection` tag it is the collection's `index`,
     /// which is how an item's collections are matched to collection items.
@@ -327,7 +327,7 @@ struct PlexGuid: Codable, Sendable, Hashable {
 }
 
 /// A cast/crew member with role information.
-struct PlexRole: Codable, Sendable {
+struct Person: Codable, Sendable {
     let id: Int?
     let filter: String?
     let tag: String
@@ -336,7 +336,7 @@ struct PlexRole: Codable, Sendable {
     let thumb: String?
 }
 
-extension PlexRole {
+extension Person {
     var personID: String? {
         if let id {
             return String(id)
@@ -352,7 +352,7 @@ extension PlexRole {
     }
 }
 
-extension PlexItem {
+extension MediaItem {
     var personID: String? {
         guard type == .person else { return nil }
 
@@ -416,7 +416,7 @@ struct PlexPersonReference: Sendable, Hashable, Identifiable {
 }
 
 extension PlexPersonReference {
-    init(role: PlexRole) {
+    init(role: Person) {
         self.init(
             personID: role.personID,
             name: role.tag,
@@ -425,7 +425,7 @@ extension PlexPersonReference {
         )
     }
 
-    init?(item: PlexItem) {
+    init?(item: MediaItem) {
         guard item.type == .person else { return nil }
 
         self.init(

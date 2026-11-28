@@ -31,8 +31,8 @@ struct HomeTVView: View {
     /// `HomeScrollReport`.
     let scrollReport: HomeScrollReport?
     let scrollToTopRevision: Int
-    let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
-    let play: (PlexItem) -> Void
+    let playLiveTV: (LiveChannel, LiveProgram, LiveTVLineup) -> Void
+    let play: (MediaItem) -> Void
 
     private enum FocusTarget: Hashable {
         /// A hero page's play button, by its item's `storageKey`. Every page
@@ -129,7 +129,7 @@ struct HomeTVView: View {
     /// a detail page that left the only reachable button off screen while
     /// the hero still showed another page, and up from the shelves did
     /// nothing at all.
-    private func heroPrimaryKey(in heroItems: [PlexItem]) -> String? {
+    private func heroPrimaryKey(in heroItems: [MediaItem]) -> String? {
         if let focusedHeroKey { return focusedHeroKey }
         if let visibleHeroKey, heroItems.contains(where: { $0.id.storageKey == visibleHeroKey }) {
             return visibleHeroKey
@@ -559,7 +559,7 @@ struct HomeTVView: View {
             if !items.isEmpty {
                 let isVideoHub = viewModel.isVideoHub(hub)
 
-                PlexItemPosterCarouselSection(
+                MediaItemPosterCarouselSection(
                     title: hub.title,
                     items: items,
                     posterWidth: isVideoHub
@@ -587,7 +587,7 @@ struct HomeTVView: View {
 
         ForEach(viewModel.personalizedShelves) { shelf in
             if !shelf.items.isEmpty {
-                PlexItemPosterCarouselSection(
+                MediaItemPosterCarouselSection(
                     title: shelf.title,
                     items: shelf.items,
                     posterWidth: DuskPosterMetrics.carouselPosterWidth,
@@ -599,7 +599,7 @@ struct HomeTVView: View {
                         viewModel.posterURL(for: item, width: width, height: height)
                     }
                 ) { item in
-                    PlexItemContextMenuContent(
+                    MediaItemContextMenuContent(
                         item: item,
                         onMarkWatched: {
                             Task { await viewModel.setWatched(true, for: item) }
@@ -615,8 +615,8 @@ struct HomeTVView: View {
     }
 
     @ViewBuilder
-    private func hubContextMenu(_ item: PlexItem, in hub: PlexHub) -> some View {
-        PlexItemContextMenuContent(
+    private func hubContextMenu(_ item: MediaItem, in hub: HomeRow) -> some View {
+        MediaItemContextMenuContent(
             item: item,
             onMarkWatched: {
                 Task { await viewModel.setWatched(true, for: item) }
@@ -871,7 +871,7 @@ struct HomeTVView: View {
             .foregroundStyle(Color.primary)
     }
 
-    private func heroDetailsLabel(for item: PlexItem) -> String {
+    private func heroDetailsLabel(for item: MediaItem) -> String {
         switch item.type {
         case .episode, .season, .show:
             // Episodes and seasons open the show page too (on their own season).
@@ -975,7 +975,7 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
 private enum HomeTVShelfID: Hashable {
     case outageNote
     case continueWatching
-    case pinnedPlaylist(PlexItemID)
+    case pinnedPlaylist(MediaItemID)
     case liveTV
     case hub(AnyHashable)
     case watchlist
@@ -1123,7 +1123,7 @@ private struct HomeTVRenderBoundary<Key: Equatable & Sendable, Content: View>: V
 }
 
 private struct HomeTVHeroRenderKey: Equatable, Sendable {
-    var itemIDs: [PlexItemID]
+    var itemIDs: [MediaItemID]
     var containerSize: CGSize
     var topInset: CGFloat
     var leadingInset: CGFloat

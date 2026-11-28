@@ -8,7 +8,7 @@ extension PlaybackCoordinator {
     static let iptvResumeSaveInterval: TimeInterval = 20
 
     /// Where to offer resuming a past IPTV programme from, if anywhere.
-    func iptvResumePosition(channel: PlexLiveChannel, program: PlexLiveProgram) -> TimeInterval? {
+    func iptvResumePosition(channel: LiveChannel, program: LiveProgram) -> TimeInterval? {
         IPTVResumeKey(channel: channel, program: program).flatMap { IPTVResumeStore.shared.resumePosition(for: $0) }
     }
 

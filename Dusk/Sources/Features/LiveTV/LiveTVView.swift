@@ -19,7 +19,7 @@ struct LiveTVRootContent: View {
     @Environment(\.openSettings) private var openSettings
     #endif
     let viewModel: LiveTVViewModel
-    @State private var selectedProgram: PlexLiveProgram?
+    @State private var selectedProgram: LiveProgram?
     /// Set by the program details' Watch Live and started once the details
     /// are gone (`onDismiss`). Presenting the player while they were still
     /// dismissing dropped the presentation on tvOS, so nothing ever played
@@ -36,17 +36,17 @@ struct LiveTVRootContent: View {
     #endif
 
     private struct PendingLivePlay {
-        let channel: PlexLiveChannel
-        let program: PlexLiveProgram
-        let lineup: PlexLiveTVLineup
+        let channel: LiveChannel
+        let program: LiveProgram
+        let lineup: LiveTVLineup
         /// A past programme played back (catch-up or a recording), not the
         /// channel live.
         let isReplay: Bool
     }
 
     private struct IPTVResumeOffer {
-        let channel: PlexLiveChannel
-        let program: PlexLiveProgram
+        let channel: LiveChannel
+        let program: LiveProgram
         let position: TimeInterval
     }
 
@@ -178,7 +178,7 @@ struct LiveTVRootContent: View {
     }
 
     /// The grid: channels down the side, programmes as blocks as wide as their
-    /// airtime. Plex and every IPTV source feed the same `PlexLiveTVLineup`
+    /// airtime. Plex and every IPTV source feed the same `LiveTVLineup`
     /// model, so each is just another section, with its own time axis.
     private func guide() -> some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -232,7 +232,7 @@ struct LiveTVRootContent: View {
     /// headed by the device's name, the same way IPTV sources are split.
     private func guideSections(metrics: LiveTVGuideMetrics, now: Date) -> [LiveTVGuideSection] {
         var sections: [LiveTVGuideSection] = []
-        func add(id: String, title: String, lineup: PlexLiveTVLineup, window: LiveTVGuideWindow, collapsesTrailingGap: Bool) {
+        func add(id: String, title: String, lineup: LiveTVLineup, window: LiveTVGuideWindow, collapsesTrailingGap: Bool) {
             let timeline = LiveTVGuideTimeline(
                 window: window,
                 lineup: lineup,
@@ -281,7 +281,7 @@ struct LiveTVRootContent: View {
     /// (catch-up or a recording) and otherwise shows the details. A gap (no
     /// guide data) tunes the channel: a guide is optional, the channel always
     /// plays (issue #17).
-    private func select(_ cell: LiveTVGuideCell, row: LiveTVGuideRow, lineup: PlexLiveTVLineup) {
+    private func select(_ cell: LiveTVGuideCell, row: LiveTVGuideRow, lineup: LiveTVLineup) {
         let now = Date.now
         if let program = cell.program, cell.hasEnded(at: now) {
             if cell.isReplayable, viewModel.canReplay(program, on: row.channel, now: now) {
@@ -298,7 +298,7 @@ struct LiveTVRootContent: View {
 
     /// A past programme: an IPTV channel's catch-up, or the library copy of
     /// a Plex airing (played like any library item, resume point included).
-    private func replay(_ program: PlexLiveProgram, channel: PlexLiveChannel) {
+    private func replay(_ program: LiveProgram, channel: LiveChannel) {
         if channel.iptv != nil {
             if let position = playback.iptvResumePosition(channel: channel, program: program) {
                 resumeOffer = IPTVResumeOffer(channel: channel, program: program, position: position)
@@ -409,7 +409,7 @@ struct LiveTVRootContent: View {
     /// is dropped unless it is on now. Guide data is optional (issue #17).
     /// `lineup` is the channel's own (Plex or one IPTV source), which is what
     /// the in-player channel list then switches within.
-    private func play(channel: PlexLiveChannel, program: PlexLiveProgram?, lineup: PlexLiveTVLineup) {
+    private func play(channel: LiveChannel, program: LiveProgram?, lineup: LiveTVLineup) {
         let program = program.flatMap { $0.isAiring() ? $0 : nil }
         // A tuner device's section switches within all Plex channels, as before.
         // An IPTV section's lineup lacks its filler programmes (guide only):
@@ -422,7 +422,7 @@ struct LiveTVRootContent: View {
         }
     }
 
-    private func channelAndLineup(for program: PlexLiveProgram) -> (channel: PlexLiveChannel, lineup: PlexLiveTVLineup)? {
+    private func channelAndLineup(for program: LiveProgram) -> (channel: LiveChannel, lineup: LiveTVLineup)? {
         let lineups = [viewModel.lineup].compactMap { $0 } + viewModel.iptvLineups.map(\.lineup)
         for lineup in lineups {
             if let channel = lineup.channel(for: program) { return (channel, lineup) }
@@ -444,7 +444,7 @@ struct LiveTVProgramCard: View {
     @Environment(\.isFocused) private var isFocused
     /// Nil for a channel without guide data; the card then offers the channel
     /// itself.
-    let program: PlexLiveProgram?
+    let program: LiveProgram?
     let imageURL: URL?
     /// Shown when the program carries no artwork of its own, which is common
     /// on XMLTV and cloud lineups. A centered channel logo says what the card
@@ -569,8 +569,8 @@ struct LiveTVProgramCard: View {
 
 struct LiveTVProgramDetails: View {
     @Environment(\.dismiss) private var dismiss
-    let program: PlexLiveProgram
-    let channel: PlexLiveChannel?
+    let program: LiveProgram
+    let channel: LiveChannel?
     let canPlay: Bool
     /// A past programme that plays back (catch-up or a recording).
     var isReplay = false

@@ -7,7 +7,7 @@ import SwiftUI
 /// failed, empty or missing Watchlist leaves no trace on Home.
 struct HomeWatchlistShelf: View {
     let viewModel: HomeViewModel
-    let onMarkWatched: (PlexItem, Bool) -> Void
+    let onMarkWatched: (MediaItem, Bool) -> Void
 
     static let title = "Watchlist"
 
@@ -28,7 +28,7 @@ struct HomeWatchlistShelf: View {
     }
 
     @ViewBuilder
-    private func card(_ entry: PlexWatchlistEntry, width: CGFloat, imageWidth: Int, imageHeight: Int) -> some View {
+    private func card(_ entry: WatchlistEntry, width: CGFloat, imageWidth: Int, imageHeight: Int) -> some View {
         if let item = viewModel.watchlistMatch(for: entry) {
             PosterNavigationCard(
                 route: AppNavigationRoute.destination(for: item),
@@ -40,7 +40,7 @@ struct HomeWatchlistShelf: View {
                 width: width,
                 isWatched: item.posterIsWatched
             ) {
-                PlexItemContextMenuContent(
+                MediaItemContextMenuContent(
                     item: item,
                     onMarkWatched: { onMarkWatched(item, true) },
                     onMarkUnwatched: { onMarkWatched(item, false) }

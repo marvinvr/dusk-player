@@ -16,8 +16,8 @@ struct SubtitleSearchView: View {
         ratingKey: String,
         serverID: String?,
         preferredLanguageCode: String?,
-        onWillDownload: @escaping (PlexSubtitleSearchResult) async -> Void = { _ in },
-        onDownloaded: @escaping (PlexSubtitleSearchResult) async -> Void,
+        onWillDownload: @escaping (SubtitleSearchResult) async -> Void = { _ in },
+        onDownloaded: @escaping (SubtitleSearchResult) async -> Void,
         onDismiss: @escaping () -> Void
     ) {
         _viewModel = State(initialValue: SubtitleSearchViewModel(
@@ -343,7 +343,7 @@ struct SubtitleSearchView: View {
 
     // MARK: - Shared row
 
-    private func resultRow(_ result: PlexSubtitleSearchResult) -> some View {
+    private func resultRow(_ result: SubtitleSearchResult) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

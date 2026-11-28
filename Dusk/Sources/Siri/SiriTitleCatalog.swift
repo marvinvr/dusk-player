@@ -9,7 +9,7 @@ private let siriCatalogLogger = Logger(
 
 /// One movie or show Siri can recognise by name.
 struct SiriCatalogEntry: Codable, Hashable, Sendable {
-    let id: PlexItemID
+    let id: MediaItemID
     let kind: SiriTitleKind
     let title: String
     let year: Int?
@@ -58,7 +58,7 @@ final class SiriTitleCatalog {
         stored?.entries ?? []
     }
 
-    func entry(for id: PlexItemID) -> SiriCatalogEntry? {
+    func entry(for id: MediaItemID) -> SiriCatalogEntry? {
         entries.first { $0.id == id }
     }
 
@@ -160,8 +160,8 @@ final class SiriTitleCatalog {
         service: PlexService,
         serverID: String,
         hiddenLibraries: HiddenLibraryFilter
-    ) async -> (watched: [PlexItem], added: [PlexItem]) {
-        let libraries: [PlexLibrary]
+    ) async -> (watched: [MediaItem], added: [MediaItem]) {
+        let libraries: [Library]
         do {
             libraries = try await service.getLibraries(serverID: serverID)
         } catch {
@@ -169,8 +169,8 @@ final class SiriTitleCatalog {
             return ([], [])
         }
 
-        var watched: [PlexItem] = []
-        var added: [PlexItem] = []
+        var watched: [MediaItem] = []
+        var added: [MediaItem] = []
         for library in libraries
         where (library.libraryType == .movie || library.libraryType == .show) && !hiddenLibraries.hides(library) {
             if let items = try? await service.getLibraryItems(
@@ -193,7 +193,7 @@ final class SiriTitleCatalog {
         return (watched, added)
     }
 
-    private static func entry(for item: PlexItem) -> SiriCatalogEntry? {
+    private static func entry(for item: MediaItem) -> SiriCatalogEntry? {
         guard !item.isClip else { return nil }
         let kind: SiriTitleKind
         switch item.type {

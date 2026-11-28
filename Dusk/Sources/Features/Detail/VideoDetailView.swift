@@ -22,7 +22,7 @@ struct VideoDetailView: View {
     private let playThrough: PlaybackListContext?
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
@@ -77,7 +77,7 @@ struct VideoDetailView: View {
     // MARK: - Content
 
     @ViewBuilder
-    private func contentView(_ details: PlexMediaDetails) -> some View {
+    private func contentView(_ details: MediaDetails) -> some View {
         GeometryReader { geometry in
             // The backdrop runs under side insets (iPhone landscape, iPhone
             // Duo's vertical bar); the hero content stays inside them.
@@ -130,7 +130,7 @@ struct VideoDetailView: View {
 
     @ViewBuilder
     private func heroSection(
-        _ details: PlexMediaDetails,
+        _ details: MediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
         containerHeight: CGFloat,
@@ -166,7 +166,7 @@ struct VideoDetailView: View {
     // MARK: - Actions
 
     @ViewBuilder
-    private func actionButtons(_ details: PlexMediaDetails) -> some View {
+    private func actionButtons(_ details: MediaDetails) -> some View {
         #if os(tvOS)
         HStack(spacing: detailHeroActionSpacing) {
             playButton(details)
@@ -191,7 +191,7 @@ struct VideoDetailView: View {
         #endif
     }
 
-    private func playButton(_ details: PlexMediaDetails) -> some View {
+    private func playButton(_ details: MediaDetails) -> some View {
         Button {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
@@ -238,7 +238,7 @@ struct VideoDetailView: View {
         }
     }
 
-    private func downloadButton(_ details: PlexMediaDetails) -> some View {
+    private func downloadButton(_ details: MediaDetails) -> some View {
         DownloadActionButton(
             id: details.id,
             type: details.type,
@@ -314,7 +314,7 @@ struct VideoDetailView: View {
     @ViewBuilder
     private func channelSection() -> some View {
         if !viewModel.channelItems.isEmpty, let title = viewModel.channelRowTitle {
-            PlexItemPosterCarouselSection(
+            MediaItemPosterCarouselSection(
                 title: title,
                 items: viewModel.channelItems,
                 posterWidth: DuskPosterMetrics.videoCarouselWidth,

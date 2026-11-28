@@ -18,16 +18,16 @@ final class SubtitleSearchViewModel {
         case searching
         case empty
         case error(String)
-        /// Carries `PlexSubtitleSearchResult.id` so only that row spins.
+        /// Carries `SubtitleSearchResult.id` so only that row spins.
         case downloading(String)
         case downloaded
     }
 
     private let plexService: PlexService
-    private let onDownloaded: (PlexSubtitleSearchResult) async -> Void
+    private let onDownloaded: (SubtitleSearchResult) async -> Void
     /// Runs just before the download is requested, so the player can note
     /// what the sidecar looked like and later tell when Plex replaced it.
-    private let onWillDownload: (PlexSubtitleSearchResult) async -> Void
+    private let onWillDownload: (SubtitleSearchResult) async -> Void
 
     let ratingKey: String
     /// The server the item lives on; nil means the primary one.
@@ -35,7 +35,7 @@ final class SubtitleSearchViewModel {
 
     var language: CommonLanguage
     var hearingImpaired = false
-    private(set) var results: [PlexSubtitleSearchResult] = []
+    private(set) var results: [SubtitleSearchResult] = []
     private(set) var phase: Phase = .idle
 
     /// Guards against a stale search landing after a newer one.
@@ -46,8 +46,8 @@ final class SubtitleSearchViewModel {
         ratingKey: String,
         serverID: String? = nil,
         preferredLanguageCode: String?,
-        onWillDownload: @escaping (PlexSubtitleSearchResult) async -> Void = { _ in },
-        onDownloaded: @escaping (PlexSubtitleSearchResult) async -> Void
+        onWillDownload: @escaping (SubtitleSearchResult) async -> Void = { _ in },
+        onDownloaded: @escaping (SubtitleSearchResult) async -> Void
     ) {
         self.plexService = plexService
         self.onWillDownload = onWillDownload
@@ -113,7 +113,7 @@ final class SubtitleSearchViewModel {
         phase = .idle
     }
 
-    func download(_ result: PlexSubtitleSearchResult) async {
+    func download(_ result: SubtitleSearchResult) async {
         guard !isBusy else { return }
 
         phase = .downloading(result.id)

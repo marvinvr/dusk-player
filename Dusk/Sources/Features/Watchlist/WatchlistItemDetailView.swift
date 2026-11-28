@@ -11,7 +11,7 @@ struct WatchlistItemDetailView: View {
     @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: WatchlistItemDetailViewModel
 
-    init(entry: PlexWatchlistEntry, plexService: PlexService) {
+    init(entry: WatchlistEntry, plexService: PlexService) {
         _viewModel = State(initialValue: WatchlistItemDetailViewModel(entry: entry, plexService: plexService))
     }
 
@@ -43,14 +43,14 @@ struct WatchlistItemDetailView: View {
 @MainActor
 @Observable
 final class WatchlistItemDetailViewModel {
-    private(set) var entry: PlexWatchlistEntry
+    private(set) var entry: WatchlistEntry
     private(set) var streamingServices: [String] = []
     private(set) var hasLoaded = false
     var actionError: String?
 
     private let plexService: PlexService
 
-    init(entry: PlexWatchlistEntry, plexService: PlexService) {
+    init(entry: WatchlistEntry, plexService: PlexService) {
         self.entry = entry
         self.plexService = plexService
     }
@@ -104,7 +104,7 @@ final class WatchlistItemDetailViewModel {
     }
 
     var backdropURL: URL? {
-        PlexWatchlistEntry.artworkURL(entry.art, width: 1280)
+        WatchlistEntry.artworkURL(entry.art, width: 1280)
     }
 }
 

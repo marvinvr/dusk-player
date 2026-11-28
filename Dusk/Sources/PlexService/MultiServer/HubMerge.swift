@@ -2,8 +2,8 @@ import Foundation
 
 /// Merged hub rows plus the alternates found while merging them.
 struct MergedPlexHubs: Sendable {
-    let hubs: [PlexHub]
-    let alternates: [PlexContentKey: [PlexItemID]]
+    let hubs: [HomeRow]
+    let alternates: [ContentKey: [MediaItemID]]
 
     static let empty = MergedPlexHubs(hubs: [], alternates: [:])
 }
@@ -34,8 +34,8 @@ enum HubMerge {
 
     /// - Parameter lists: one entry per connected server (`.home`) or per
     ///   library (`.libraryType`), in priority order.
-    static func merge(_ lists: [[PlexHub]], mode: Mode = .home) -> MergedPlexHubs {
-        var groups: [[PlexHub]] = []
+    static func merge(_ lists: [[HomeRow]], mode: Mode = .home) -> MergedPlexHubs {
+        var groups: [[HomeRow]] = []
         var identities: [String] = []
         var groupsByKey: [String: [Int]] = [:]
 
@@ -55,13 +55,13 @@ enum HubMerge {
             }
         }
 
-        var merged: [PlexHub] = []
-        var alternates: [PlexContentKey: [PlexItemID]] = [:]
+        var merged: [HomeRow] = []
+        var alternates: [ContentKey: [MediaItemID]] = [:]
 
         for (index, group) in groups.enumerated() {
             guard let representative = group.first else { continue }
-            let mergedItems = PlexItemMerge.hubItems(group.map(\.items), for: representative)
-            alternates = PlexItemMerge.combine(alternates, mergedItems.alternates)
+            let mergedItems = MediaItemMerge.hubItems(group.map(\.items), for: representative)
+            alternates = MediaItemMerge.combine(alternates, mergedItems.alternates)
             merged.append(
                 representative.merged(
                     items: mergedItems.items,
@@ -89,8 +89,8 @@ enum HubMerge {
     /// pages all of them. It holds no more items than its longest copy: one
     /// row, not eleven rows end to end. Recently Added Movies is sorted by
     /// addition date before this limit; other rows are interleaved.
-    static func collapsingRepeatedTitles(_ hubs: [PlexHub]) -> MergedPlexHubs {
-        var groups: [[PlexHub]] = []
+    static func collapsingRepeatedTitles(_ hubs: [HomeRow]) -> MergedPlexHubs {
+        var groups: [[HomeRow]] = []
         var groupIndexByTitle: [String: Int] = [:]
 
         for hub in hubs {
@@ -109,8 +109,8 @@ enum HubMerge {
 
         guard groups.count < hubs.count else { return MergedPlexHubs(hubs: hubs, alternates: [:]) }
 
-        var collapsed: [PlexHub] = []
-        var alternates: [PlexContentKey: [PlexItemID]] = [:]
+        var collapsed: [HomeRow] = []
+        var alternates: [ContentKey: [MediaItemID]] = [:]
 
         for group in groups {
             guard let representative = group.first else { continue }
@@ -119,8 +119,8 @@ enum HubMerge {
                 continue
             }
 
-            let mergedItems = PlexItemMerge.hubItems(group.map(\.items), for: representative)
-            alternates = PlexItemMerge.combine(alternates, mergedItems.alternates)
+            let mergedItems = MediaItemMerge.hubItems(group.map(\.items), for: representative)
+            alternates = MediaItemMerge.combine(alternates, mergedItems.alternates)
             let limit = group.map(\.items.count).max() ?? 0
             collapsed.append(
                 representative.merged(
@@ -139,7 +139,7 @@ enum HubMerge {
     /// to, because that suffix is the only thing that told two libraries of the
     /// same type apart. Rows with no identifier (some servers omit it on
     /// `/hubs/sections`) fall back to the title.
-    static func mergeKey(for hub: PlexHub, mode: Mode = .home) -> String {
+    static func mergeKey(for hub: HomeRow, mode: Mode = .home) -> String {
         let type = hub.type ?? "-"
         let base: String
 
@@ -163,7 +163,7 @@ enum HubMerge {
     /// is global and merges on the identifier alone; a library row whose title
     /// the server did not send cannot be matched up safely, so it keeps its own
     /// server and section and simply never merges.
-    private static func libraryKey(for hub: PlexHub) -> String {
+    private static func libraryKey(for hub: HomeRow) -> String {
         guard let sectionID = hub.resolvedLibrarySectionID else { return "global" }
         guard let title = hub.librarySectionTitle?.nilIfEmpty else {
             return "section:\(hub.serverID ?? "-")|\(sectionID)"
@@ -173,7 +173,7 @@ enum HubMerge {
 
     /// Two rows of the same server are two different rows on Home, whatever
     /// their identifiers say.
-    private static func canMerge(_ hub: PlexHub, into group: [PlexHub], mode: Mode) -> Bool {
+    private static func canMerge(_ hub: HomeRow, into group: [HomeRow], mode: Mode) -> Bool {
         guard mode == .home else { return true }
         return !group.contains { $0.serverID == hub.serverID }
     }
@@ -186,7 +186,7 @@ enum HubMerge {
     }
 }
 
-extension PlexHub {
+extension HomeRow {
     /// The server whose row stands in for a merged row: its own server, or the
     /// highest-priority contributing source. `HomeHubArrangement` uses it to
     /// find the library a merged row belongs to.
@@ -194,7 +194,7 @@ extension PlexHub {
         serverID ?? sources.first?.serverID
     }
 
-    /// The `PlexLibrary.id` this row belongs to, or nil for a global row such as
+    /// The `Library.id` this row belongs to, or nil for a global row such as
     /// Continue Watching. Section keys are per-server counters, so the server
     /// has to be part of it.
     var representativeLibraryID: String? {

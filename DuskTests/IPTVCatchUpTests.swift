@@ -129,14 +129,14 @@ struct IPTVCatchUpTests {
 
 @Suite("Live TV guide catch-up")
 struct LiveTVGuideCatchUpTests {
-    private func program(_ title: String, from begin: Date, to end: Date) throws -> PlexLiveProgram {
-        try JSONDecoder().decode(PlexLiveProgram.self, from: Data("""
+    private func program(_ title: String, from begin: Date, to end: Date) throws -> LiveProgram {
+        try JSONDecoder().decode(LiveProgram.self, from: Data("""
         { "ratingKey": "\(title)", "title": "\(title)", "guid": "plex://episode/\(title)",
           "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
         """.utf8))
     }
 
-    private let channel = PlexLiveChannel(
+    private let channel = LiveChannel(
         iptvID: "c1", number: "1", title: "One", logo: nil,
         playable: IPTVPlayableChannel(sourceID: UUID(), sourceIdentity: "https://x/list.m3u", streamURL: URL(string: "https://x/1")!, headers: [:], userAgent: nil, drm: nil)
     )
@@ -150,7 +150,7 @@ struct LiveTVGuideCatchUpTests {
         let now = Date(timeIntervalSince1970: 1_793_000_000)
         let past = try program("past", from: now.addingTimeInterval(-7200), to: now.addingTimeInterval(-3600))
         let live = try program("live", from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(3600))
-        let guide = PlexLiveChannelGuide(channel: channel, programs: [past, live])
+        let guide = LiveChannelGuide(channel: channel, programs: [past, live])
         let timeline = LiveTVGuideTimeline(
             window: LiveTVGuideWindow(start: now.addingTimeInterval(-3 * 3600), end: now.addingTimeInterval(3 * 3600)),
             pointsPerMinute: 5
@@ -177,7 +177,7 @@ struct LiveTVGuideCatchUpTests {
         let row = LiveTVGuideRow(
             id: "r", channel: channel,
             cells: LiveTVGuideSection.cells(
-                for: PlexLiveChannelGuide(channel: channel, programs: [past]), rowID: "r", timeline: timeline, now: now
+                for: LiveChannelGuide(channel: channel, programs: [past]), rowID: "r", timeline: timeline, now: now
             )
         )
         #expect(LiveTVGuideCursor.crossingTime(.previous, in: row, timeline: timeline) < timeline.start)
@@ -195,12 +195,12 @@ struct LiveTVGuideCatchUpTests {
     // MARK: Collapsed gaps
 
     /// A sparse guide: one session two days back, one two days ahead.
-    private func sparse(now: Date) throws -> (LiveTVGuideTimeline, PlexLiveChannelGuide) {
+    private func sparse(now: Date) throws -> (LiveTVGuideTimeline, LiveChannelGuide) {
         let past = try program("past", from: now.addingTimeInterval(-48 * 3600), to: now.addingTimeInterval(-47 * 3600))
         let next = try program("next", from: now.addingTimeInterval(48 * 3600), to: now.addingTimeInterval(49 * 3600))
-        let guide = PlexLiveChannelGuide(channel: channel, programs: [past, next])
-        let lineup = PlexLiveTVLineup(
-            provider: PlexLiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
+        let guide = LiveChannelGuide(channel: channel, programs: [past, next])
+        let lineup = LiveTVLineup(
+            provider: LiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
             guides: [guide]
         )
         let timeline = LiveTVGuideTimeline(
@@ -249,9 +249,9 @@ struct LiveTVGuideCatchUpTests {
         let now = Date(timeIntervalSince1970: 1_793_000_000)
         let earlier = try program("a", from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(3600))
         let later = try program("b", from: now.addingTimeInterval(3600 + 50 * 60), to: now.addingTimeInterval(3 * 3600))
-        let lineup = PlexLiveTVLineup(
-            provider: PlexLiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
-            guides: [PlexLiveChannelGuide(channel: channel, programs: [earlier, later])]
+        let lineup = LiveTVLineup(
+            provider: LiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
+            guides: [LiveChannelGuide(channel: channel, programs: [earlier, later])]
         )
         let timeline = LiveTVGuideTimeline(
             window: LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now),
@@ -267,9 +267,9 @@ struct LiveTVGuideCatchUpTests {
     @Test func noRulerLabelAfterATrailingCollapse() throws {
         let now = Date(timeIntervalSince1970: 1_793_000_000)
         let onNow = try program("now", from: now.addingTimeInterval(-600), to: now.addingTimeInterval(1800))
-        let lineup = PlexLiveTVLineup(
-            provider: PlexLiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
-            guides: [PlexLiveChannelGuide(channel: channel, programs: [onNow])]
+        let lineup = LiveTVLineup(
+            provider: LiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
+            guides: [LiveChannelGuide(channel: channel, programs: [onNow])]
         )
         let end = now.addingTimeInterval(12 * 3600 + 7 * 60)
         let timeline = LiveTVGuideTimeline(
@@ -297,7 +297,7 @@ struct LiveTVGuideCatchUpTests {
             window: LiveTVGuideWindow(start: now, end: now.addingTimeInterval(12 * 3600)), pointsPerMinute: 5
         )
         let cells = LiveTVGuideSection.cells(
-            for: PlexLiveChannelGuide(channel: channel, programs: []), rowID: "r", timeline: timeline, now: now
+            for: LiveChannelGuide(channel: channel, programs: []), rowID: "r", timeline: timeline, now: now
         )
         let live = try #require(cells.first { $0.isAiring(at: now) })
         #expect(live.end.timeIntervalSince(live.start) <= LiveTVGuideTimeline.nowZoneLength)
@@ -316,7 +316,7 @@ struct LiveTVGuideCatchUpTests {
         let row = LiveTVGuideRow(
             id: "r", channel: channel,
             cells: LiveTVGuideSection.cells(
-                for: PlexLiveChannelGuide(channel: channel, programs: [short, long]), rowID: "r", timeline: timeline, now: now
+                for: LiveChannelGuide(channel: channel, programs: [short, long]), rowID: "r", timeline: timeline, now: now
             )
         )
         var cursor = LiveTVGuideCursor(time: start)
@@ -339,8 +339,8 @@ struct LiveTVGuideCatchUpTests {
             (0, 1.1), (1.2, 2), (3.2, 0.7), (97, 0.7), (116, 1.25), (120, 1.25), (139, 1.25), (142, 0.5), (143, 1.2), (144.2, 0.5), (164, 1.1), (165.2, 2), (167.2, 0.7),
         ]
         let channels = try (0..<4).map { index in
-            PlexLiveChannelGuide(
-                channel: PlexLiveChannel(iptvID: "c\(index)", number: nil, title: "C\(index)", logo: nil, playable: self.channel.iptv!),
+            LiveChannelGuide(
+                channel: LiveChannel(iptvID: "c\(index)", number: nil, title: "C\(index)", logo: nil, playable: self.channel.iptv!),
                 programs: try sessions.enumerated().map { number, session in
                     try program(
                         "\(index)-\(number)",
@@ -350,8 +350,8 @@ struct LiveTVGuideCatchUpTests {
                 }
             )
         }
-        let provider = PlexLiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
-        let lineup = PlexLiveTVLineup(provider: provider, guides: channels)
+        let provider = LiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
+        let lineup = LiveTVLineup(provider: provider, guides: channels)
 
         for hours in stride(from: -48.0, through: 216, by: 0.37) {
             let now = base.addingTimeInterval(hours * 3600)
@@ -386,8 +386,8 @@ struct LiveTVGuideCatchUpTests {
 
     // MARK: Filler airings
 
-    private func airing(_ key: String, _ title: String, from begin: Date, to end: Date) throws -> PlexLiveProgram {
-        try JSONDecoder().decode(PlexLiveProgram.self, from: Data("""
+    private func airing(_ key: String, _ title: String, from begin: Date, to end: Date) throws -> LiveProgram {
+        try JSONDecoder().decode(LiveProgram.self, from: Data("""
         { "ratingKey": "\(key)", "title": "\(title)",
           "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
         """.utf8))
@@ -397,7 +397,7 @@ struct LiveTVGuideCatchUpTests {
     /// programmes in between (days long, plus a short one between two
     /// sessions on one day). Those draw as empty time, so the days collapse
     /// in an IPTV section exactly as in a Plex one.
-    private func relayLineup(now: Date) throws -> PlexLiveTVLineup {
+    private func relayLineup(now: Date) throws -> LiveTVLineup {
         let hour: TimeInterval = 3600
         let programs = [
             try airing("s1", "Practice 1", from: now.addingTimeInterval(-72 * hour), to: now.addingTimeInterval(-71 * hour)),
@@ -408,11 +408,11 @@ struct LiveTVGuideCatchUpTests {
             try airing("f3", "No live session", from: now.addingTimeInterval(4 * hour), to: now.addingTimeInterval(48 * hour)),
             try airing("s4", "Race", from: now.addingTimeInterval(48 * hour), to: now.addingTimeInterval(50 * hour)),
         ]
-        let provider = PlexLiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
-        return PlexLiveTVLineup(provider: provider, guides: [PlexLiveChannelGuide(channel: channel, programs: programs)])
+        let provider = LiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
+        return LiveTVLineup(provider: provider, guides: [LiveChannelGuide(channel: channel, programs: programs)])
     }
 
-    private func relayTimeline(_ lineup: PlexLiveTVLineup, now: Date) -> LiveTVGuideTimeline {
+    private func relayTimeline(_ lineup: LiveTVLineup, now: Date) -> LiveTVGuideTimeline {
         LiveTVGuideTimeline(
             window: LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now),
             lineup: lineup, now: now, pointsPerMinute: 5, collapsedWidth: 100, collapsesTrailingGap: false
@@ -446,8 +446,8 @@ struct LiveTVGuideCatchUpTests {
     @Test func longRealProgrammesOnOtherChannelsStay() throws {
         let now = Date(timeIntervalSince1970: 1_793_000_000)
         let movie = try airing("m", "Film", from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(3 * 3600))
-        let provider = PlexLiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
-        let lineup = PlexLiveTVLineup(provider: provider, guides: [PlexLiveChannelGuide(channel: channel, programs: [movie])])
+        let provider = LiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
+        let lineup = LiveTVLineup(provider: provider, guides: [LiveChannelGuide(channel: channel, programs: [movie])])
         #expect(lineup.removingFillerAirings().guides[0].programs.map(\.title) == ["Film"])
     }
 

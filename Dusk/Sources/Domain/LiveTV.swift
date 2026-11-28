@@ -1,6 +1,6 @@
 import Foundation
 
-struct PlexLiveTVProvider: Sendable, Hashable, Identifiable {
+struct LiveTVProvider: Sendable, Hashable, Identifiable {
     let identifier: String
     let providerIdentifier: String
     let title: String
@@ -11,7 +11,7 @@ struct PlexLiveTVProvider: Sendable, Hashable, Identifiable {
 
     var id: String { identifier }
 
-    func on(serverID: String) -> PlexLiveTVProvider {
+    func on(serverID: String) -> LiveTVProvider {
         var provider = self
         provider.serverID = serverID
         return provider
@@ -26,7 +26,7 @@ struct PlexLiveTVProvider: Sendable, Hashable, Identifiable {
     }
 }
 
-struct PlexLiveChannel: Decodable, Sendable, Hashable, Identifiable {
+struct LiveChannel: Decodable, Sendable, Hashable, Identifiable {
     let id: String
     let gridKey: String
     let vcn: String?
@@ -113,7 +113,7 @@ struct PlexLiveChannel: Decodable, Sendable, Hashable, Identifiable {
     }
 }
 
-struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
+struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
     let ratingKey: String
     let key: String?
     /// The metadata guid (`plex://episode/…`) on Plex guides. A DVR recording
@@ -126,15 +126,15 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
     let art: String?
     let grandparentTitle: String?
     let parentTitle: String?
-    let type: PlexMediaType
+    let type: MediaKind
     let duration: Int?
-    private(set) var airings: [PlexLiveAiring]
+    private(set) var airings: [LiveAiring]
 
     var id: String {
         "\(ratingKey)-\(primaryAiring?.channelIdentifier ?? "unknown")-\(Int(primaryAiring?.beginsAt ?? 0))"
     }
 
-    var primaryAiring: PlexLiveAiring? {
+    var primaryAiring: LiveAiring? {
         airings.first
     }
 
@@ -142,7 +142,7 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
     /// (simulcast subchannels, repeats), but the guide and player read the
     /// times and channel off `primaryAiring`, so each airing has to become
     /// its own program before it is filed under a channel.
-    func splitByAiring() -> [PlexLiveProgram] {
+    func splitByAiring() -> [LiveProgram] {
         guard airings.count > 1 else { return [self] }
         return airings.map { airing in
             var program = self
@@ -234,9 +234,9 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
         art = try container.decodeIfPresent(String.self, forKey: .art)
         grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
         parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
-        type = try container.decodeIfPresent(PlexMediaType.self, forKey: .type) ?? .unknown
+        type = try container.decodeIfPresent(MediaKind.self, forKey: .type) ?? .unknown
         duration = Self.decodeInt(container, key: .duration)
-        airings = try container.decodeIfPresent([PlexLiveAiring].self, forKey: .airings) ?? []
+        airings = try container.decodeIfPresent([LiveAiring].self, forKey: .airings) ?? []
     }
 
     private static func decodeString(
@@ -266,13 +266,13 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
     }
 }
 
-extension PlexLiveProgram {
+extension LiveProgram {
     // Here rather than with the rest of the IPTV mapping
     // (`IPTVLineupBuilder`) because `airings` has a private setter.
     /// XMLTV `title` is the show and `sub-title` the episode, while Plex puts
     /// the episode in `title` and the show in `grandparentTitle`; mapped so
     /// the shared guide reads both the same way.
-    init(iptv programme: IPTVProgramme, channel: PlexLiveChannel) {
+    init(iptv programme: IPTVProgramme, channel: LiveChannel) {
         let start = Int(programme.start.timeIntervalSince1970)
         ratingKey = "iptv-\(channel.id)-\(start)"
         key = nil
@@ -290,7 +290,7 @@ extension PlexLiveProgram {
         parentTitle = nil
         type = .unknown
         duration = Int(programme.stop.timeIntervalSince(programme.start) * 1000)
-        airings = [PlexLiveAiring(
+        airings = [LiveAiring(
             beginsAt: programme.start.timeIntervalSince1970,
             endsAt: programme.stop.timeIntervalSince1970,
             channel: channel
@@ -298,7 +298,7 @@ extension PlexLiveProgram {
     }
 }
 
-struct PlexLiveAiring: Decodable, Sendable, Hashable {
+struct LiveAiring: Decodable, Sendable, Hashable {
     let id: Int?
     let beginsAt: TimeInterval
     let endsAt: TimeInterval
@@ -375,28 +375,28 @@ struct PlexLiveAiring: Decodable, Sendable, Hashable {
     }
 }
 
-struct PlexLiveChannelGuide: Sendable, Hashable, Identifiable {
-    let channel: PlexLiveChannel
-    let programs: [PlexLiveProgram]
+struct LiveChannelGuide: Sendable, Hashable, Identifiable {
+    let channel: LiveChannel
+    let programs: [LiveProgram]
 
     var id: String { channel.id }
 
-    func currentProgram(at date: Date = .now) -> PlexLiveProgram? {
+    func currentProgram(at date: Date = .now) -> LiveProgram? {
         programs.first { $0.isAiring(at: date) }
     }
 
-    func nextProgram(after date: Date = .now) -> PlexLiveProgram? {
+    func nextProgram(after date: Date = .now) -> LiveProgram? {
         programs
             .filter { ($0.beginsAt ?? .distantPast) > date }
             .min { ($0.beginsAt ?? .distantFuture) < ($1.beginsAt ?? .distantFuture) }
     }
 }
 
-struct PlexLiveTVLineup: Sendable, Hashable {
-    let provider: PlexLiveTVProvider
-    let guides: [PlexLiveChannelGuide]
+struct LiveTVLineup: Sendable, Hashable {
+    let provider: LiveTVProvider
+    let guides: [LiveChannelGuide]
 
-    init(provider: PlexLiveTVProvider, guides: [PlexLiveChannelGuide]) {
+    init(provider: LiveTVProvider, guides: [LiveChannelGuide]) {
         self.provider = provider
         self.guides = guides
     }
@@ -404,12 +404,12 @@ struct PlexLiveTVLineup: Sendable, Hashable {
     /// Files guide programs under the lineup's channels. Every channel gets a
     /// guide, empty when nothing matched, so it stays listed and tunable.
     init(
-        provider: PlexLiveTVProvider,
-        channels: [PlexLiveChannel],
-        programs: [PlexLiveProgram]
+        provider: LiveTVProvider,
+        channels: [LiveChannel],
+        programs: [LiveProgram]
     ) {
         let matcher = PlexLiveChannelMatcher(channels: channels)
-        var programsByChannel: [String: [PlexLiveProgram]] = [:]
+        var programsByChannel: [String: [LiveProgram]] = [:]
         var seenIDs: [String: Set<String>] = [:]
         for program in programs.flatMap({ $0.splitByAiring() }) {
             guard let airing = program.primaryAiring,
@@ -420,7 +420,7 @@ struct PlexLiveTVLineup: Sendable, Hashable {
         self.init(
             provider: provider,
             guides: channels.map { channel in
-                PlexLiveChannelGuide(
+                LiveChannelGuide(
                     channel: channel,
                     programs: (programsByChannel[channel.id] ?? []).sorted {
                         ($0.beginsAt ?? .distantPast) < ($1.beginsAt ?? .distantPast)
@@ -430,25 +430,25 @@ struct PlexLiveTVLineup: Sendable, Hashable {
         )
     }
 
-    var channels: [PlexLiveChannel] {
+    var channels: [LiveChannel] {
         guides.map(\.channel)
     }
 
-    func guide(for channel: PlexLiveChannel) -> PlexLiveChannelGuide? {
+    func guide(for channel: LiveChannel) -> LiveChannelGuide? {
         guides.first { $0.channel.id == channel.id }
     }
 
-    func channel(for program: PlexLiveProgram) -> PlexLiveChannel? {
+    func channel(for program: LiveProgram) -> LiveChannel? {
         guides.first { $0.programs.contains(program) }?.channel
     }
 
     /// Keeps only programs that overlap `window`; channels stay listed (and
     /// tunable) even when nothing of theirs is left.
-    func restricted(to window: LiveTVGuideWindow) -> PlexLiveTVLineup {
-        PlexLiveTVLineup(
+    func restricted(to window: LiveTVGuideWindow) -> LiveTVLineup {
+        LiveTVLineup(
             provider: provider,
             guides: guides.map { guide in
-                PlexLiveChannelGuide(
+                LiveChannelGuide(
                     channel: guide.channel,
                     programs: guide.programs.filter { window.contains($0) }
                 )
@@ -501,7 +501,7 @@ struct LiveTVGuideWindow: Hashable, Sendable {
     /// Whether `program` is on at any point inside the window. A program
     /// without times is kept: dropping it would hide guide data the server
     /// did send.
-    func contains(_ program: PlexLiveProgram) -> Bool {
+    func contains(_ program: LiveProgram) -> Bool {
         guard let beginsAt = program.beginsAt, let endsAt = program.endsAt else { return true }
         return endsAt > start && beginsAt < end
     }
@@ -515,13 +515,13 @@ struct LiveTVGuideWindow: Hashable, Sendable {
 /// name exactly one channel, since subchannels often share a call sign or a
 /// network title.
 struct PlexLiveChannelMatcher {
-    private let channels: [PlexLiveChannel]
+    private let channels: [LiveChannel]
     private var byIdentifier: [String: Int] = [:]
     private var byNumber: [String: [Int]] = [:]
     private var byCallSign: [String: [Int]] = [:]
     private var byTitle: [String: [Int]] = [:]
 
-    init(channels: [PlexLiveChannel]) {
+    init(channels: [LiveChannel]) {
         self.channels = channels
         for (index, channel) in channels.enumerated() {
             for identifier in [channel.gridKey, channel.id] + channel.alternateIdentifiers {
@@ -541,7 +541,7 @@ struct PlexLiveChannelMatcher {
         }
     }
 
-    func channel(for airing: PlexLiveAiring) -> PlexLiveChannel? {
+    func channel(for airing: LiveAiring) -> LiveChannel? {
         let identifiers = [airing.gridKey, airing.channelIdentifier, airing.channelID.map(String.init)]
             .compactMap { $0?.nilIfEmpty }
         if let index = identifiers.lazy.compactMap({ byIdentifier[$0] }).first {
@@ -572,10 +572,10 @@ struct PlexLiveChannelMatcher {
     }
 }
 
-struct PlexLivePlaybackContext: Sendable, Hashable {
-    let lineup: PlexLiveTVLineup
-    let channel: PlexLiveChannel
-    let program: PlexLiveProgram?
+struct LivePlaybackContext: Sendable, Hashable {
+    let lineup: LiveTVLineup
+    let channel: LiveChannel
+    let program: LiveProgram?
     let sessionID: String
 
     var sessionPath: String {
@@ -584,28 +584,28 @@ struct PlexLivePlaybackContext: Sendable, Hashable {
 
     /// The tuned channel's schedule. Refreshed during playback by
     /// `PlaybackCoordinator`, so it stays valid past the tuned program's end.
-    var channelPrograms: [PlexLiveProgram] {
+    var channelPrograms: [LiveProgram] {
         lineup.guide(for: channel)?.programs ?? []
     }
 
-    func program(at date: Date) -> PlexLiveProgram? {
+    func program(at date: Date) -> LiveProgram? {
         channelPrograms.first { $0.isAiring(at: date) }
     }
 
     /// Copy of this context carrying a fresh schedule for the tuned channel.
     /// Other channels keep their guides so the in-player channel list still
     /// shows what is on elsewhere.
-    func replacingChannelPrograms(_ programs: [PlexLiveProgram]) -> PlexLivePlaybackContext {
+    func replacingChannelPrograms(_ programs: [LiveProgram]) -> LivePlaybackContext {
         var guides = lineup.guides.map { guide in
             guide.channel.id == channel.id
-                ? PlexLiveChannelGuide(channel: guide.channel, programs: programs)
+                ? LiveChannelGuide(channel: guide.channel, programs: programs)
                 : guide
         }
         if !guides.contains(where: { $0.channel.id == channel.id }) {
-            guides.append(PlexLiveChannelGuide(channel: channel, programs: programs))
+            guides.append(LiveChannelGuide(channel: channel, programs: programs))
         }
-        return PlexLivePlaybackContext(
-            lineup: PlexLiveTVLineup(provider: lineup.provider, guides: guides),
+        return LivePlaybackContext(
+            lineup: LiveTVLineup(provider: lineup.provider, guides: guides),
             channel: channel,
             program: programs.first { $0.isAiring() } ?? program,
             sessionID: sessionID
@@ -622,8 +622,8 @@ struct PlexLiveTuneResult: Sendable {
     let playbackSessionIdentifier: String
     let transcodeSessionID: String?
     let playbackURL: URL
-    let media: PlexMedia
-    let part: PlexMediaPart
+    let media: MediaVersion
+    let part: MediaPart
     /// Playing the live session's own HLS (the tuner stream, copied), not a
     /// Plex transcode. See `PlexService.liveTVDirectPlayURL`.
     var isDirectPlay = false
@@ -665,7 +665,7 @@ struct PlexMediaProvidersResponse: Decodable {
             )
         }
 
-        var liveTVProvider: PlexLiveTVProvider? {
+        var liveTVProvider: LiveTVProvider? {
             guard protocols?.lowercased().contains("livetv") == true,
                   let identifier,
                   let gridKey = Feature?.first(where: { $0.type == "grid" })?.key,
@@ -673,7 +673,7 @@ struct PlexMediaProvidersResponse: Decodable {
                 return nil
             }
 
-            return PlexLiveTVProvider(
+            return LiveTVProvider(
                 identifier: identifier,
                 providerIdentifier: providerIdentifier ?? identifier.components(separatedBy: ":").first ?? identifier,
                 title: title ?? "Live TV",
@@ -712,7 +712,7 @@ struct PlexLiveChannelsResponse: Decodable {
     let MediaContainer: Container
 
     struct Container: Decodable {
-        let Channel: [PlexLiveChannel]?
+        let Channel: [LiveChannel]?
     }
 }
 
@@ -949,11 +949,11 @@ struct PlexLiveTuneResponse: Decodable {
                 && audioCodecs.allSatisfy { ["aac", "ac3", "eac3", "mp3"].contains($0) }
         }
 
-        func makeMedia(sessionPath: String) -> PlexMedia {
+        func makeMedia(sessionPath: String) -> MediaVersion {
             let convertedParts = (Part ?? []).enumerated().map { index, part in
                 part.makePart(id: index, sessionPath: sessionPath)
             }
-            let fallbackPart = PlexMediaPart(
+            let fallbackPart = MediaPart(
                 id: 0,
                 key: sessionPath,
                 file: nil,
@@ -967,7 +967,7 @@ struct PlexLiveTuneResponse: Decodable {
                 streams: []
             )
 
-            return PlexMedia(
+            return MediaVersion(
                 id: id ?? 0,
                 container: container ?? "hls",
                 videoCodec: videoCodec,
@@ -1007,8 +1007,8 @@ struct PlexLiveTuneResponse: Decodable {
             Stream = streams.isEmpty ? nil : streams
         }
 
-        func makePart(id fallbackID: Int, sessionPath: String) -> PlexMediaPart {
-            PlexMediaPart(
+        func makePart(id fallbackID: Int, sessionPath: String) -> MediaPart {
+            MediaPart(
                 id: id ?? fallbackID,
                 key: key ?? sessionPath,
                 file: nil,
@@ -1067,12 +1067,12 @@ struct PlexLiveTuneResponse: Decodable {
             scanType = container.lenientString(forKey: .scanType)
         }
 
-        func makeStream(id fallbackID: Int) -> PlexStream? {
+        func makeStream(id fallbackID: Int) -> MediaStream? {
             guard let streamType, let type = PlexStreamType(rawValue: streamType) else {
                 return nil
             }
 
-            return PlexStream(
+            return MediaStream(
                 id: id ?? index ?? fallbackID,
                 streamType: type,
                 codec: codec,

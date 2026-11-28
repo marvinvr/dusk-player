@@ -4,11 +4,11 @@ import Foundation
 /// that went into it.
 ///
 /// `alternates` is what playback needs later — the same movie on three servers
-/// gives three `PlexItemID`s, in server-priority order — and is handed to
+/// gives three `MediaItemID`s, in server-priority order — and is handed to
 /// `ContentAlternatesIndex` by the caller that owns the service.
 struct MergedPlexItems: Sendable {
-    let items: [PlexItem]
-    let alternates: [PlexContentKey: [PlexItemID]]
+    let items: [MediaItem]
+    let alternates: [ContentKey: [MediaItemID]]
 
     static let empty = MergedPlexItems(items: [], alternates: [:])
 }
@@ -24,11 +24,11 @@ struct MergedPlexItems: Sendable {
 /// libraries on one server — the same show filed under "Kids TV" and "TV" is
 /// one entry on Home. Weak (title/numbering) identities on one server keep
 /// their own rows: a guess is not enough to hide a library's item.
-enum PlexItemMerge {
+enum MediaItemMerge {
     /// Movie additions form one timeline across libraries/servers. Interleaving
     /// puts an old library's newest movie ahead of another library's newer ones.
     /// Keep Plex's single-source order and TV's episode/season grouping intact.
-    static func hubItems(_ lists: [[PlexItem]], for hub: PlexHub) -> MergedPlexItems {
+    static func hubItems(_ lists: [[MediaItem]], for hub: HomeRow) -> MergedPlexItems {
         let isRecentlyAdded = hub.hubIdentifier?.lowercased().contains(".recentlyadded.") == true
             || hub.title.lowercased().contains("recently added")
         guard lists.count > 1, hub.type == "movie", isRecentlyAdded else {
@@ -49,12 +49,12 @@ enum PlexItemMerge {
     /// Deduplicates by content key and visits the servers round-robin, so a row
     /// leads with the highest-priority server's newest item but still shows what
     /// the others have without scrolling to the end.
-    static func interleave(_ lists: [[PlexItem]]) -> MergedPlexItems {
+    static func interleave(_ lists: [[MediaItem]]) -> MergedPlexItems {
         let keys = contentKeys(in: lists)
         let alternates = alternates(in: lists)
-        var merged: [PlexItem] = []
+        var merged: [MediaItem] = []
         merged.reserveCapacity(lists.reduce(0) { $0 + $1.count })
-        var placed: [PlexContentKey: [Int]] = [:]
+        var placed: [ContentKey: [Int]] = [:]
         var cursors = [Int](repeating: 0, count: lists.count)
         var didAdvance = true
 
@@ -98,8 +98,8 @@ enum PlexItemMerge {
 
     /// Every rating key of a strong identity, including copies in other
     /// libraries of the same server.
-    static func alternates(in lists: [[PlexItem]]) -> [PlexContentKey: [PlexItemID]] {
-        var alternates: [PlexContentKey: [PlexItemID]] = [:]
+    static func alternates(in lists: [[MediaItem]]) -> [ContentKey: [MediaItemID]] {
+        var alternates: [ContentKey: [MediaItemID]] = [:]
         let keys = contentKeys(in: lists)
 
         for list in lists {
@@ -118,9 +118,9 @@ enum PlexItemMerge {
 
     /// Merges alternate tables, retaining copy identity and source ordering.
     static func combine(
-        _ lhs: [PlexContentKey: [PlexItemID]],
-        _ rhs: [PlexContentKey: [PlexItemID]]
-    ) -> [PlexContentKey: [PlexItemID]] {
+        _ lhs: [ContentKey: [MediaItemID]],
+        _ rhs: [ContentKey: [MediaItemID]]
+    ) -> [ContentKey: [MediaItemID]] {
         var combined = lhs
         for (key, ids) in rhs {
             var known = combined[key] ?? []
@@ -135,9 +135,9 @@ enum PlexItemMerge {
 
     /// Resolve overlapping movie aliases transitively, so a Plex GUID on one
     /// item and an IMDb-only legacy item can identify the same movie.
-    static func contentKeys(in lists: [[PlexItem]]) -> [PlexItemID: PlexContentKey] {
-        var parents: [PlexContentKey: PlexContentKey] = [:]
-        func root(_ key: PlexContentKey) -> PlexContentKey {
+    static func contentKeys(in lists: [[MediaItem]]) -> [MediaItemID: ContentKey] {
+        var parents: [ContentKey: ContentKey] = [:]
+        func root(_ key: ContentKey) -> ContentKey {
             var value = key
             while let parent = parents[value], parent != value { value = parent }
             return value
@@ -153,7 +153,7 @@ enum PlexItemMerge {
                           uniquingKeysWith: { first, _ in first })
     }
 
-    static func isMoreAdvanced(_ item: PlexItem, than other: PlexItem) -> Bool {
+    static func isMoreAdvanced(_ item: MediaItem, than other: MediaItem) -> Bool {
         let watched = (item.viewCount ?? 0) > 0
         let otherWatched = (other.viewCount ?? 0) > 0
         if watched != otherWatched { return watched }
@@ -163,7 +163,7 @@ enum PlexItemMerge {
     }
 
     /// Most recently played first, then furthest along.
-    static func isMoreRecentlyWatched(_ item: PlexItem, than other: PlexItem) -> Bool {
+    static func isMoreRecentlyWatched(_ item: MediaItem, than other: MediaItem) -> Bool {
         let lastViewedAt = item.lastViewedAt ?? 0
         let otherLastViewedAt = other.lastViewedAt ?? 0
         if lastViewedAt != otherLastViewedAt { return lastViewedAt > otherLastViewedAt }

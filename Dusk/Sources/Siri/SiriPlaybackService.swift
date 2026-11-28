@@ -100,7 +100,7 @@ final class SiriPlaybackService {
     }
 
     private func playMovie(_ candidate: SiriTitleCandidate) async -> String {
-        let details: PlexMediaDetails
+        let details: MediaDetails
         do {
             details = try await plexService.getMediaDetails(
                 ratingKey: candidate.id.ratingKey,
@@ -122,7 +122,7 @@ final class SiriPlaybackService {
     }
 
     private func playNextEpisode(of show: SiriTitleCandidate) async -> String {
-        let episodes: [PlexEpisode]
+        let episodes: [Episode]
         do {
             episodes = try await plexService.getAllEpisodes(
                 showKey: show.id.ratingKey,
@@ -165,7 +165,7 @@ final class SiriPlaybackService {
     /// The player cover comes up on its loading placeholder at once; the
     /// intent does not wait for the stream, which has its own error UI.
     private func startPlayback(
-        id: PlexItemID,
+        id: MediaItemID,
         resumeOffset: Int?,
         duration: Int?,
         placeholder: PlaybackPlaceholder
@@ -233,14 +233,14 @@ final class SiriPlaybackService {
     private func candidates(for query: SiriTitleQuery) async -> [SiriTitleCandidate] {
         let terms = query.searchTerms
         let perServer = await plexService.fanOutAcrossServers { service, serverID in
-            await withTaskGroup(of: (Int, [PlexItem]).self) { group in
+            await withTaskGroup(of: (Int, [MediaItem]).self) { group in
                 for (index, term) in terms.enumerated() {
                     group.addTask {
                         let groups = (try? await service.search(query: term, serverID: serverID)) ?? []
                         return (index, groups.flatMap(\.items))
                     }
                 }
-                var byTerm: [(Int, [PlexItem])] = []
+                var byTerm: [(Int, [MediaItem])] = []
                 for await result in group {
                     byTerm.append(result)
                 }
@@ -253,7 +253,7 @@ final class SiriPlaybackService {
             let items = result.value.filter { item in
                 Self.kind(of: item) != nil && seen.insert(item.ratingKey).inserted
             }
-            return [PlexSearchResult(title: "Siri", type: "siri", items: items)]
+            return [SearchSection(title: "Siri", type: "siri", items: items)]
         }
         let merged = SearchMerge.merge(lists)
         plexService.registerAlternates(merged.alternates)
@@ -268,7 +268,7 @@ final class SiriPlaybackService {
             .map(SiriTitleCandidate.init(entry:))
     }
 
-    private static func kind(of item: PlexItem) -> SiriTitleKind? {
+    private static func kind(of item: MediaItem) -> SiriTitleKind? {
         guard !item.isClip else { return nil }
         switch item.type {
         case .movie: return .movie
@@ -277,7 +277,7 @@ final class SiriPlaybackService {
         }
     }
 
-    private static func candidate(for item: PlexItem) -> SiriTitleCandidate? {
+    private static func candidate(for item: MediaItem) -> SiriTitleCandidate? {
         guard let kind = kind(of: item) else { return nil }
         let isInProgress: Bool
         switch kind {

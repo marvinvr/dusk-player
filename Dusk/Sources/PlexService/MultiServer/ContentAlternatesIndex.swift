@@ -3,12 +3,12 @@ import Foundation
 /// Side table of "these item instances are the same content".
 ///
 /// The merge layers (Continue Watching, hubs, search) already resolve a
-/// `PlexContentKey` for every item they look at and already know which copies
+/// `ContentKey` for every item they look at and already know which copies
 /// collapsed into the row the user sees. That knowledge is exactly what
 /// playback needs later to fall back to another server, so instead of hanging
 /// an `alternates` array off the decoded models — which would have to survive
 /// every copy, cache and re-fetch — the merges deposit it here and playback
-/// looks it up by `PlexItemID`.
+/// looks it up by `MediaItemID`.
 ///
 /// The index only ever grows during a session: an item seen on server B an hour
 /// ago is still a valid fallback for the same content on server A today, and
@@ -18,8 +18,8 @@ import Foundation
 @MainActor
 @Observable
 final class ContentAlternatesIndex {
-    private var identifiersByKey: [PlexContentKey: [PlexItemID]] = [:]
-    private var keysByIdentifier: [PlexItemID: PlexContentKey] = [:]
+    private var identifiersByKey: [ContentKey: [MediaItemID]] = [:]
+    private var keysByIdentifier: [MediaItemID: ContentKey] = [:]
 
     /// Records that these item instances are the same content.
     ///
@@ -34,7 +34,7 @@ final class ContentAlternatesIndex {
     ///   file to play.
     /// - same-server copies (the same title in two libraries) are accepted, which
     ///   is only safe because the key is strong.
-    func register(_ ids: [PlexItemID], for key: PlexContentKey) {
+    func register(_ ids: [MediaItemID], for key: ContentKey) {
         guard key.isStrong, !ids.isEmpty else { return }
 
         // A later response may bridge a Plex key and an external key. Preserve
@@ -61,13 +61,13 @@ final class ContentAlternatesIndex {
     }
 
     /// Every known instance, with the requested copy first.
-    func instances(of id: PlexItemID) -> [PlexItemID] {
+    func instances(of id: MediaItemID) -> [MediaItemID] {
         guard let key = keysByIdentifier[id], let known = identifiersByKey[key] else { return [id] }
         return [id] + known.filter { $0 != id }
     }
 
     /// The content key an id was registered under, if the index has seen it.
-    func contentKey(for id: PlexItemID) -> PlexContentKey? {
+    func contentKey(for id: MediaItemID) -> ContentKey? {
         keysByIdentifier[id]
     }
 

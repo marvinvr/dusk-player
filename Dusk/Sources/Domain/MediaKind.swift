@@ -1,7 +1,7 @@
 import Foundation
 
 /// The type of media item in a Plex library.
-enum PlexMediaType: String, Codable, Sendable, Hashable {
+enum MediaKind: String, Codable, Sendable, Hashable {
     case movie
     case show
     case person
@@ -19,6 +19,6 @@ enum PlexMediaType: String, Codable, Sendable, Hashable {
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = PlexMediaType(rawValue: raw) ?? .unknown
+        self = MediaKind(rawValue: raw) ?? .unknown
     }
 }

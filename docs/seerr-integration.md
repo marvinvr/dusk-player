@@ -9,7 +9,7 @@ of truth for all playable media.
 - `SeerrService/` owns URL validation, Plex-token sign-in, cookie sessions,
   endpoint calls, request status mapping, and Seerr artwork URLs
   (`SeerrImageURL`).
-- `Models/SeerrModels.swift` mirrors only the Seerr response fields Dusk uses.
+- `Domain/SeerrModels.swift` mirrors only the Seerr response fields Dusk uses.
 - `Features/Settings/SeerrSettings*` owns opt-in setup.
 - `Features/Search/SearchMediaResult.swift` is the presentation union used to
   place Plex and Seerr cards in the same search groups.

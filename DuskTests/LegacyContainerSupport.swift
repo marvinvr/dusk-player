@@ -176,7 +176,7 @@ enum LegacyValues {
     static let iptvNextProgrammeEnd = Date(timeIntervalSince1970: 1_767_232_800)
 
     /// A PMS `/library/metadata/{rk}` part as Plex sends it, for the converted
-    /// download's `PlexMedia` blob.
+    /// download's `MediaVersion` blob.
     static let convertedMediaJSON = #"""
         {"id":91,"container":"mkv","videoCodec":"h264","audioCodec":"aac","videoResolution":"720",
          "audioChannels":2,"width":1280,"height":720,"bitrate":4000,"duration":2520000,

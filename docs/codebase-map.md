@@ -9,7 +9,7 @@ ownership and flow, not a full symbol index.
 Dusk/Sources
   App/                 App entry, dependency injection, tabs, routes, server connect pass
   Analytics/           Anonymous event + error vocabulary and fire-and-forget reporting
-  Models/              Plex response models and app-facing media structs
+  Domain/              Plex response models and app-facing media structs
   PlexService/         Plex auth, the multi-server session pool, API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        same-server library copies, the alternates index, and library server labelling
@@ -140,7 +140,7 @@ Home:
 - `HomeHubFilter` owns the hub/item filter that keeps playlist/music/unknown
   content and Plex's own continue-watching rows off Home.
 - `HomeHubArrangement` regroups the merged hubs so a library's rows follow the
-  account's library order, keyed on `PlexLibrary.id` (never the bare section key,
+  account's library order, keyed on `Library.id` (never the bare section key,
   which aliases across servers). Home has no user-editable row layout.
 - Home merges every connected server: `HubMerge`, `ContinueWatchingMerge` and
   `PlexService.streamAcrossServers` republish the screen as each server answers.
@@ -153,12 +153,12 @@ Live TV:
 - `LiveTVView` renders current, past, and future schedule metadata. Only an
   airing program starts playback; arbitrary past guide entries are not recordings.
 - `PlexService+LiveTV` owns provider/channel/grid/tune endpoints and
-  `PlexLiveTV.swift` owns their response shapes.
+  `LiveTV.swift` owns their response shapes.
 
 Libraries:
 
 - `LibrariesViewModel` exposes the available Plex libraries (movie, show, video
-  and photo sections; `PlexLibrary.libraryType` classifies "Other Videos" sections).
+  and photo sections; `Library.libraryType` classifies "Other Videos" sections).
   Its `libraries` is a read-through of `PlexService.libraryOrder.orderedSections`,
   so every library list follows the order stored on the Plex account — which now
   spans every connected server; it loads through `ensureLibraryOrderLoaded(force:)`
@@ -176,9 +176,9 @@ Libraries:
   device-side fallback); `Libraries/LibrarySortMenu` holds the sort menu and browse chip
   pieces shared with the library grid; `DetailCollectionShelves` is the "Part of"
   row on movie/show detail pages, `DetailExtrasShelf` the "Extras" row on movie/show/
-  season/episode pages; `Shared/PlexItemPager` pages plain listings.
+  season/episode pages; `Shared/MediaItemPager` pages plain listings.
 - Photo libraries live in `Features/Photos`: `PhotoBrowserViewModel` (paged
-  albums/timeline queries over `PlexService+Photos`, `PlexPhotoItem`),
+  albums/timeline queries over `PlexService+Photos`, `PhotoItem`),
   `PhotoBrowserView` (grid, also the album route) and `PhotoViewerView` (full-screen
   viewer, iOS zoom, tvOS slideshow). See `docs/ui-features.md` → "Photos".
 - `LibraryRecommendationsViewModel` takes one *or several* libraries of the same
@@ -189,7 +189,7 @@ Libraries:
 Detail:
 
 - Each media type has a view and view model.
-- `MediaDetailDestinationView` routes `PlexMediaType` to the right detail screen.
+- `MediaDetailDestinationView` routes `MediaKind` to the right detail screen.
   On tvOS, show, season, and episode routes all land on `SeriesDetailView` (one
   page per show with season pills); the separate show/season/episode views are
   shared by iOS/iPadOS and macOS.
@@ -203,7 +203,7 @@ Player:
 - `PlaybackCoordinator` starts library and Live TV sessions and owns
   timeline/scrobble/up-next. `playbackQueue` (`PlaybackQueue`) is set only for
   playlist/list sessions; `resolveUpNext` is the single Up Next decision. Live sessions never scrobble. Its entry points take
-  a `PlexItemID`, and `activePlaybackServerID` is what every follow-up call is
+  a `MediaItemID`, and `activePlaybackServerID` is what every follow-up call is
   routed to.
 - `PlaybackSourceResolver` picks which connected server plays an item and in
   which order the others are tried.
@@ -278,7 +278,7 @@ Settings:
   wherever libraries mix: Home merge, `search`, `getHubItems`, `getPersonMedia`,
   `HomeRecommendationEngine` (visible sections), `SiriTitleCatalog`. Its `.home` /
   `.search` scopes (`hiddenLibraryFilter(for:)`) add the server-side per-library
-  Visibility (`PlexLibrary.visibility`) for Home and search/Siri only.
+  Visibility (`Library.visibility`) for Home and search/Siri only.
 
 Playlists:
 
@@ -338,7 +338,7 @@ Supporter:
 - New multi-server session behavior: `PlexService/ServerPool.swift` (sessions) or
   `ServerPriorityStore.swift` (order/enabled); *when* to connect belongs in
   `App/ServerConnectionCoordinator.swift`.
-- New cross-server merge: `PlexService/MultiServer/`, keyed on `PlexContentKey`.
+- New cross-server merge: `PlexService/MultiServer/`, keyed on `ContentKey`.
   Take per-server lists in priority order, stay a pure function of them, and
   return a single list verbatim so single-server installs are untouched.
 - New "the servers are the problem" empty state: `Shared/ServerAvailabilityViews.swift`
@@ -353,7 +353,7 @@ Supporter:
   read/write and `LibraryOrderStore` for the shared state, not `UserPreferences`.
 - New Seerr endpoint: `SeerrService/`, without widening `PlexService` or adding
   a generic provider protocol.
-- New Plex response shape: `Models/`, with optional fields where Plex varies by
+- New Plex response shape: `Domain/`, with optional fields where Plex varies by
   media type.
 - New playback format decision: `StreamResolver`.
 - New engine behavior: concrete engine in `Playback/`, not player UI.
@@ -392,8 +392,8 @@ piece has a clear name and owner.
   no "selected server": anything that reaches a server resolves that server's
   `PlexServerConnection` from `PlexService.pool` by the item's `serverID`. One
   server failing (offline, 401, disabled) must never take the others down.
-- Rating keys and section keys collide across servers. Identity is `PlexItemID`
-  (serverID + ratingKey); cross-server sameness is `PlexContentKey`.
+- Rating keys and section keys collide across servers. Identity is `MediaItemID`
+  (serverID + ratingKey); cross-server sameness is `ContentKey`.
 - The server name is a disambiguator, never decoration. A single-server account
   must look exactly as it did before multi-server.
 - The app is stateless beyond Keychain auth, UserDefaults preferences, and

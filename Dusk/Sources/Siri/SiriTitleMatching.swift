@@ -210,7 +210,7 @@ enum SiriTitleNormalizer {
 
 /// A movie or show Siri could mean.
 struct SiriTitleCandidate: Equatable, Sendable {
-    let id: PlexItemID
+    let id: MediaItemID
     let kind: SiriTitleKind
     let title: String
     let year: Int?
@@ -220,7 +220,7 @@ struct SiriTitleCandidate: Equatable, Sendable {
     let lastViewedAt: Int?
 
     init(
-        id: PlexItemID,
+        id: MediaItemID,
         kind: SiriTitleKind,
         title: String,
         year: Int?,
@@ -416,7 +416,7 @@ enum SiriTitleMatcher {
 /// Specials only count when the show has nothing else.
 enum SiriNextEpisodePicker {
     struct Episode: Equatable, Sendable {
-        let id: PlexItemID
+        let id: MediaItemID
         let season: Int?
         let index: Int?
         let isWatched: Bool

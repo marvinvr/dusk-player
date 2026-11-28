@@ -150,7 +150,7 @@ struct HiddenHomeRowsSettingsView: View {
 @Observable
 final class HiddenHomeRowsSettingsViewModel {
     struct LibraryGroup: Identifiable {
-        let library: PlexLibrary
+        let library: Library
         let title: String
         var rows: [PlexManagedHub]
 

@@ -7,7 +7,7 @@ import Foundation
 /// way to ask for a different one (`pinnedContentDirectoryID` is not honoured by
 /// shipping servers), so Dusk permutes the rows itself.
 enum HomeHubArrangement {
-    /// Orders `hubs` by `libraryOrder`, a list of `PlexLibrary.id`
+    /// Orders `hubs` by `libraryOrder`, a list of `Library.id`
     /// (`"<serverID>|<key>"`) in effective order.
     ///
     /// The id, not the bare section key: section keys are per-server counters,
@@ -30,7 +30,7 @@ enum HomeHubArrangement {
     /// Filter hubs (`HomeHubFilter`) before arranging. The result is a pure
     /// permutation: no hub is added, dropped, or modified, so an empty
     /// `libraryOrder` simply returns the input untouched.
-    static func arrange(hubs: [PlexHub], libraryOrder: [String], libraries: [PlexLibrary] = []) -> [PlexHub] {
+    static func arrange(hubs: [HomeRow], libraryOrder: [String], libraries: [Library] = []) -> [HomeRow] {
         guard !libraryOrder.isEmpty else { return hubs }
 
         var rank: [String: Int] = [:]
@@ -38,9 +38,9 @@ enum HomeHubArrangement {
             rank[key] = index
         }
 
-        var global: [PlexHub] = []
-        var buckets: [[PlexHub]] = Array(repeating: [], count: libraryOrder.count)
-        var unknown: [PlexHub] = []
+        var global: [HomeRow] = []
+        var buckets: [[HomeRow]] = Array(repeating: [], count: libraryOrder.count)
+        var unknown: [HomeRow] = []
 
         for hub in hubs {
             guard let libraryID = libraryID(for: hub, libraries: libraries) else {
@@ -60,7 +60,7 @@ enum HomeHubArrangement {
     /// Prefer Plex's section metadata. For unscoped library rows, inspect only
     /// the representative server's items: merged rows can contain other servers'
     /// section keys. Never guess between several libraries of the same type.
-    private static func libraryID(for hub: PlexHub, libraries: [PlexLibrary]) -> String? {
+    private static func libraryID(for hub: HomeRow, libraries: [Library]) -> String? {
         if let libraryID = hub.representativeLibraryID { return libraryID }
         let identifier = hub.hubIdentifier?.lowercased() ?? ""
         guard !HomeHubFilter.shouldHide(hub: hub), hub.type != "mixed",
@@ -83,7 +83,7 @@ enum HomeHubArrangement {
         // Older PMS also has type-wide Recently Added hubs without section
         // metadata. A unique matching library on that server is unambiguous.
         guard isRecentlyAdded else { return nil }
-        let type: PlexLibraryType?
+        let type: LibraryKind?
         switch hub.type {
         case "movie": type = items.isAllClips ? .video : .movie
         case "show", "season", "episode": type = .show

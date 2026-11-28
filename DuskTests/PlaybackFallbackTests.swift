@@ -39,7 +39,7 @@ struct PlaybackFallbackTests {
     ])
     func declinedHDRTrackChangesKeepTheLoadedRemux(videoFields: String) async throws {
         let playback = PlaybackCoordinator(plexService: PlexService())
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"1","key":"/library/metadata/1","type":"movie","title":"HDR",
              "Media":[{"id":1,"container":"mkv","Part":[{"id":2,"key":"/clip.mkv","Stream":[
                {"id":3,"streamType":1,"codec":"hevc",\(videoFields)}
@@ -117,7 +117,7 @@ struct PlaybackFallbackTests {
 
     @Test func dv7RetryKeepsTheReplacementFallbackArmed() async throws {
         let playback = PlaybackCoordinator(plexService: PlexService())
-        let media = try JSONDecoder().decode(PlexMedia.self, from: Data(#"""
+        let media = try JSONDecoder().decode(MediaVersion.self, from: Data(#"""
             {"id":1,"container":"mkv","Part":[{"id":2,"key":"/clip.mkv","Stream":[
               {"id":3,"streamType":1,"codec":"hevc","DOVIProfile":7,"DOVILevel":6,"DOVIBLCompatID":6}
             ]}]}
@@ -171,7 +171,7 @@ struct PlaybackFallbackTests {
         let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"hdr-server","connections":[]}"#.utf8))
         service.pool.adopt(server: server, baseURL: URL(string: "https://\(host)")!, token: "test", connection: nil)
         let playback = PlaybackCoordinator(plexService: service)
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"1","key":"/library/metadata/1","type":"movie","title":"HDR",
              "Media":[{"id":1,"container":"mkv","videoCodec":"hevc","Part":[{"id":2,"key":"/clip.mkv","Stream":[
                {"id":3,"streamType":1,"codec":"hevc",\(videoFields)},
@@ -314,7 +314,7 @@ struct PlexServerSubtitleTests {
         let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"subtitle-server","connections":[]}"#.utf8))
         service.pool.adopt(server: server, baseURL: URL(string: refuses ? "https://refuse.plex.invalid" : "https://plex.invalid")!, token: "test", connection: nil)
         let playback = PlaybackCoordinator(plexService: service)
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(#"""
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data(#"""
             {"ratingKey":"1","key":"/library/metadata/1","type":"episode","title":"PGS",
              "Media":[{"id":1,"container":"mkv","videoCodec":"hevc","audioCodec":"dca",
                "width":1920,"height":1080,"bitrate":30000,"Part":[{"id":2,"key":"/clip.mkv","Stream":[

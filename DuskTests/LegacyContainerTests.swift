@@ -266,7 +266,7 @@ struct LegacyContainerTests {
             let store = PinnedPlaylistStore(defaults: defaults)
             let pins = store.pins(profileID: "4f2a9c1d7e3b5a60")
             try #require(pins.count == 2)
-            #expect(pins[0].id == PlexItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "5001"))
+            #expect(pins[0].id == MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "5001"))
             #expect(pins[0].title == "Friday Movie Night")
             #expect(pins[1].id.serverID == nil)
             #expect(pins[1].id.ratingKey == "5002")
@@ -280,7 +280,7 @@ struct LegacyContainerTests {
     }
 
     @Test func showTrackPreferencesDecodeAndReEncode() throws {
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(LegacyValues.trackEpisodeJSON.utf8))
+        let details = try JSONDecoder().decode(MediaDetails.self, from: Data(LegacyValues.trackEpisodeJSON.utf8))
         let track = try LegacyFixture.data("LegacyContainer-ShowTrackPreferences-track.json")
         let off = try LegacyFixture.data("LegacyContainer-ShowTrackPreferences-off.json")
         try LegacyFixture.withScratchDefaults { defaults in
@@ -578,11 +578,11 @@ struct LegacyContainerTests {
         let entries = try JSONDecoder().decode([SiriCatalogEntry].self, from: fixture)
         #expect(entries == [
             SiriCatalogEntry(
-                id: PlexItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "1001"),
+                id: MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "1001"),
                 kind: .movie, title: "Arrival", year: 2016, lastViewedAt: 1_767_225_600
             ),
             SiriCatalogEntry(
-                id: PlexItemID(serverID: "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5", ratingKey: "2000"),
+                id: MediaItemID(serverID: "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5", ratingKey: "2000"),
                 kind: .show, title: "Severance", year: nil, lastViewedAt: nil
             ),
         ])
@@ -637,7 +637,7 @@ struct LegacyContainerTests {
 
         let link = try #require(TopShelfLink(url: clip.playURL))
         #expect(link.action == .play)
-        #expect(link.id == PlexItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "4001"))
+        #expect(link.id == MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", ratingKey: "4001"))
         #expect(link.type == .movie)
         #expect(link.isClip == true)
 

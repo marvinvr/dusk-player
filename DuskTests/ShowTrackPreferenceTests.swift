@@ -488,7 +488,7 @@ struct ShowTrackPreferenceTests {
     }
 
     @Test func fallbackKeepsTheHDRRemuxEligible() throws {
-        let media = try JSONDecoder().decode(PlexMedia.self, from: Data("""
+        let media = try JSONDecoder().decode(MediaVersion.self, from: Data("""
             {"id":1,"container":"mkv","Part":[{"id":2,"key":"/clip.mkv","container":"mkv","Stream":[
               \(hdr10Video),
               {"id":2,"streamType":2,"codec":"dca","profile":"ma","channels":6,"languageCode":"eng"},
@@ -511,16 +511,16 @@ struct ShowTrackPreferenceTests {
 
     private func episode(
         type: String = "episode", show: String? = "show-1", season: Int = 1, streams: String = ""
-    ) throws -> PlexMediaDetails {
+    ) throws -> MediaDetails {
         let showField = show.map { ",\"grandparentRatingKey\":\"\($0)\"" } ?? ""
-        return try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
+        return try JSONDecoder().decode(MediaDetails.self, from: Data("""
             {"ratingKey":"episode-\(season)","key":"/library/metadata/episode","type":"\(type)",
              "title":"Episode","parentIndex":\(season)\(showField),
              "Media":[{"id":1,"container":"mp4","Part":[{"id":2,"key":"/clip.mp4","Stream":[\(streams)]}]}]}
             """.utf8))
     }
 
-    private func preferences(from details: PlexMediaDetails) throws -> ShowTrackPreferences {
+    private func preferences(from details: MediaDetails) throws -> ShowTrackPreferences {
         let streams = details.media[0].parts[0].streams
         let audio = try #require(streams.first { $0.streamType == .audio })
         let subtitle = try #require(streams.first { $0.streamType == .subtitle })
@@ -530,7 +530,7 @@ struct ShowTrackPreferenceTests {
     }
 
     private func scope(
-        _ details: PlexMediaDetails, profile: String? = "profile", server: String? = "server"
+        _ details: MediaDetails, profile: String? = "profile", server: String? = "server"
     ) -> ShowTrackPreferenceStore.Scope? {
         ShowTrackPreferenceStore.Scope(profileID: profile, serverID: server, details: details)
     }

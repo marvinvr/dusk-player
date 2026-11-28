@@ -14,7 +14,7 @@ final class DetailUserRatingModel {
     }
 
     /// - Parameter stars: 1–5, or nil to clear.
-    func rate(_ stars: Int?, id: PlexItemID, plexService: PlexService) async {
+    func rate(_ stars: Int?, id: MediaItemID, plexService: PlexService) async {
         let previous = value
         value = stars.map { Double($0 * 2) }
         do {
@@ -35,7 +35,7 @@ final class DetailUserRatingModel {
 /// lowering their opacity, and Rotten Tomatoes wants its icon left of the score.
 /// `logoSpacing` is IMDb's clear space, two widths of the wordmark's "I".
 struct DetailRatingsLine: View {
-    let ratings: [PlexRating]
+    let ratings: [Rating]
     let userRating: Double?
 
     #if os(tvOS)
@@ -89,7 +89,7 @@ struct DetailRatingsLine: View {
     /// The logo drawn for a source, or nil for its text label. The Mac's
     /// 11pt metadata line is too small for TMDB's stacked two-line mark, so
     /// it reads "TMDB" like the text-only sources there.
-    private static func drawnLogo(_ logo: PlexRating.Logo?) -> PlexRating.Logo? {
+    private static func drawnLogo(_ logo: Rating.Logo?) -> Rating.Logo? {
         #if os(macOS)
         logo == .tmdb ? nil : logo
         #else
@@ -128,7 +128,7 @@ struct DetailRateHeroButton: View {
     @Environment(PlexService.self) private var plexService
 
     let model: DetailUserRatingModel
-    let id: PlexItemID
+    let id: MediaItemID
 
     var body: some View {
         Menu {

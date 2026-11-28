@@ -4,16 +4,16 @@ import SwiftUI
 /// order. Selecting one plays the playlist from there, like the playlist
 /// page; Show All opens the playlist page.
 struct HomePinnedPlaylistRow: Identifiable, Equatable {
-    let id: PlexItemID
+    let id: MediaItemID
     let title: String
-    let entries: [PlexPlaylistEntry]
+    let entries: [PlaylistEntry]
 
     /// A playlist can hold a title twice; a row shows each item once.
-    var items: [PlexItem] {
+    var items: [MediaItem] {
         // Eager on purpose: a lazy filter may run its predicate more than
         // once per element, and `insert` would reject the second pass.
-        var seen: Set<PlexItemID> = []
-        var items: [PlexItem] = []
+        var seen: Set<MediaItemID> = []
+        var items: [MediaItem] = []
         for entry in entries where items.count < Self.inlineLimit && seen.insert(entry.item.id).inserted {
             items.append(entry.item)
         }
@@ -35,7 +35,7 @@ struct HomePinnedPlaylistShelf: View {
     let viewModel: HomeViewModel
 
     var body: some View {
-        PlexItemActionCarouselSection(
+        MediaItemActionCarouselSection(
             title: row.title,
             items: row.items,
             action: play,
@@ -56,7 +56,7 @@ struct HomePinnedPlaylistShelf: View {
                 Label("Play from Here", systemImage: "play.fill")
             }
 
-            PlexItemContextMenuContent(
+            MediaItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
                     Task { await viewModel.setWatched(true, for: item) }
@@ -70,7 +70,7 @@ struct HomePinnedPlaylistShelf: View {
             )
 
             NavigationLink(value: AppNavigationRoute.playlist(id: row.id)) {
-                Label("Go to Playlist", systemImage: PlexLibraryType.playlists.systemImage)
+                Label("Go to Playlist", systemImage: LibraryKind.playlists.systemImage)
             }
 
             Button {
@@ -83,7 +83,7 @@ struct HomePinnedPlaylistShelf: View {
 
     /// Plays the playlist from this item on, like selecting it on the
     /// playlist page.
-    private func play(_ item: PlexItem) {
+    private func play(_ item: MediaItem) {
         guard let index = row.entries.firstIndex(where: { $0.item.id == item.id }),
               let queue = PlaybackQueue.playlist(
                 id: row.id,

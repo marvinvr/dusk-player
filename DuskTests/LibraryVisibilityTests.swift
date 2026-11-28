@@ -23,7 +23,7 @@ struct LibraryVisibilityTests {
         let original = try library("3", hidden: 2)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        let decoded = try decoder.decode(PlexLibrary.self, from: JSONEncoder().encode(original))
+        let decoded = try decoder.decode(Library.self, from: JSONEncoder().encode(original))
         #expect(decoded.visibility == .excludedFromHomeAndSearch)
     }
 
@@ -85,32 +85,32 @@ struct LibraryVisibilityTests {
 
     // MARK: - Fixtures
 
-    private func library(_ key: String, hidden: Any? = nil, server: String = "a") throws -> PlexLibrary {
+    private func library(_ key: String, hidden: Any? = nil, server: String = "a") throws -> Library {
         var json: [String: Any] = ["key": key, "title": "Library \(key)", "type": "movie"]
         json["hidden"] = hidden
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(PlexLibrary.self, from: JSONSerialization.data(withJSONObject: json))
+        return try decoder.decode(Library.self, from: JSONSerialization.data(withJSONObject: json))
     }
 
     private func item(section: Int, title: String = "Movie") -> [String: Any] {
         ["ratingKey": UUID().uuidString, "key": "/library/metadata/1", "type": "movie", "title": title, "librarySectionID": section]
     }
 
-    private func decodeItem(_ json: [String: Any]) throws -> PlexItem {
+    private func decodeItem(_ json: [String: Any]) throws -> MediaItem {
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(PlexItem.self, from: JSONSerialization.data(withJSONObject: json))
+        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: json))
     }
 
     private func hub(
         _ title: String, section: String? = nil, identifier: String = "movie.recentlyadded",
         key: String = "/hubs/recentlyAdded", items: [[String: Any]]
-    ) throws -> PlexHub {
+    ) throws -> HomeRow {
         var json: [String: Any] = ["title": title, "key": key, "type": "movie", "hubIdentifier": identifier, "Metadata": items]
         json["librarySectionID"] = section
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(PlexHub.self, from: JSONSerialization.data(withJSONObject: json))
+        return try decoder.decode(HomeRow.self, from: JSONSerialization.data(withJSONObject: json))
     }
 }
