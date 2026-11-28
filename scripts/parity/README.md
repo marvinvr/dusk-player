@@ -136,10 +136,30 @@ re-record the G6 baseline on the baseline commit first.
 The baseline was recorded on iPhone from two runs on 2026-11-27. Record
 Apple TV with `PLATFORMS=tv smoke_plex.sh record` if you need it.
 
-On the simulator, `play-remux` (title 10, E-AC-3 JOC HDR10) direct-played in
-every run: no `/transcode/universal` request was logged. The Atmos/HDR remux
-ladder was therefore not exercised. The likely reason is that the simulator
-reports no HDR display; this was not confirmed. Checking it needs a device.
+On the simulator, `play-remux` (title 10, E-AC-3 JOC HDR10) direct-plays: the
+simulator's display is SDR (`AVPlayer.eligibleForHDRPlayback` is false), so the
+ladder's HDR gates stop before any `/transcode/universal` request. It stays
+that way so its baseline keeps meaning what it meant.
+
+The remux path is covered by `play-dv7-atmos` (item 17) and `play-dv7-truehd`
+(item 18), the two Dolby Vision 7 MEL titles with TrueHD audio. They pass
+`-DuskScreenshotHDRDisplay 1` (DEBUG screenshot mode only), which makes the
+ladder treat the display as HDR. Their logs show the part stream selection
+(`PUT /library/parts/<id>`, answered by the proxy itself and never sent to
+plex-demo), the `/video/:/transcode/universal/decision`, `start.m3u8`,
+segments and `stop`. Their baseline is separate, recorded on 2026-11-28 from
+three runs on the tree just before P0-19 plus the same seam, in
+`~/.cache/dusk-parity/smoke-baseline-remux`:
+
+```bash
+scripts/parity/smoke_plex.sh check --screens play-dv7-atmos,play-dv7-truehd \
+  --baseline ~/.cache/dusk-parity/smoke-baseline-remux
+```
+
+Their two request logs are also copied into the main G6 baseline, so a plain
+`smoke_plex.sh check` includes them (`recorded.json` there still describes
+the other screens). What the simulator still cannot show is what a device does after the
+decision (HDR output, the Dolby Vision 7 → 8.1 proxy's loopback connection).
 
 Not covered by G6 yet: the steps of the 05 §3 G6 list that need UI input
 (sort, filter and A–Z in the grid, manual quality switch, mark watched and
