@@ -12,13 +12,15 @@ Rules, because plex-demo is shared and the repo is public:
 - Read-only GETs as the comparison user (duskcompare), with the same query
   Dusk sends for a detail page (includeMarkers=1, includeGuids=1).
 - The server's identity (machineIdentifier, librarySectionUUID) is replaced by
-  a placeholder; the script fails and writes nothing when a token or the real
-  machine identifier would still appear in a fixture.
+  a placeholder and each part's `file` keeps only its file name (`/media/…`);
+  the script fails and writes nothing when a token, the real machine
+  identifier or a server path would still appear in a fixture.
 
 Credentials (never printed): ~/.config/jellyfin-demo/compare-plex-token and
 plex-token (only to look up the server's machine identifier).
 """
 import json
+import posixpath
 import os
 import sys
 import urllib.parse
@@ -95,8 +97,14 @@ def main():
         for item in container.get("Metadata", []):
             if "librarySectionUUID" in item:
                 item["librarySectionUUID"] = MACHINE_PLACEHOLDER
+            # The server's folder layout stays out of the repo; the file name
+            # (title, extension) is kept.
+            for media in item.get("Media", []):
+                for part in media.get("Part", []):
+                    if "file" in part:
+                        part["file"] = "/media/" + posixpath.basename(part["file"])
         text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
-        if any(s and s in text for s in secrets):
+        if any(s and s in text for s in secrets) or "/data/" in text:
             sys.exit(f"{name}: a token or the machine identifier is still in the fixture")
         written[OUT / f"plex-contract-{name}.json"] = text
 

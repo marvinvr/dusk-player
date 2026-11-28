@@ -485,7 +485,7 @@ arguments.
 | `person(id)`, `personMedia(id)` | `/library/people` | `/Items/{personId}`, `/Items?personIds=` | |
 | `extras(item)`, `trailer(item)` | `/extras`, `primaryExtraKey` | `/SpecialFeatures`, `/LocalTrailers`, `RemoteTrailers` | `Trailer` is `.playable(MediaItemID)` or `.external(URL)`; §21 row 7 |
 | `search(query)` | `/hubs/search` | one `/Items?searchTerm` request per kind in parallel, plus `/Persons` | both return `[SearchSection(kind, items)]`; `SearchMerge` unchanged |
-| `photoPage(library, mode, parent, page)`, `photoDisplay(item, size)` | `type=14 / 13,12`, clustering | `PhotoAlbum`/`Folder`/`Photo` | timeline grouping by day moves to the client for both (Plex's cluster zoom is replaced by the same grouping so the two cannot drift); `DateCreated` is the fallback date |
+| `photoPage(library, mode, parent, page)`, `photoDisplay(item, size)` | `type=14 / 13,12`, clustering | `PhotoAlbum`/`Folder`/`Photo` | the timeline is one flat newest-first list on both, no grouping (see below); `DateCreated` is the fallback date |
 | `items(matching: ExternalIDs, kind)` | `/library/all?guid=` | search + `ProviderIds` check | §6.2 |
 | `playbackHistory(limit)` | `/status/sessions/history/all` | `/Items?sortBy=DatePlayed&isPlayed=true` | feeds the recommendation engines unchanged |
 
@@ -495,7 +495,7 @@ Deviations from the table: search is `searchGroups(query) -> [HomeRow]` (the
 server's per-kind groups) so the facade's hidden-library filter keeps working on
 rows before they become `SearchSection`s; the letter table is
 `[LibraryLetterCount]`; channel collections are `channelCollections(libraryID)`.
-The photo timeline needed no move: Plex's `clusterZoomLevel=1` only widens the
+**Decision (2026-11-28): the photo timeline needs no client grouping.** Plex's `clusterZoomLevel=1` only widens the
 type filter beyond loose root photos, and the grid has always shown one flat
 newest-first list, so there is no server grouping to replace (a Jellyfin
 `photoPage(.timeline)` returns the same flat list). `trailer`,
@@ -805,6 +805,9 @@ and `Commercial` are mapped into the domain and **not shown**, because Plex
 has no equivalent and a button that exists on one server only is a visible
 difference. The synthesised credits estimate keeps its sentinel id
 (`Marker.estimatedCreditsID`, today `"-1"`; any value no server uses works).
+The three P0-11 changes to this section (`scrubPreview(forPartID:)`, the
+`"-1"` sentinel, no generated-preview fallback in the tree) were confirmed on
+2026-11-28.
 
 `MarkerProviding.scrubPreview(forPartID:)` returns a `ScrubPreviewSource` with
 one method, `frame(at:) async -> CGImage?`. It is keyed on the playing part,
@@ -891,8 +894,9 @@ protocol LiveTVProviding {
 - The `isIPTV` branches that kept IPTV away from Plex calls are gone: an IPTV
   source's `serverID` is no server the pool knows, so `MediaService.liveTV(for:)`
   returns no facet. Left: `channel.iptv` (it carries the IPTV stream) and the
-  timeline guard in `PlaybackCoordinator+Timeline`, which P0-10 removes once
-  reports route by server.
+  timeline guard in `PlaybackCoordinator+Timeline`, which P0-10 kept on
+  purpose: an IPTV session has no server id, and without the guard its
+  reports would route to the primary Plex server.
 
 **Decision: Live TV ships for Jellyfin** (02 proposed leaving it out). It is
 unverified only because the demo server has no tuner; T-0 adds an M3U tuner

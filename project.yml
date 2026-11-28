@@ -15,7 +15,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     GENERATE_INFOPLIST_FILE: true
-    MARKETING_VERSION: "1.9.1"
+    MARKETING_VERSION: "2.0.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:

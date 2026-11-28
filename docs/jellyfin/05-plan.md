@@ -9,8 +9,9 @@ Two phases:
 - **Phase 0** puts Plex behind the provider abstraction with **zero behaviour
   change**. It ends at a gate (§3) that compares requests, pixels and persisted
   data against a baseline recorded before the first change.
-- **Phase J** adds Jellyfin on top, hidden behind a build flag until the
-  parity audit passes.
+- **Phase J** adds Jellyfin on top. Nothing is hidden: each J package lands
+  on `main` as it passes, and Jellyfin is visible to everyone in the build
+  that ships it (2.0).
 
 Paths are relative to `Dusk/Sources/` unless noted. Section references such as
 "04 §12" point into the architecture document.
@@ -21,7 +22,7 @@ Paths are relative to `Dusk/Sources/` unless noted. Section references such as
 | --- | --- |
 | One package = one worktree = one branch `jf/<package-id>`, cut from `main` at the moment its dependencies have merged | minimal overlap, clean review |
 | **Everything merges to `main` as it passes its acceptance**, not to a long-lived integration branch | a refactor branch that touches 186 files cannot survive weeks of 1.9.x fixes on `main`. Every Phase 0 package is behaviour-neutral, so it is safe to land |
-| Jellyfin is compiled in but unreachable until J-14: the provider picker on the sign-in screen only appears with the launch argument `-DuskJellyfin YES` (Debug and TestFlight-internal builds). No user-facing setting | ship 1.9.x and 1.10 from `main` at any time |
+| **Nothing hidden: there is no launch flag.** J packages land on `main` like Phase 0 packages; the sign-in host shows the Jellyfin flow as soon as J-01 lands. `main` is version 2.0.0, and 1.9.x fixes ship from `release/1.9` | Jellyfin is visible to everyone once it works (Marvin, 2026-11-28); a gate would only be one more thing to remove |
 | A package edits only the files it lists. A needed change in someone else's file is a request to the coordinator, not an edit | the split below is designed around file ownership |
 | `Dusk.xcodeproj` is never hand-merged: after any merge that touched source files, run `xcodegen generate` and commit the result | every package adds files |
 | Commit with `git commit -- <paths>`; never stage what another agent left | existing repo rule |
@@ -50,7 +51,7 @@ Wave 6  (parallel)        J-01  J-03
 Wave 7  (parallel)        J-02  J-05          (J-04 after J-02)
 Wave 8  (parallel ≤6)     J-04  J-06  J-07  J-08a  J-09  J-10  J-11  J-12
 Wave 9  (parallel)        J-08b  J-13
-Wave 10 (serial)          J-14  ← parity gate, flag removed
+Wave 10 (serial)          J-14  ← parity gate
 ```
 
 | ID | Package | Size | Risk | Depends on |
@@ -92,7 +93,7 @@ Wave 10 (serial)          J-14  ← parity gate, flag removed
 | J-12 | Integrations | M | | J-02 |
 | J-08b | Downloads: converted quality | L | R | J-06, J-08a |
 | J-13 | Several accounts, mixed Plex + Jellyfin | L | R | J-04, J-07, J-11 |
-| J-14 | Parity audit, mock, docs, flag removal | M | | all |
+| J-14 | Parity audit, mock, docs | M | | all |
 
 ## 3. The Phase 0 gate
 
@@ -562,13 +563,13 @@ connected, the shared films appear once on Home, in search and in grids;
 disabling one server plays the other copy; a Plex-only install shows no new
 UI anywhere except the one "Add Server" row.
 
-### J-14 Parity audit, mock, docs, flag removal — M
+### J-14 Parity audit, mock, docs — M
 
 Full matrix (§6) on iPhone, iPad, Apple TV and Mac; fix list worked off or
 filed; a Jellyfin mode for the screenshot mock; `docs/` updated
 (`data-and-plex.md` split into provider docs, `playback.md`,
-`downloads-and-offline.md`, `seerr-integration.md`, `analytics.md`); remove
-the launch-argument gate.
+`downloads-and-offline.md`, `seerr-integration.md`, `analytics.md`). There is
+no launch-argument gate to remove (§1).
 
 ## 6. Side-by-side matrix
 
