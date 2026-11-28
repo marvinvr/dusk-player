@@ -557,9 +557,10 @@ protocol ImageProviding {     // as built in P0-08
   immutable cache key (03 §10.4). Parent and series artwork resolve from
   `SeriesPrimaryImageTag`, `ParentBackdropItemId`, `ParentLogoItemId` in the
   mapper, so `ArtworkSet` is filled the same way for both.
-- `ImageSize { width, height, mode: .fit | .fill }` maps to Plex
-  `width/height/minSize/upscale` and Jellyfin `maxWidth` or
-  `fillWidth/fillHeight`.
+- `ImageSize { width, height }` (no `mode`, as built) maps to Plex
+  `width/height/minSize=1/upscale=0` and Jellyfin `fillWidth/fillHeight`:
+  both cover the box without cropping or upscaling. Jellyfin chapter images
+  ignore `fill*`, so they use `maxWidth/maxHeight` (J-03).
 - The fallback choices (`preferredPosterPath`, `fallbackPosterPath`,
   `preferredLandscapePath`) become methods on `ArtworkSet` and stay shared.
   Jellyfin's `Thumb` image has the title baked in, so the Jellyfin mapper puts
