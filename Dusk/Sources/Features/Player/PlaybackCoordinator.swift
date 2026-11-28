@@ -107,6 +107,9 @@ final class PlaybackCoordinator {
     /// A picker choice for this item, including movies. Survives player
     /// presentation and engine replacements; cleared when a new item commits.
     var manuallySelectedAudioStreamID: String?
+    /// The subtitle picked for this item, `PlaybackReport.subtitlesOff` for
+    /// Off; nil while no pick was made. Read by the playback reports only.
+    @ObservationIgnored var manuallySelectedSubtitleStreamID: String?
     var activeSubtitleStreamID: String?
     /// Set while a remux session has Plex convert its audio (TrueHD and other
     /// codecs the fMP4 cannot carry). Rebuilding that remux around the same

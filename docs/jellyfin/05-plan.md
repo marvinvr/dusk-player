@@ -545,6 +545,71 @@ keys, person and chapter images. **Accept:** matrix rows "posters",
   previews on a trickplay title and the generated fallback on another, switch
   audio and subtitle tracks, sidecar SRT. The server dashboard shows the
   session; stopping at 95 % marks played once (`PlayCount` +1, not +2).
+- **As built (2026-11-28).**
+  - Direct play: `JellyfinPlayback.directPlayURL` is
+    `/Videos/{id}/stream?static=true&mediaSourceId=…&ApiKey=…` on both engines,
+    checked by `JellyfinCredentialPolicy` (`ApiKey` / `Token=`, Plex's rules).
+    `openServerStream` still throws (J-06), so a remux-eligible file falls
+    through to direct play; the Quality menu is visible and fails until J-06.
+  - Details: `JellyfinItemDetails` loads `/Items/{id}` and `/MediaSegments`
+    in parallel and puts the markers on `MediaDetails`. `JellyfinCatalog.details`
+    calls it (one line for J-02 to keep). Recap / Preview / Commercial are
+    mapped, never shown.
+  - Reports: `JellyfinPlaybackSessions` opens a session once (measured: every
+    `/Sessions/Playing` is a play, even with the same `PlaySessionId`), then
+    `/Progress` and `/Stopped`. The coordinator now fills the report's version,
+    play method and the viewer's own track picks (Plex ignores them). Automatic
+    picks are not reported, because the server remembers reported tracks: the
+    shared pre-start pick chose a commentary track on S01E01 (see Open).
+    `setWatched` is `/UserPlayedItems`.
+  - Scrub previews: trickplay sheets fetched whole and cut into a
+    `ScrubPreviewFrameSet` (not lazy as 04 §12.6 says: the player controls
+    read the frame set synchronously, so no player view changed). The
+    "generated fallback" in Accept no longer exists (f450da82, for Plex too).
+  - Sidecars: own format per track (PGS as `sup`); external VobSub has no
+    servable file and is not offered.
+  - Track mapping: the existing positional matcher already works (tests on
+    Knives Out and the external-at-index-0 file).
+  - DEBUG: `-DuskDebugPlayItem <id>` plays an item without browse screens;
+    `-DuskScreenshotMute 1` now works outside screenshot mode and gives VLCKit
+    `:no-audio` on iOS/tvOS.
+  - Verified against jellyfin-demo (iPhone and Apple TV simulators, logging
+    proxy): VLCKit direct play (AV1 MKV, ASS MKV, The Office), AVPlayer
+    direct play (Big Buck Bunny) resuming at its 79 s point, start → progress
+    → pause → stopped with the right ticks and indexes, the session listed in
+    `/Sessions` as DirectPlay, a played-out item `Played` with `PlayCount` +1
+    and no `/UserPlayedItems`, a close storing the resume point, Skip Intro and
+    Skip Credits on S01E01, both trickplay sheets fetched and the iPhone
+    scrubber thumbnail, audio switch reported as index 3 behind an external
+    subtitle at index 0, the external `.ass` sidecar and the embedded ASS with
+    its attached font. No `X-Plex` header anywhere.
+    Knives Out (Atmos / Dolby Vision MKV) declines the remux without a
+    request and plays directly, with no alert; its 8 trickplay sheets load in
+    under a second.
+  - Open:
+    - Up Next and the next episode need J-02's `seasons`/`episodes` (today
+      the credits show Skip Credits, no poster).
+    - Explicit watched / unwatched has no screen until J-02; not exercised.
+    - The Quality menu answers "This feature is not yet implemented." until
+      J-06.
+    - The first report (and so the session on the server) arrives at the
+      first tick or state change, about 10 s in, as on Plex.
+    - The tvOS scrub thumbnail needs a touch-surface pan the simulator cannot
+      send.
+    - Pre-rolls are J-11.
+    - Shared, not Jellyfin-specific: the pre-start audio pick
+      (`preferredAudioStreamPosition`) looks for "commentary" only in
+      `displayTitle`, which both servers keep in `title`, and on iOS it
+      penalises the lossless DTS-HD MA main track, so The Office S01E01 opens
+      on a commentary track. The plex-demo copy has the same streams, so Plex
+      should do the same (read from the code, not run).
+    - Residue on duskcompare: `LastPlayedDate` (no API clears it) on the
+      items played, and the ASS test film now remembers subtitles Off (`-1`)
+      instead of no remembered choice, which plays the same. Three restored
+      items came back as played about 40 min later, dated to the original
+      plays in whole seconds with no client session active: something on the
+      server (a watched-state sync such as a Trakt import) re-applies plays.
+      Restored again at the end; it may recur.
 
 ### J-04 Home rows and library hubs — M
 

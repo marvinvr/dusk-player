@@ -77,10 +77,24 @@ enum JellyfinMediaMapper {
     }
 
     /// `/Videos/{itemId}/{sourceId}/Subtitles/{index}/0/Stream.{format}`, the
-    /// sidecar path for an external subtitle. Token-free.
+    /// sidecar path for an external subtitle. Token-free. The extension is the
+    /// format the server answers in: text tracks in their own format, PGS as
+    /// `sup`. VobSub has none (every extension is `400` on 12.4), so its path
+    /// keeps the codec and `JellyfinPlayback` hands out no URL for it.
     static func externalSubtitlePath(itemID: String, sourceID: String, index: Int, codec: String?) -> String {
-        let format = codec?.nilIfEmpty ?? "srt"
+        let format = sidecarFormat(codec: codec)
         return "/Videos/\(JellyfinID.normalized(itemID))/\(JellyfinID.normalized(sourceID))/Subtitles/\(index)/0/Stream.\(format)"
+    }
+
+    /// The extensions `externalSubtitlePath` can name that the server serves.
+    static let servableSidecarFormats: Set<String> = ["srt", "ass", "ssa", "vtt", "sup"]
+
+    static func sidecarFormat(codec: String?) -> String {
+        switch codec?.nilIfEmpty {
+        case nil: "srt"
+        case "pgs"?: "sup"
+        case let codec?: codec
+        }
     }
 
     /// Plex's resolution names (`4k`, `1080`, `720`, `480`, `sd`), which

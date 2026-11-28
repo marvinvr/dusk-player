@@ -48,8 +48,14 @@ struct PlaybackReport: Sendable, Hashable {
     let liveSessionPath: String?
     let versionID: String?
     let playMethod: PlayMethod?
+    /// The tracks the viewer picked, as server stream ids; nil when they
+    /// picked none (the automatic choice is not reported).
     let audioStreamID: String?
+    /// `PlaybackReport.subtitlesOff` when subtitles are off.
     let subtitleStreamID: String?
+
+    /// `subtitleStreamID` for "no subtitle playing" (Jellyfin's own `-1`).
+    static let subtitlesOff = "-1"
 
     init(
         item: MediaItemID,

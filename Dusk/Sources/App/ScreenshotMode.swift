@@ -73,11 +73,12 @@ enum ScreenshotMode {
         return defaults.string(forKey: Key.search)?.nilIfEmpty
     }
 
-    /// `-DuskScreenshotMute 1`: AVPlayer plays muted, so simulator playback
+    /// `-DuskScreenshotMute 1`: the engines play muted, so simulator playback
     /// runs never make a sound on the host Mac (string check: launch-arg
-    /// bools are unreliable).
+    /// bools are unreliable). Also honoured outside screenshot mode, for
+    /// `DebugPlaybackLink` runs against a real server.
     static var mutesPlayback: Bool {
-        guard isActive, let value = defaults.string(forKey: Key.mute) else { return false }
+        guard let value = defaults.string(forKey: Key.mute) else { return false }
         return ["1", "yes", "true"].contains(value.lowercased())
     }
 

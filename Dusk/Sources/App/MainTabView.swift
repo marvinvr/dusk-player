@@ -146,6 +146,9 @@ struct MainTabView: View {
             .task(id: media.serverContentRevision) {
                 await applyScreenshotDestination()
             }
+            .task {
+                await DebugPlaybackLink.playRequestedItem(media: media, playback: playback)
+            }
             .modifier(ScreenshotSheetPresenter())
             #endif
             #if os(tvOS)

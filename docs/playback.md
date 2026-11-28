@@ -259,6 +259,19 @@ so the whole live HUD is derived from one instant.
   `recordFinishedPlayback` (Trakt + the watched write) skips the server write
   when `MediaService.serverAppliesWatchedThreshold(serverID:)` says the server
   marks the item played itself (never for Plex).
+- A report also carries the playing version, the play method and the tracks
+  the viewer picked (`manuallySelected…StreamID`; `PlaybackReport.subtitlesOff`
+  for Off, nil when they picked none). Automatic picks are left out because
+  Jellyfin remembers reported tracks as the item's choice. Plex's timeline
+  ignores all three.
+- Jellyfin (`JellyfinUserData`): the session's first report opens it with
+  `/Sessions/Playing`, the rest go to `/Progress`, the last to `/Stopped`
+  (ticks, `PlaySessionId` = the player session id). Every `Playing` call counts
+  a play on the server, so `JellyfinPlaybackSessions` opens each session once,
+  however many engines it goes through. The server marks the item played from
+  a stop past 90 % (`PlayCount` +1 for the session, never +2), drops resume
+  points under 5 % or on items under 5 min, and remembers the reported track
+  indexes as the item's choice; a report without them keeps the old choice.
 
 ## Delivery Ladder and Session Hygiene
 
@@ -1356,6 +1369,12 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   from the library itself or from the OpenSubtitles download the server performs
   (`MediaService+Subtitles.swift`). `MediaService.externalSubtitleURL(for:)` turns
   one into a token-bearing URL.
+- Jellyfin sidecars are `/Videos/{id}/{source}/Subtitles/{index}/0/Stream.{ext}`
+  in the track's own format (PGS as `sup`). VobSub has no servable file
+  (every extension is `400` on 12.4), so it gets no URL and is not offered.
+  An external subtitle takes `Index` 0 and shifts the embedded indexes; the
+  pickers match engine tracks by position among embedded streams, so that is
+  harmless (`JellyfinStreamPositions`).
 - VLCKit mounts them: `attachExternalSubtitle(_:select:)` queues the URL and
   `addPlaybackSlave(_:type:enforce:)` adds it. libvlc returns 0 on success, not
   a track id, so slaves are added ONE AT A TIME and the newly appeared SPU
@@ -2203,8 +2222,11 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   auto-skip markers, stall recovery, and track selection.
 - `PlayerSessionView` loads scrub previews for online playback parts when
   available, through `media.scrubPreview(forPartID:serverID:)` (the marker
-  facet; Plex serves a BIF file). The controls still take Plex's frame set
-  (`ScrubPreviewFrameSet`) and read it synchronously. iOS shows a thumbnail popup while dragging the seek
+  facet; Plex serves a BIF file, Jellyfin trickplay sheets, which
+  `JellyfinTrickplay` fetches whole and cuts into frames up front: about 1 MB
+  per 100 thumbnails at 320 px). The controls still take Plex's frame set
+  (`ScrubPreviewFrameSet`) and read it synchronously. Items without previews
+  show none (the on-device generated fallback was removed in f450da82). iOS shows a thumbnail popup while dragging the seek
   bar; tvOS shows it above the grown playhead while scrubbing (see "tvOS Play
   Bar"). The playhead and thumbnail move during the swipe, but the video
   position keeps tracking actual playback until Select commits. If BIF loading

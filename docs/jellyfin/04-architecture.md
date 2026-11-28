@@ -816,8 +816,11 @@ not the version: a multi-part item plays one part at a time. Plex's
 implementation (`PlexMarkers`) fetches and parses the part's BIF file; its
 frame set is `PlexScrubPreviewSource`, which the player controls still read
 synchronously (moving them to the protocol is a view change after Phase 0).
-Jellyfin's fetches trickplay sheets lazily and crops the tile (03 §10.6). A
-generated-preview fallback for servers with none is not in the tree.
+Jellyfin's fetches the trickplay sheets and crops the tiles (03 §10.6); as
+built (J-05) it fetches every sheet up front into a `ScrubPreviewFrameSet`,
+because the controls read that synchronously. Lazy loading waits for the
+controls to take the protocol. A generated-preview fallback for servers with
+none is not in the tree.
 
 ### 12.7 Pre-rolls, AirPlay, SharePlay
 

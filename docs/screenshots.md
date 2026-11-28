@@ -36,7 +36,8 @@ by launch arguments:
 | `-DuskScreenshotTVInputs "wait:3500,up,panel:subtitles"` | tvOS player: synthetic Siri Remote input (`pan:<points>` leaves the play bar scrubbing) |
 | `-DuskScreenshotCaptureFile <png>` / `-DuskScreenshotCaptureAfter <s>` | Mac: after `s` seconds the app writes its main window (plus its own menus over it) to `<png>` via ScreenCaptureKit and quits (`Mac/MacScreenshotRouting.swift`) |
 | `-DuskScreenshotPlayerMenu media\|more` | Mac player: that play-bar menu opens on its own once its rows settle and stays open |
-| `-DuskScreenshotMute 1` | AVPlayer and VLCKit stay muted whatever the player's volume says (Mac captures run on the host) |
+| `-DuskScreenshotMute 1` | AVPlayer and VLCKit stay muted whatever the player's volume says (Mac captures run on the host); also works outside screenshot mode, where VLCKit on iOS/tvOS opens media with `:no-audio` (no audio tracks) |
+| `-DuskDebugPlayItem <itemID>` | Not screenshot mode: once the signed-in server is connected, plays that item from its resume point (`-DuskDebugPlayOffset <seconds>` starts there), for checking a server whose browse screens are not built yet (`App/DebugPlaybackLink.swift`) |
 
 Hooks: `MediaService` (plex.tv base + token), `MainTabView` (routing + sheet),
 `AppNavigationRoute.screenshotServerPriority`, `SearchView` (query),

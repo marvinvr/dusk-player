@@ -1,7 +1,7 @@
 import Foundation
 
-/// Jellyfin's catalog. Placeholder until J-02: every list is empty and a
-/// single item cannot be found.
+/// Jellyfin's catalog. Placeholder until J-02: every list is empty; an
+/// item's details load for the player (J-05).
 @MainActor
 struct JellyfinCatalog: CatalogProviding {
     let server: JellyfinServerProvider
@@ -45,8 +45,10 @@ struct JellyfinCatalog: CatalogProviding {
 
     func collectionMode(libraryID: String) async -> LibraryCollectionMode { .showItems }
 
+    /// With its skip markers (J-05, `JellyfinItemDetails`). `checkFiles` has
+    /// no Jellyfin counterpart.
     func details(itemID: String, checkFiles: Bool) async throws -> MediaDetails {
-        throw MediaServiceError.notImplemented
+        try await JellyfinItemDetails.load(itemID: itemID, serverID: server.descriptor.id, client: server.client())
     }
 
     func seasons(showID: String) async throws -> [Season] { [] }

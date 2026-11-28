@@ -712,6 +712,7 @@ extension PlaybackCoordinator {
             // A new item gets its own one-shot auto-skips.
             spentAutoSkipMarkerIDs = []
             manuallySelectedAudioStreamID = nil
+            manuallySelectedSubtitleStreamID = nil
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
@@ -2394,6 +2395,7 @@ extension PlaybackCoordinator {
         activePlaybackUsesLocalDownload = false
         activeAudioStreamID = nil
         manuallySelectedAudioStreamID = nil
+        manuallySelectedSubtitleStreamID = nil
         activeSubtitleStreamID = nil
         remuxTrackSelection = nil
         resetAudioOffset()

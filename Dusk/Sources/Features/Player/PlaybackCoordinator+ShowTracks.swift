@@ -11,6 +11,7 @@ extension PlaybackCoordinator {
             manuallySelectedAudioStreamID = streamID
             automaticServerSelectionRestore?.audioStreamID = nil
         } else if type == .subtitle {
+            manuallySelectedSubtitleStreamID = streamID ?? PlaybackReport.subtitlesOff
             automaticServerSelectionRestore?.subtitleStreamID = nil
         }
         guard activeLiveTVContext == nil,

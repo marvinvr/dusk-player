@@ -1977,6 +1977,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         media.addOption(":network-caching=\(cachingMilliseconds)")
         media.addOption(":file-caching=\(cachingMilliseconds)")
         media.addOption(":http-reconnect")
+        #if DEBUG && !os(macOS)
+        // `-DuskScreenshotMute 1` outside screenshot mode on iOS/tvOS, where
+        // the player never sets a volume: no audio at all, so a simulator run
+        // against a real server is silent on the host. Screenshot mode keeps
+        // its audio tracks (the parity gate captures the audio picker).
+        if ScreenshotMode.mutesPlayback, !ScreenshotMode.isActive { media.addOption(":no-audio") }
+        #endif
         vlcKitEngineLogger.notice(
             "VLC caching \(cachingMilliseconds, privacy: .public) ms (locality \(String(describing: locality), privacy: .public), output latency \(Int(outputLatency * 1_000), privacy: .public) ms, wireless \(isWirelessRoute, privacy: .public))"
         )

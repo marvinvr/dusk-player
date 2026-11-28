@@ -165,11 +165,28 @@ extension PlaybackCoordinator {
                 positionMs: timeMs,
                 durationMs: durationMs,
                 sessionID: activePlaybackSessionIdentifier,
-                liveSessionPath: activeLiveTVContext?.sessionPath
+                liveSessionPath: activeLiveTVContext?.sessionPath,
+                versionID: debugInfo?.media.id,
+                playMethod: debugInfo.flatMap { Self.reportedPlayMethod(for: $0.decision) },
+                // Only the viewer's own picks: a server that remembers the
+                // reported tracks (Jellyfin) must not keep an automatic one.
+                audioStreamID: manuallySelectedAudioStreamID,
+                subtitleStreamID: manuallySelectedSubtitleStreamID
             )
             Task {
                 await media.report(report)
             }
+        }
+    }
+
+    /// How a report says the session plays (Jellyfin shows it on the server
+    /// dashboard; Plex's timeline has no such field).
+    static func reportedPlayMethod(for decision: PlaybackDecision) -> PlayMethod? {
+        switch decision {
+        case .directPlay, .localDownload: .directPlay
+        case .serverStream, .spatialAudio: .directStream
+        case .transcode, .airPlay: .transcode
+        case .liveTV: nil
         }
     }
 
