@@ -525,7 +525,8 @@ final class PlaybackCoordinator {
                 lineup: lineup,
                 channel: channel,
                 program: program,
-                sessionID: tune.sessionID
+                sessionID: tune.sessionID,
+                sessionPath: tune.reportKey
             )
 
             hasScrobbled = false
@@ -676,7 +677,8 @@ final class PlaybackCoordinator {
                 lineup: lineup,
                 channel: channel,
                 program: program,
-                sessionID: sessionID
+                sessionID: sessionID,
+                sessionPath: nil
             )
         }
 
@@ -793,10 +795,11 @@ final class PlaybackCoordinator {
 
         var programs = context.channelPrograms
         let coverage = programs.compactMap(\.endsAt).max() ?? .distantPast
-        // An IPTV channel's schedule is its source's XMLTV guide, which the
-        // lineup already carries for days ahead; there is nothing to refetch
-        // from Plex. The current program is still re-derived below.
-        if !context.isIPTV,
+        // Only a server's lineup is refetched. An IPTV channel's schedule is
+        // its source's XMLTV guide, which the lineup already carries for days
+        // ahead, and no server serves its source (`MediaService.liveTV(for:)`).
+        // The current program is still re-derived below.
+        if media.liveTV(for: context.lineup.provider) != nil,
            coverage < Date.now.addingTimeInterval(Self.liveTVScheduleCoverageHorizon) {
             let fetched = await fetchLiveTVSchedule(
                 provider: context.lineup.provider,

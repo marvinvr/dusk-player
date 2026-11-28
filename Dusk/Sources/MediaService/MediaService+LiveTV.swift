@@ -78,35 +78,14 @@ extension MediaService {
     }
 
     func getLiveTVProvider(serverID: String? = nil) async throws -> LiveTVProvider? {
-        let targetID = try resolveServerID(serverID ?? liveTVServerID)
-        // A timeout above `requestResourceTimeout` sends this through
-        // `slowQuerySession`, i.e. its own connections to the server: on a big
-        // library Home's slow reads can fill the shared session's, and a cheap
-        // `/media/providers` queued behind them used up its 30s (1.7.2). That
-        // session's 120s budget is what ends a hung answer (measured; the 45s
-        // itself does not cut it off); `LiveTVViewModel.discover()` then asks
-        // again.
-        let data = try await rawServerRequest(
-            path: "/media/providers",
-            timeoutInterval: Self.liveTVDiscoveryTimeout,
-            serverID: targetID
-        )
-        let response = try decodeJSON(PlexMediaProvidersResponse.self, from: data, serverID: targetID)
-        return response.MediaContainer.MediaProvider?
-            .compactMap { PlexLiveTVMapper.provider($0, serverID: targetID) }
-            .first
+        try await liveTVFacet(serverID: serverID ?? liveTVServerID).source()
     }
 
     func getLiveTVChannels(
         provider: LiveTVProvider,
         serverID: String? = nil
     ) async throws -> [LiveChannel] {
-        let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
-        let data = try await rawServerRequest(path: provider.channelsKey, serverID: targetID)
-        let response = try decodeJSON(PlexLiveChannelsResponse.self, from: data, serverID: targetID)
-        return (response.MediaContainer.Channel ?? []).map(PlexLiveTVMapper.channel).sorted {
-            Self.channelSortKey($0).lexicographicallyPrecedes(Self.channelSortKey($1))
-        }
+        try await liveTVFacet(for: provider, serverID: serverID).channels(of: provider)
     }
 
     /// The DVR's tuner devices and the channels mapped to each, so the guide
@@ -114,10 +93,8 @@ extension MediaService {
     func getLiveTVDevices(
         provider: LiveTVProvider,
         serverID: String? = nil
-    ) async throws -> [PlexLiveTVDevice] {
-        let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
-        let data = try await rawServerRequest(path: "/livetv/dvrs/\(provider.dvrID)", serverID: targetID)
-        return PlexLiveTVMapper.devices(try decodeJSON(PlexLiveTVDVRResponse.self, from: data, serverID: targetID))
+    ) async throws -> [LiveTVDevice] {
+        try await liveTVFacet(for: provider, serverID: serverID).devices(of: provider)
     }
 
     func getLiveTVNowPlaying(
@@ -125,11 +102,7 @@ extension MediaService {
         channels: [LiveChannel],
         serverID: String? = nil
     ) async throws -> LiveTVLineup {
-        let programs: [PlexLiveProgramDTO] = try await fetchMetadata(
-            path: provider.watchNowKey,
-            serverID: serverID ?? provider.serverID ?? liveTVServerID
-        )
-        return LiveTVLineup(provider: provider, channels: channels, programs: programs.map(PlexLiveTVMapper.program))
+        try await liveTVFacet(for: provider, serverID: serverID).onNow(source: provider, channels: channels)
     }
 
     func getLiveTVGuide(
@@ -142,272 +115,133 @@ extension MediaService {
     }
 
     /// The guide for every channel over each of `dates` (local calendar
-    /// days). Programs that span midnight come back for both days; the lineup
-    /// files each airing once.
+    /// days), asked channel by channel (`LiveTVProviding.guide`).
     func getLiveTVGuide(
         provider: LiveTVProvider,
         channels: [LiveChannel],
         dates: [Date],
         serverID: String? = nil
     ) async throws -> LiveTVLineup {
-        let dateValues = dates.map { Self.liveTVDateFormatter.string(from: $0) }
-        let targetID = serverID ?? provider.serverID ?? liveTVServerID
-        let requests = channels.flatMap { channel in dateValues.map { (channel, $0) } }
-
-        // One request per channel: the grid answers only for the LAST of
-        // repeated `channelGridKey` values (XMLTV and cloud guides alike), so
-        // batching left every channel but one per batch empty (issue #17).
-        // A few run at a time so long lineups stay quick.
-        let results = await withTaskGroup(of: Result<[LiveProgram], Error>.self) { group in
-            var pending = requests.makeIterator()
-            for _ in 0..<Self.liveTVGuideConcurrency {
-                guard let (channel, dateValue) = pending.next() else { break }
-                group.addTask {
-                    await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
-                }
-            }
-            var results: [Result<[LiveProgram], Error>] = []
-            for await result in group {
-                results.append(result)
-                if let (channel, dateValue) = pending.next() {
-                    group.addTask {
-                        await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
-                    }
-                }
-            }
-            return results
-        }
-
-        // A channel whose guide failed keeps an empty (still tunable) row;
-        // only a guide that failed for every channel is an error.
-        var programs: [LiveProgram] = []
-        var firstError: Error?
-        for result in results {
-            switch result {
-            case .success(let channelPrograms):
-                programs.append(contentsOf: channelPrograms)
-            case .failure(let error):
-                firstError = firstError ?? error
-            }
-        }
-        if let firstError, !results.contains(where: { if case .success = $0 { true } else { false } }) {
-            throw firstError
-        }
-
-        return LiveTVLineup(provider: provider, channels: channels, programs: programs)
+        try await liveTVFacet(for: provider, serverID: serverID).guide(source: provider, channels: channels, days: dates)
     }
 
-    /// Every channel's airings that overlap `window`, in one request: the
-    /// grid takes a time range (`endsAt>` / `beginsAt<`) the way Plex Web
-    /// asks for its guide, and then answers for all channels at once. A
-    /// day's range costs one request however many channels there are, where
-    /// `date=` needs one per channel (see `getLiveTVGuide(dates:)`).
+    /// Every channel's airings that overlap `window`, in one request
+    /// (`LiveTVProviding.airings`).
     func getLiveTVGuideAirings(
         provider: LiveTVProvider,
         window: LiveTVGuideWindow,
         serverID: String? = nil
     ) async throws -> [LiveProgram] {
-        let programs: [PlexLiveProgramDTO] = try await fetchMetadata(
-            path: provider.gridKey,
-            queryItems: [
-                // Strict: an airing that ends right at the start is not in it.
-                URLQueryItem(name: "endsAt>", value: String(Int(window.start.timeIntervalSince1970))),
-                URLQueryItem(name: "beginsAt<", value: String(Int(window.end.timeIntervalSince1970))),
-            ],
-            serverID: serverID ?? provider.serverID ?? liveTVServerID
-        )
-        return programs.map(PlexLiveTVMapper.program)
+        try await liveTVFacet(for: provider, serverID: serverID).airings(source: provider, window: window)
     }
 
-    private func liveTVGridPrograms(
+    /// Files `programs` under `channels` the way `provider`'s server does.
+    /// Every channel gets a guide, empty when nothing matched (also for a
+    /// source no server serves).
+    func liveTVLineup(
         provider: LiveTVProvider,
-        channel: LiveChannel,
-        date: String,
-        serverID: String?
-    ) async -> Result<[LiveProgram], Error> {
-        do {
-            let programs: [PlexLiveProgramDTO] = try await fetchMetadata(
-                path: provider.gridKey,
-                queryItems: [
-                    URLQueryItem(name: "channelGridKey", value: channel.gridKey),
-                    URLQueryItem(name: "date", value: date),
-                ],
-                serverID: serverID
+        channels: [LiveChannel],
+        programs: [LiveProgram]
+    ) -> LiveTVLineup {
+        guard let liveTV = liveTV(for: provider) else {
+            return LiveTVLineup(
+                provider: provider,
+                guides: channels.map { LiveChannelGuide(channel: $0, programs: []) }
             )
-            return .success(programs.map(PlexLiveTVMapper.program))
-        } catch {
-            return .failure(error)
         }
+        return liveTV.lineup(source: provider, channels: channels, programs: programs)
     }
 
-    /// A library copy of a past guide airing — in practice the DVR's
-    /// recording of it — on the DVR's server, matched by the airing's
-    /// metadata guid the way Plex matches recordings. Nil when the airing
-    /// has no guid or nothing in the library carries it. Plex has no
-    /// catch-up of its own: a past airing plays only from such a recording.
+    /// A library copy of a past guide airing (in practice the DVR's recording
+    /// of it) on the DVR's server, or nil when there is none
+    /// (`LiveTVProviding.recording`).
     func liveTVRecording(for program: LiveProgram, provider: LiveTVProvider) async throws -> MediaItem? {
-        guard let guid = program.guid?.nilIfEmpty,
-              let serverID = provider.serverID ?? liveTVServerID else { return nil }
-        let items = try await serverItems(guid: guid, serverID: serverID)
-        return items.first { item in
-            item.type == .episode || item.type == .movie
-                ? program.type == .unknown || item.type == program.type
-                : false
-        }
+        try await liveTVFacet(for: provider).recording(for: program, source: provider)
     }
 
-    /// Tunes `channel` and picks the stream: the live session itself when
-    /// the tuned stream plays in AVPlayer as is (`allowsDirectPlay`, see
-    /// `TuneMedia.supportsLiveDirectPlay`), otherwise a Plex transcode.
+    /// Tunes `channel` and picks the stream (`LiveTVProviding.tune`).
     func tuneLiveTV(
         provider: LiveTVProvider,
         channel: LiveChannel,
         serverID: String? = nil,
         allowsDirectPlay: Bool = true
-    ) async throws -> PlexLiveTuneResult {
-        let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
-        let path = "/livetv/dvrs/\(provider.dvrID)/channels/\(channel.tuneIdentifier)/tune"
-        let playbackSessionIdentifier = UUID().uuidString
-        let data = try await rawServerRequest(
-            method: "POST",
-            path: path,
-            queryItems: [
-                URLQueryItem(
-                    name: "X-Plex-Session-Identifier",
-                    value: playbackSessionIdentifier
-                ),
-            ],
-            serverID: targetID
-        )
-        let response = try decodeJSON(PlexLiveTuneResponse.self, from: data, serverID: targetID)
-        guard let tuned = response.MediaContainer.tunedSession,
-              let sessionID = tuned.sessionID else {
-            let message = response.MediaContainer.tuneFailureMessage
-                ?? "Plex did not return a Live TV session."
-            throw PlexServiceError.serverMessage(message)
-        }
-
-        let sessionPath = tuned.sessionPath
-        let media = tuned.media.map { PlexLiveTVMapper.media($0, sessionPath: sessionPath) }
-            ?? makeFallbackLiveTVMedia(sessionPath: sessionPath)
-        guard let part = media.firstAvailablePart else {
-            throw PlexServiceError.decodingError("Plex did not return a playable Live TV stream.")
-        }
-
-        if allowsDirectPlay,
-           tuned.media?.supportsLiveDirectPlay == true,
-           let directURL = await liveTVDirectPlayURL(
-            sessionPath: sessionPath,
-            sessionIdentifier: playbackSessionIdentifier,
-            serverID: targetID
-           ) {
-            return PlexLiveTuneResult(
-                serverID: targetID,
-                sessionID: sessionID,
-                playbackSessionIdentifier: playbackSessionIdentifier,
-                transcodeSessionID: nil,
-                playbackURL: directURL,
-                media: media,
-                part: part,
-                isDirectPlay: true
-            )
-        }
-
-        let requestedTranscodeSessionID = UUID().uuidString
-        let liveStream = try await liveTVStreamURL(
-            sessionPath: sessionPath,
-            sessionIdentifier: playbackSessionIdentifier,
-            transcodeSessionID: requestedTranscodeSessionID,
-            serverID: targetID
-        )
-
-        let playbackURL: URL
-        let transcodeSessionID: String?
-        switch liveStream.outcome {
-        case .transcodeAvailable:
-            playbackURL = liveStream.url
-            transcodeSessionID = requestedTranscodeSessionID
-        case .directPlayOnly:
-            let streamPath = tuned.playbackPath
-                ?? "\(sessionPath)/\(clientIdentifier)/index.m3u8"
-            guard let connection = pool.connection(for: targetID),
-                  let directURL = buildURL(
-                    base: connection.baseURL.absoluteString,
-                    path: streamPath,
-                    queryItems: [URLQueryItem(name: "X-Plex-Token", value: connection.token)]
-                  ) else {
-                throw PlexServiceError.invalidURL
-            }
-            playbackURL = directURL
-            transcodeSessionID = nil
-        case .failed(let message):
-            throw PlexServiceError.decodingError(
-                message?.nilIfEmpty ?? "Plex could not create a Live TV stream."
-            )
-        }
-
-        return PlexLiveTuneResult(
-            serverID: targetID,
-            sessionID: sessionID,
-            playbackSessionIdentifier: playbackSessionIdentifier,
-            transcodeSessionID: transcodeSessionID,
-            playbackURL: playbackURL,
-            media: media,
-            part: part
-        )
+    ) async throws -> LiveTuneResult {
+        try await liveTVFacet(for: provider, serverID: serverID)
+            .tune(channel, source: provider, allowsDirectPlay: allowsDirectPlay)
     }
 
-    private func makeFallbackLiveTVMedia(sessionPath: String) -> MediaVersion {
-        let part = MediaPart(
-            id: "0",
-            key: sessionPath,
-            file: nil,
-            size: nil,
-            container: "mpegts",
-            duration: nil,
-            videoProfile: nil,
-            audioProfile: nil,
-            accessible: true,
-            exists: true,
-            streams: []
-        )
-        return MediaVersion(
-            id: "0",
-            container: "hls",
-            videoCodec: nil,
-            audioCodec: nil,
-            videoResolution: nil,
-            videoProfile: nil,
-            audioProfile: nil,
-            audioChannels: nil,
-            width: nil,
-            height: nil,
-            bitrate: nil,
-            duration: nil,
-            optimizedForStreaming: nil,
-            parts: [part]
-        )
-    }
-
-    private static func channelSortKey(_ channel: LiveChannel) -> [Int] {
-        let components = (channel.vcn ?? channel.id)
-            .split(whereSeparator: { !$0.isNumber })
-            .compactMap { Int($0) }
-        return components.isEmpty ? [Int.max] : components
-    }
-
-    private static let liveTVGuideConcurrency = 6
-    static let liveTVDiscoveryTimeout: TimeInterval = 45
+    static var liveTVDiscoveryTimeout: TimeInterval { PlexLiveTV.discoveryTimeout }
     private static let liveTVDiscoveryGrace: Duration = .seconds(2)
+}
 
-    private static let liveTVDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+// MARK: - Routing
+
+extension MediaService {
+    /// The Live TV facet of the server `source` lives on (`serverID` first,
+    /// then the source's own, then `liveTVServerID`), or nil when that is not
+    /// a server the pool knows: an IPTV source is never routed to a server.
+    ///
+    /// Built here rather than read from the session's provider because the
+    /// routing lives here (see `PlexLiveTVTransport`).
+    func liveTV(for source: LiveTVProvider, serverID: String? = nil) -> (any LiveTVProviding)? {
+        let targetID = serverID ?? source.serverID ?? liveTVServerID
+        if let targetID = targetID?.nilIfEmpty, !pool.knownServerIDs.contains(targetID) {
+            return nil
+        }
+        return PlexLiveTV(serverID: targetID, transport: self)
+    }
+
+    /// `liveTV(for:)`, throwing for a source no server serves.
+    private func liveTVFacet(for source: LiveTVProvider, serverID: String? = nil) throws -> any LiveTVProviding {
+        guard let liveTV = liveTV(for: source, serverID: serverID) else {
+            throw PlexServiceError.noServerConnected
+        }
+        return liveTV
+    }
+
+    /// The facet of `serverID` (nil: the highest-priority server), for
+    /// discovery, before there is a source.
+    private func liveTVFacet(serverID: String?) -> any LiveTVProviding {
+        PlexLiveTV(serverID: serverID, transport: self)
+    }
+}
+
+/// The facade sends the Plex Live TV facet's requests (`PlexLiveTVTransport`).
+/// `liveTVDirectPlayURL(sessionPath:sessionIdentifier:serverID:)` is the
+/// playback facade's own (`MediaService+Streams`).
+extension MediaService: PlexLiveTVTransport {
+    /// Reads only `url` and `outcome` of the playback facade's live stream,
+    /// so it does not depend on that stream's type.
+    func liveTVTranscodeStream(
+        sessionPath: String,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        serverID: String
+    ) async throws -> PlexLiveTVStream {
+        let stream = try await liveTVStreamURL(
+            sessionPath: sessionPath,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            serverID: serverID
+        )
+        switch stream.outcome {
+        case .transcodeAvailable:
+            return .transcode(stream.url)
+        case .directPlayOnly:
+            return .directPlayOnly
+        case .failed(let message):
+            return .failed(message)
+        }
+    }
+
+    func liveTVTokenizedURL(path: String, serverID: String) -> URL? {
+        guard let connection = pool.connection(for: serverID) else { return nil }
+        return buildURL(
+            base: connection.baseURL.absoluteString,
+            path: path,
+            queryItems: [URLQueryItem(name: "X-Plex-Token", value: connection.token)]
+        )
+    }
 }
 
 private enum LiveTVDiscoveryEvent: Sendable {

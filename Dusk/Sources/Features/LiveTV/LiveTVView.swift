@@ -246,12 +246,12 @@ struct LiveTVRootContent: View {
                 isReplayable: { program, channel in viewModel.canReplay(program, on: channel, now: now) }
             ))
         }
-        for plex in plexSections {
+        for server in serverSections {
             // Placeholder airings drawn as empty time, so they collapse the
             // way an empty stretch of the guide does.
-            let lineup = plex.lineup.removingFillerAirings()
+            let lineup = server.lineup.removingFillerAirings()
             add(
-                id: plex.id, title: plex.title, lineup: lineup,
+                id: server.id, title: server.title, lineup: lineup,
                 window: LiveTVViewModel.timelineWindow(of: lineup, now: now),
                 collapsesTrailingGap: false
             )
@@ -269,12 +269,12 @@ struct LiveTVRootContent: View {
         return sections
     }
 
-    /// The Plex guide sections: one per tuner device, or the whole lineup
+    /// The server guide sections: one per tuner device, or the whole lineup
     /// as one section when there is a single device.
-    private var plexSections: [PlexLiveTVDeviceLineup] {
-        if let groups = viewModel.plexDeviceLineups { return groups }
+    private var serverSections: [LiveTVDeviceLineup] {
+        if let groups = viewModel.deviceLineups { return groups }
         guard let lineup = viewModel.lineup else { return [] }
-        return [PlexLiveTVDeviceLineup(id: "plex", title: lineup.provider.title, lineup: lineup)]
+        return [LiveTVDeviceLineup(id: LiveTVLineup.serverSectionID, title: lineup.provider.title, lineup: lineup)]
     }
 
     /// Live plays; later shows the details; the past plays back when it can
@@ -337,7 +337,7 @@ struct LiveTVRootContent: View {
         let offset = viewModel.selectedDayOffset
         let day = offset == 0 ? nil : LiveTVGuideWindow.forDayOffset(offset).start
         #if os(tvOS)
-        let sectionIDs = viewModel.iptvLineups.map { "iptv-\($0.source.id)" } + plexSections.map(\.id)
+        let sectionIDs = viewModel.iptvLineups.map { "iptv-\($0.source.id)" } + serverSections.map(\.id)
         for id in sectionIDs {
             var cursor = tvCursors[id] ?? LiveTVGuideCursor(time: .now)
             if let day {

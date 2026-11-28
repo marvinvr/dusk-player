@@ -160,10 +160,13 @@ Live TV:
   channels, and owns the selected date's guide.
 - `LiveTVView` renders current, past, and future schedule metadata. Only an
   airing program starts playback; arbitrary past guide entries are not recordings.
-- `MediaService+LiveTV` owns provider/channel/grid/tune endpoints. Their
-  response shapes are `Providers/Plex/DTO/PlexLiveTVDTO.swift`, mapped onto
-  the `Live*` domain types (`Domain/LiveTV.swift`, no decoding) by
-  `Providers/Plex/Mappers/PlexLiveTVMapper.swift`.
+- `MediaService+LiveTV` discovers the DVR across servers and routes every
+  Live TV call to the source server's `LiveTVProviding` facet; the Plex one,
+  `Providers/Plex/PlexLiveTV.swift`, owns the provider/channel/device/grid/
+  recording/tune endpoints and `PlexLiveChannelMatcher` the guide filing.
+  Their response shapes are `Providers/Plex/DTO/PlexLiveTVDTO.swift`, mapped
+  onto the `Live*` domain types (`Domain/LiveTV.swift`, `Domain/LiveTVDevice.swift`,
+  no decoding) by `Providers/Plex/Mappers/PlexLiveTVMapper.swift`.
 
 Libraries:
 
