@@ -81,13 +81,13 @@ enum PlexLiveTVMapper {
     }
 
     /// The DVR's devices that have at least one enabled channel mapping.
-    static func devices(_ response: PlexLiveTVDVRResponse) -> [PlexLiveTVDevice] {
+    static func devices(_ response: PlexLiveTVDVRResponse) -> [LiveTVDevice] {
         (response.MediaContainer.Dvr ?? []).flatMap { $0.Device ?? [] }.enumerated().compactMap { index, device in
             let keys = Set((device.ChannelMapping ?? []).filter(\.enabled).compactMap { $0.channelKey?.nilIfEmpty })
             guard !keys.isEmpty else { return nil }
             let title = device.title?.nilIfEmpty ?? device.model?.nilIfEmpty
                 ?? device.make?.nilIfEmpty ?? "Tuner \(index + 1)"
-            return PlexLiveTVDevice(id: device.key?.nilIfEmpty ?? "\(index)", title: title, channelKeys: keys)
+            return LiveTVDevice(id: device.key?.nilIfEmpty ?? "\(index)", title: title, channelKeys: keys)
         }
     }
 

@@ -812,28 +812,52 @@ both when the server has none.
 `LiveTVProviding` on the server provider; IPTV stays a separate producer of
 the same `Live*` models.
 
+As built in P0-14 (one value per server, `@MainActor` methods; `LiveTVProvider`
+is the neutral name of a server's Live TV source, the DVR):
+
 ```swift
 protocol LiveTVProviding {
-    func lineup() async throws -> LiveLineup?                 // channels (+ optional device grouping)
-    func guide(channels: [LiveChannelID], window: DateInterval) async throws -> [LiveAiring]
-    func onNow() async throws -> [LiveAiring]
-    func tune(_ channel: LiveChannel) async throws -> LiveTuneResult    // url or StreamIntent.live
-    func closeTune(_ result: LiveTuneResult) async
-    func recording(for airing: LiveAiring) async -> MediaItemID?
+    func source() async throws -> LiveTVProvider?             // nil: no DVR on this server
+    func channels(of: LiveTVProvider) async throws -> [LiveChannel]
+    func devices(of: LiveTVProvider) async throws -> [LiveTVDevice]   // empty: one guide section
+    func onNow(source:, channels:) async throws -> LiveTVLineup
+    func airings(source:, window: LiveTVGuideWindow) async throws -> [LiveProgram]
+    func guide(source:, channels:, days: [Date]) async throws -> LiveTVLineup  // per-channel fallback
+    func lineup(source:, channels:, programs:) -> LiveTVLineup        // files airings under channels
+    func recording(for: LiveProgram, source:) async throws -> MediaItem?
+    func tune(_: LiveChannel, source:, allowsDirectPlay: Bool) async throws -> LiveTuneResult
 }
 ```
 
+- Discovery across servers (`discoverLiveTVProvider`, `LiveTVDiscovery`) and
+  the guide's refresh policy stay Dusk's (facade, `LiveTVViewModel`). The
+  view model still decides when to fall back to `guide(days:)`: a Plex quirk
+  (a grid that ignores the time range) a Jellyfin facet can answer with
+  `airings` per day.
+- No `closeTune`: Dusk closes nothing for a live session today (the stream's
+  close is the playback facet's). Jellyfin's `/LiveStreams/Close` adds it.
 - Plex keeps its provider discovery, `gridKey`, channel matcher and tune
-  session inside `Providers/Plex`. `PlexLiveChannelMatcher` and the device
-  sections are Plex-private; the lineup simply has one section when a provider
-  reports no devices.
+  session inside `Providers/Plex`. `PlexLiveChannelMatcher` is Plex-private
+  (`Providers/Plex/PlexLiveChannelMatcher.swift`; features file airings through
+  `MediaService.liveTVLineup`). The device sections are neutral
+  (`LiveTVDevice`, `LiveTVLineup.groupedByDevice`); only fetching and mapping
+  `/livetv/dvrs/{id}` is Plex's, and the lineup simply has one section when a
+  provider reports no devices.
+- Still Plex-shaped, left for J-09: `LiveTVProvider`'s `dvrID`, `gridKey`,
+  `channelsKey` and `watchNowKey`, and `LiveChannel.gridKey`/`tuneIdentifier`
+  (IPTV and tests build these memberwise).
 - Jellyfin: `/LiveTv/Channels`, `POST /LiveTv/Programs`,
   `/LiveTv/Programs/Recommended?IsAiring=true`, tune = `PlaybackInfo` with
   `AutoOpenLiveStream`, close = `/LiveStreams/Close`, recordings by
   `ChannelId` + start.
-- `PlaybackSource.liveTVContext` becomes a neutral `LivePlaybackContext`.
-- The `isIPTV` branches that keep IPTV away from Plex calls disappear: an IPTV
-  channel is simply not routed to a server provider.
+- `PlaybackSource.liveTVContext` is the neutral `LivePlaybackContext`; its
+  `sessionPath` (the key progress reports carry) comes from the tune
+  (`LiveTuneResult.reportKey`, Plex `/livetv/sessions/{id}`), nil for IPTV.
+- The `isIPTV` branches that kept IPTV away from Plex calls are gone: an IPTV
+  source's `serverID` is no server the pool knows, so `MediaService.liveTV(for:)`
+  returns no facet. Left: `channel.iptv` (it carries the IPTV stream) and the
+  timeline guard in `PlaybackCoordinator+Timeline`, which P0-10 removes once
+  reports route by server.
 
 **Decision: Live TV ships for Jellyfin** (02 proposed leaving it out). It is
 unverified only because the demo server has no tuner; T-0 adds an M3U tuner

@@ -49,8 +49,11 @@ XMLTV works.
 ## Invariants
 
 - **The marker is `LiveChannel.iptv`.** `PlaybackCoordinator.playLiveTV`
-  routes such a channel to `playIPTV`; `LivePlaybackContext.isIPTV` and
-  `LiveTVProvider.isIPTV` gate everything Plex-only.
+  routes such a channel to `playIPTV`. An IPTV source is never routed to a
+  server: its `LiveTVProvider.serverID` is `IPTVImages.serverID`, which no
+  server has, so `MediaService.liveTV(for:)` returns no facet and no server
+  request is made for it (guide refresh, filing). `LivePlaybackContext.isIPTV`
+  still drives the player's Retry and keeps timeline reports off.
 - **Always AVPlayer.** `playIPTV` builds an AVPlayer engine directly; Force
   VLCKit, the resolver and the direct-play → server-stream ladder never apply.
   An IPTV channel can never reach VLCKit. AVPlayer cannot play a raw MPEG-TS

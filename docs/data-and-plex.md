@@ -583,11 +583,21 @@ Where to edit:
 
 ## Live TV And Guide Endpoints
 
-Files: `MediaService+LiveTV.swift`, `Domain/LiveTV.swift` (the `Live*` models,
-memberwise only), `Providers/Plex/DTO/PlexLiveTVDTO.swift` (every Live TV
-response shape and its lenient decoding) and
+Files: `MediaService+LiveTV.swift` (discovery across servers, and routes),
+`Providers/Core/LiveTVProviding.swift` (the facet), `Providers/Plex/PlexLiveTV.swift`
+(every Plex Live TV request and the tune), `Providers/Plex/PlexLiveChannelMatcher.swift`
+(filing airings under channels), `Domain/LiveTV.swift` and `Domain/LiveTVDevice.swift`
+(the `Live*` models, memberwise only), `Providers/Plex/DTO/PlexLiveTVDTO.swift`
+(every Live TV response shape and its lenient decoding) and
 `Providers/Plex/Mappers/PlexLiveTVMapper.swift` (DTO → `Live*`, including the
 id/time fallbacks, tune media and the server id on `LiveTVProvider`).
+
+- Routing: each `MediaService` Live TV method resolves the facet of the
+  source's server (`liveTV(for:)`: the source's `serverID`, else
+  `liveTVServerID`) and calls it. A source whose server the pool does not know
+  (an IPTV source, `IPTVImages.serverID`) gets no facet: nothing is sent, the
+  call throws `noServerConnected` (`liveTVLineup` files nothing). This replaces
+  the `isIPTV` guards that kept IPTV away from Plex calls.
 
 - Live TV uses one server only (v1): the highest-priority connected server
   whose `/media/providers` lists an EPG provider. Every connected server is
@@ -637,8 +647,9 @@ id/time fallbacks, tune media and the server id on `LiveTVProvider`).
   and `keepFresh()` re-checks every minute while it is on screen. Issue #17:
   a date captured at launch kept an Apple TV on an old day, and the
   calendar-day window showed only the last hour of the evening.
-- Grid items list every airing in `Media`; `LiveTVLineup(provider:channels:programs:)`
-  splits them into one program per airing and files each through
+- Grid items list every airing in `Media`; the facet's
+  `lineup(source:channels:programs:)` (Plex: `LiveTVLineup(provider:channels:programs:)`,
+  `MediaService.liveTVLineup` for features) splits them into one program per airing and files each through
   `PlexLiveChannelMatcher`: identifiers first (`gridKey`, `channelIdentifier`,
   `channelID` against the channel's `gridKey`/`id`/`identifier`/`key`), then
   channel number, call sign and title only when they name exactly one channel.

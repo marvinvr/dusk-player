@@ -24,8 +24,8 @@ final class LiveTVViewModel {
     private(set) var provider: LiveTVProvider?
     private(set) var channels: [LiveChannel] = []
     /// The DVR's tuner devices. Empty until the server has said (the guide
-    /// then shows Plex as one section).
-    private(set) var devices: [PlexLiveTVDevice] = []
+    /// then shows the server lineup as one section).
+    private(set) var devices: [LiveTVDevice] = []
     private var hasLoadedDevices = false
     private(set) var lineup: LiveTVLineup?
     private(set) var nowPlayingLineup: LiveTVLineup?
@@ -79,9 +79,9 @@ final class LiveTVViewModel {
     var iptvLineups: [IPTVSourceLineup] { iptvService?.lineups ?? [] }
 
     /// Whether anything (Plex or IPTV) has a guide to show.
-    /// The Plex lineup split per tuner device (each its own guide section,
+    /// The server lineup split per tuner device (each its own guide section,
     /// like an IPTV source), or nil when there is only one.
-    var plexDeviceLineups: [PlexLiveTVDeviceLineup]? {
+    var deviceLineups: [LiveTVDeviceLineup]? {
         lineup?.groupedByDevice(devices)
     }
 
@@ -358,7 +358,7 @@ final class LiveTVViewModel {
     }
 
     private func publishLineup(provider: LiveTVProvider, now: Date) {
-        let fetched = LiveTVLineup(
+        let fetched = media.liveTVLineup(
             provider: provider,
             channels: channels,
             programs: plexAirings.keys.sorted().flatMap { plexAirings[$0] ?? [] }
@@ -488,13 +488,14 @@ final class LiveTVViewModel {
         selectedDayOffset = dayOffset
     }
 
-    /// Image URLs for one lineup's rows: IPTV art is absolute, Plex art is
-    /// asked of the DVR's server.
+    /// Image URLs for one lineup's rows, asked of whoever the lineup came
+    /// from: the DVR's server, or the IPTV image provider (whose source
+    /// carries `IPTVImages.serverID`).
     func imageURL(for lineup: LiveTVLineup) -> (String?, Int, Int) -> URL? {
-        guard lineup.provider.isIPTV else { return imageURL(for:width:height:) }
         let media = media
+        let serverID = lineup.provider.serverID ?? media.liveTVServerID
         return { path, width, height in
-            media.imageURL(for: ArtworkRef(serverID: IPTVImages.serverID, path: path), size: ImageSize(width: width, height: height))
+            media.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
         }
     }
 
