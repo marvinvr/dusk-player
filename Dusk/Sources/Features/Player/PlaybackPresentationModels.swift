@@ -749,6 +749,11 @@ struct UpNextPosterPresentation: Sendable {
         case timedAutoplay(countdown: Int)
         case autoAdvanceAtEnd
         case manual
+
+        var isTimed: Bool {
+            if case .timedAutoplay = self { return true }
+            return false
+        }
     }
 
     var item: PlaybackQueueItem
@@ -768,10 +773,7 @@ struct UpNextPosterPresentation: Sendable {
     var countdownClock: UpNextCountdownClock?
     var isStarting = false
 
-    var isTimed: Bool {
-        if case .timedAutoplay = mode { return true }
-        return false
-    }
+    var isTimed: Bool { mode.isTimed }
 
     /// Whether the natural episode end should advance directly to the next
     /// episode (no full-screen Up Next screen) rather than surfacing it.

@@ -534,6 +534,9 @@ struct SettingsIOSView: View {
             Toggle("Auto-Skip Credits", isOn: $preferences.autoSkipCredits)
                 .foregroundStyle(Color.duskTextPrimary)
 
+            Toggle("Up Next During Credits", isOn: $preferences.upNextDuringCreditsEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
             Toggle("Continuous Play", isOn: $preferences.continuousPlayEnabled)
                 .foregroundStyle(Color.duskTextPrimary)
 
