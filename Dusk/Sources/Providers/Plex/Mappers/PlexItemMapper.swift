@@ -176,38 +176,6 @@ enum PlexItemMapper {
         )
     }
 
-    /// A freshly fetched row belongs to exactly one server, so it carries one
-    /// `sources` entry for it; an unstamped row has none.
-    static func map(_ dto: PlexHubDTO, serverID: String?) -> HomeRow {
-        let serverID = serverID?.nilIfEmpty
-        let sources: [PlexHubSource]
-        if let serverID {
-            sources = [PlexHubSource(
-                serverID: serverID,
-                key: dto.key,
-                size: dto.size,
-                more: dto.more,
-                hubIdentifier: dto.hubIdentifier
-            )]
-        } else {
-            sources = []
-        }
-        return HomeRow(
-            key: dto.key,
-            title: dto.title,
-            type: dto.type,
-            hubIdentifier: dto.hubIdentifier,
-            size: dto.size,
-            more: dto.more,
-            libraryID: dto.librarySectionID,
-            librarySectionTitle: dto.librarySectionTitle,
-            items: dto.items.map { Self.map($0, serverID: serverID) },
-            serverID: serverID,
-            sources: sources,
-            mergeIdentity: nil
-        )
-    }
-
     static func map(_ dto: PlexTagDTO) -> Tag {
         Tag(tag: dto.tag, id: dto.id)
     }

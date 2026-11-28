@@ -894,10 +894,9 @@ final class HomeViewModel {
         visibleItems(in: hub).isAllClips
     }
 
+    /// A Recently Added row (`HomeRow.kind`) that holds only video titles.
     func isRecentlyAddedHub(_ hub: HomeRow) -> Bool {
-        let normalizedTitle = hub.title.lowercased()
-
-        guard normalizedTitle.contains("recently added") else { return false }
+        guard hub.kind == .recentlyAdded else { return false }
 
         let itemTypes = Set(visibleItems(in: hub).map(\.type))
         return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode, .clip])

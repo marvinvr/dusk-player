@@ -63,6 +63,24 @@ struct PlexHubFixtureTests {
         }
     }
 
+    @Test("The mapper classifies each row the way Home's string rules did")
+    func mapperClassification() throws {
+        let rows = try Self.rows("home-a", server: "a")
+        #expect(rows.map(\.kind) == [
+            .continueWatching, .nextUp, .recentlyAdded, .recentlyAdded, .recentlyAdded,
+            .other, .other, .playlists, .other, .other, .continueWatching,
+        ])
+        #expect(rows.map(\.canHide) == [false, false, false, true, true, true, true, false, true, false, true])
+        #expect(rows.map(\.libraryScope) == [
+            .global, .global, .unresolved(recentlyAddedKind: .movie), .section("1"), .section("2"),
+            .section("1"), .section("1"), .global, .section("3"), .global, .section("1"),
+        ])
+
+        let section = try Self.rows("section-1", server: "a")
+        #expect(section.map(\.kind) == [.continueWatching, .recentlyAdded, .other, .other, .other])
+        #expect(section.map(\.canHide) == [true, true, true, true, false])
+    }
+
     @Test("Visible rows follow the library order, unscoped rows by their items")
     func homeArrangement() throws {
         let rows = try Self.rows("home-a", server: "a").filter { !HomeHubFilter.shouldHide(hub: $0) }

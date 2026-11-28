@@ -1,7 +1,7 @@
 import Foundation
 
 /// A `Hub` row from `GET /hubs`, `/hubs/sections/{id}`, `/hubs/promoted`,
-/// `/hubs/continueWatching` and `/hubs/search`. `PlexItemMapper` builds
+/// `/hubs/continueWatching` and `/hubs/search`. `PlexHubMapper` builds
 /// `HomeRow`, including its single-server `sources` entry.
 struct PlexHubDTO: Decodable, Sendable {
     let key: String?

@@ -1,21 +1,17 @@
 import Foundation
 
 /// Content Home never shows. Home renders a fixed arrangement, so this is the
-/// only place that decides which Plex hubs and items exist as rows at all.
+/// only place that decides which rows and items exist on Home at all.
 enum HomeHubFilter {
-    /// Plex's own continue-watching/on-deck hubs are covered by the cinematic
-    /// hero, and playlists are not a Dusk destination.
+    /// The server's own Continue Watching and next-up rows are covered by the
+    /// cinematic hero, and playlists are not a Dusk destination. The mapper
+    /// decides which rows those are (`HomeRow.kind`).
     static func shouldHide(hub: HomeRow) -> Bool {
-        let fields = [hub.title, hub.key, hub.hubIdentifier]
-            .compactMap { $0?.lowercased() }
-
-        return fields.contains { value in
-            value.contains("continue watching") ||
-            value.contains("continuewatching") ||
-            value.contains("on deck") ||
-            value.contains("ondeck") ||
-            value.contains("playlist") ||
-            value.contains("playlists")
+        switch hub.kind {
+        case .continueWatching, .nextUp, .playlists:
+            return true
+        case .recentlyAdded, .other:
+            return false
         }
     }
 

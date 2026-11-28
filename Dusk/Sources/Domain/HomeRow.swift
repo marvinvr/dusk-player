@@ -13,8 +13,13 @@ struct PlexHubSource: Sendable, Hashable, Codable {
     var hubIdentifier: String? = nil
 }
 
-/// A "hub" on the Plex home screen (e.g. "Continue Watching", "Recently Added Movies").
-/// Returned from `GET /hubs`, `GET /hubs/sections/{sectionId}`, and `GET /hubs/search`.
+/// A row on Home or a library's Recommended tab (e.g. "Continue Watching",
+/// "Recently Added Movies"), and a search section.
+///
+/// What the row *is* — `kind`, `libraryScope`, `mergeKey`, `canHide` — is set
+/// by the provider's mapper (`PlexHubMapper` reads Plex's identifiers and
+/// titles), so Home, the merge and the arrangement read those and never parse
+/// a server's strings themselves (docs/jellyfin/04-architecture.md §11).
 struct HomeRow: Sendable, Identifiable, Hashable {
     var id: String {
         // A merged row is identified by what made it one row. Its
@@ -26,7 +31,7 @@ struct HomeRow: Sendable, Identifiable, Hashable {
         return "\(serverID)|\(base)"
     }
 
-    /// Stamped by the provider's mapper (`PlexItemMapper`). nil once a row has
+    /// Stamped by the provider's mapper (`PlexHubMapper`). nil once a row has
     /// been merged across servers — read `sources` in that case.
     let serverID: String?
 
@@ -50,9 +55,22 @@ struct HomeRow: Sendable, Identifiable, Hashable {
     let librarySectionTitle: String?
     let items: [MediaItem]
 
+    /// What the row is. Set by the mapper; kept through merges, which keep the
+    /// representative's.
+    let kind: Kind
+    /// Which library the row belongs to, as far as its server said.
+    let libraryScope: LibraryScope
+    /// The row's identity across servers, before Home adds the library
+    /// (`HubMerge.mergeKey(for:mode:)`).
+    let mergeKey: String
+    /// Whether this kind of row has a Home switch at all. Whether the user may
+    /// flip it is the server's permission (`MediaService.canHideHomeRow`).
+    let canHide: Bool
+
     /// `libraryID` and `librarySectionTitle` are required parameters on
-    /// purpose: every call site has to decide what it means by them. Prefer
-    /// `replacingItems(_:)` over calling this directly.
+    /// purpose: every call site has to decide what it means by them. So are
+    /// the mapper's classification fields. Prefer `replacingItems(_:)` over
+    /// calling this directly.
     init(
         key: String?,
         title: String,
@@ -63,6 +81,10 @@ struct HomeRow: Sendable, Identifiable, Hashable {
         libraryID: String?,
         librarySectionTitle: String?,
         items: [MediaItem],
+        kind: Kind,
+        libraryScope: LibraryScope,
+        mergeKey: String,
+        canHide: Bool,
         serverID: String? = nil,
         sources: [PlexHubSource] = [],
         mergeIdentity: String? = nil
@@ -79,36 +101,17 @@ struct HomeRow: Sendable, Identifiable, Hashable {
         self.libraryID = libraryID
         self.librarySectionTitle = librarySectionTitle
         self.items = items
+        self.kind = kind
+        self.libraryScope = libraryScope
+        self.mergeKey = mergeKey
+        self.canHide = canHide
     }
 
-    /// The `/library/sections` key this hub belongs to.
-    ///
-    /// Falls back to a section in the paging URL or the numeric suffix Plex appends to per-library hub
-    /// identifiers (`movie.recentlyadded.3` -> `"3"`), which older servers send
-    /// even when `libraryID` is missing from the payload. Global rows
-    /// (`home.continue`, `home.ondeck`) have neither and resolve to nil.
+    /// The `/library/sections` key this row belongs to, or nil for a global
+    /// row (Continue Watching) or a library row whose server named no section.
     var resolvedLibrarySectionID: String? {
-        if let libraryID = libraryID?.nilIfEmpty {
-            return libraryID
-        }
-        // Some PMS versions only identify the section in the paging URL.
-        if let key, let url = URLComponents(string: key) {
-            let path = url.path.split(separator: "/")
-            if let sections = path.firstIndex(of: "sections"),
-               path.indices.contains(sections + 1) {
-                return String(path[sections + 1])
-            }
-            if let sectionID = url.queryItems?.first(where: {
-                $0.name == "librarySectionID" || $0.name == "sectionID"
-            })?.value?.nilIfEmpty {
-                return sectionID
-            }
-        }
-        guard let hubIdentifier,
-              let suffix = hubIdentifier.split(separator: ".").last,
-              !suffix.isEmpty,
-              suffix.allSatisfy(\.isNumber) else { return nil }
-        return String(suffix)
+        if case .section(let sectionID) = libraryScope { return sectionID }
+        return nil
     }
 
     /// Same hub with a different item list; every other field is preserved.
@@ -124,6 +127,10 @@ struct HomeRow: Sendable, Identifiable, Hashable {
             libraryID: libraryID,
             librarySectionTitle: librarySectionTitle,
             items: items,
+            kind: kind,
+            libraryScope: libraryScope,
+            mergeKey: mergeKey,
+            canHide: canHide,
             serverID: serverID,
             sources: sources,
             mergeIdentity: mergeIdentity
@@ -149,9 +156,50 @@ struct HomeRow: Sendable, Identifiable, Hashable {
             libraryID: libraryID,
             librarySectionTitle: librarySectionTitle,
             items: items,
+            kind: kind,
+            libraryScope: libraryScope,
+            mergeKey: mergeKey,
+            canHide: canHide,
             serverID: sources.count == 1 ? sources[0].serverID : nil,
             sources: sources,
             mergeIdentity: identity
+        )
+    }
+}
+
+extension HomeRow {
+    /// What a row is (docs/jellyfin/04-architecture.md §11).
+    enum Kind: Sendable, Hashable {
+        /// The server's Continue Watching row. Home shows it as the hero.
+        case continueWatching
+        /// The next episodes of shows in progress (Plex's On Deck), also the hero's.
+        case nextUp
+        /// Playlists, which are not a Home destination.
+        case playlists
+        /// Recently Added, of one library or of every library of a type.
+        case recentlyAdded
+        case other
+    }
+
+    /// Which library a row belongs to.
+    enum LibraryScope: Sendable, Hashable {
+        /// A `/library/sections` key on the row's server.
+        case section(String)
+        /// A library row whose server named no section: Home places it by its
+        /// items' library. `recentlyAddedKind` is set on a type-wide Recently
+        /// Added row, which the only library of that kind on its server may
+        /// claim when the items do not say.
+        case unresolved(recentlyAddedKind: LibraryKind?)
+        /// Not a library's row (Continue Watching, playlists, account rows).
+        case global
+    }
+
+    /// A title as rows compare them: case and diacritics folded, letters and
+    /// digits only ("Oh, the Horror!" → "ohthehorror").
+    static func normalizedTitle(_ value: String) -> String {
+        String(
+            value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .filter { $0.isLetter || $0.isNumber }
         )
     }
 }
