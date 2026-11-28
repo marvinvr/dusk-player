@@ -675,7 +675,7 @@ extension PlaybackCoordinator {
                     self.playbackQueue?.replaceItem(at: next.index, with: PlaybackQueueItem(details: details))
                     self.adjacentEpisodes = self.queueNeighbours(itemID: itemID)
                     return
-                } catch PlexServiceError.httpError(statusCode: 404) {
+                } catch MediaServiceError.httpError(statusCode: 404) {
                     guard !Task.isCancelled, self.isCurrentQueueState(itemID: itemID, position: position) else { return }
                     self.noteQueueItemUnavailable(next.item.id)
                 } catch {
@@ -741,7 +741,7 @@ extension PlaybackCoordinator {
         do {
             _ = try await queueItemLookup(item)
             return false
-        } catch PlexServiceError.httpError(statusCode: 404) {
+        } catch MediaServiceError.httpError(statusCode: 404) {
             playbackQueue?.markUnavailable(item.id)
             upNextPresentation = nil
             if let next = playbackQueue?.next(isPlayable: isQueueItemPlayable) {

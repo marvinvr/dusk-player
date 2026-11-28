@@ -82,7 +82,7 @@ struct PlexPinnedSource: Sendable, Hashable, Identifiable {
     /// Builds the entry Plex Web would create for a library that has never been
     /// pinned. Only used when the user reorders a section that is missing from
     /// the blob (fresh account, or a library added after the last sync).
-    static func make(library: Library, server: PlexServer) -> PlexPinnedSource {
+    static func make(library: Library, server: AccountServer) -> PlexPinnedSource {
         // `Library.type` is "movie" for Other Videos sections too, so the
         // resolved library type decides between "movies" and "videos".
         let sourceType = library.libraryType == .video
@@ -251,7 +251,7 @@ enum PlexPinnedSourceArrangement {
     static func writeOrder(
         userOrder: [Library],
         existing: [PlexPinnedSource],
-        servers: [String: PlexServer],
+        servers: [String: AccountServer],
         hidden: Set<String>? = nil
     ) -> [PlexPinnedSource] {
         var existingByIdentity: [String: PlexPinnedSource] = [:]

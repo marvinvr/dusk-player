@@ -237,8 +237,8 @@ enum JellyfinItemMapper {
     // MARK: People
 
     /// A person page's subject (`GET /Items/{personId}`).
-    static func mapPerson(_ dto: JellyfinItemDTO) -> PlexPerson {
-        PlexPerson(
+    static func mapPerson(_ dto: JellyfinItemDTO) -> PersonDetails {
+        PersonDetails(
             personID: JellyfinID.normalized(dto.id),
             filter: nil,
             tag: dto.name ?? "",
@@ -354,10 +354,10 @@ enum JellyfinItemMapper {
     /// item itself and Plex never sends them, so they are left out.
     static let externalNamespaces = ["tmdb", "imdb", "tvdb"]
 
-    static func externalIDs(_ dto: JellyfinItemDTO) -> [PlexGuid] {
+    static func externalIDs(_ dto: JellyfinItemDTO) -> [ItemGuid] {
         externalNamespaces.compactMap { namespace in
             dto.providerID(namespace)?.trimmingCharacters(in: .whitespaces).nilIfEmpty
-                .map { PlexGuid(id: "\(namespace)://\($0)") }
+                .map { ItemGuid(id: "\(namespace)://\($0)") }
         }
     }
 

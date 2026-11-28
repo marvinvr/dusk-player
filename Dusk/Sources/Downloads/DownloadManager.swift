@@ -1294,7 +1294,7 @@ final class DownloadManager {
     /// when the caller could not say (an unstamped item from a cache).
     private func downloadServerID(for id: MediaItemID) throws -> String {
         guard let serverID = id.serverID ?? media.pool.primary?.serverID else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         return serverID
     }
@@ -1309,7 +1309,7 @@ final class DownloadManager {
         guard !isProfileSwitching,
               media.isSessionReady,
               let accountProfileID = media.activeProfileID?.nilIfEmpty else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
         let serverID = try downloadServerID(for: id)
         let itemID = id.itemID
@@ -1368,7 +1368,7 @@ final class DownloadManager {
         guard !isProfileSwitching,
               media.isSessionReady,
               let accountProfileID = media.activeProfileID?.nilIfEmpty else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
         let serverID = try downloadServerID(for: episode.id)
 
@@ -1536,7 +1536,7 @@ final class DownloadManager {
               media.isSessionReady,
               self.record(globalKey: record.globalKey)?.status == .preparing,
               !deletingDownloadIDs.contains(record.globalKey) else { throw CancellationError() }
-        guard isServerConnected(record.serverID) else { throw PlexServiceError.noServerConnected }
+        guard isServerConnected(record.serverID) else { throw MediaServiceError.noServerConnected }
     }
 
     private func startDownload(record: DownloadedMediaRecord) async {
@@ -1556,7 +1556,7 @@ final class DownloadManager {
             }
             try checkPreparation(record)
             guard details.type == .movie || details.type == .episode || details.type == .clip else {
-                throw PlexServiceError.decodingError("Downloads are only supported for movies, episodes, and videos.")
+                throw MediaServiceError.decodingError("Downloads are only supported for movies, episodes, and videos.")
             }
             if details.type == .episode {
                 try await cacheEpisodeContext(details, serverID: record.serverID)
@@ -1570,7 +1570,7 @@ final class DownloadManager {
                     ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution)
             }
             guard let media, let part = media.parts.first(where: { $0.id == record.partID }) ?? media.firstAvailablePart else {
-                throw PlexServiceError.decodingError("The selected source version is no longer available. Cancel and download again to choose another version.")
+                throw MediaServiceError.decodingError("The selected source version is no longer available. Cancel and download again to choose another version.")
             }
             update(globalKey: record.globalKey) { item in
                 item.title = details.title
@@ -1589,11 +1589,11 @@ final class DownloadManager {
             let transferPart: MediaPart
             if record.downloadQuality != .original {
                 guard let mediaIndex = details.media.firstIndex(where: { $0.id == media.id }) else {
-                    throw PlexServiceError.invalidURL
+                    throw MediaServiceError.invalidURL
                 }
                 let prepared = try await prepareConvertedDownload(record: record, sourceMedia: media, mediaIndex: mediaIndex)
                 try checkPreparation(record)
-                guard let preparedPart = prepared.media.parts.first else { throw PlexServiceError.invalidURL }
+                guard let preparedPart = prepared.media.parts.first else { throw MediaServiceError.invalidURL }
                 transferPart = preparedPart
                 request = prepared.request
                 let encodedMedia = try JSONEncoder().encode(prepared.media)
@@ -1607,7 +1607,7 @@ final class DownloadManager {
                 try fileStore.saveSnapshot(currentSnapshot)
             } else {
                 guard let original = self.media.originalDownloadRequest(for: part, serverID: record.serverID) else {
-                    throw PlexServiceError.invalidURL
+                    throw MediaServiceError.invalidURL
                 }
                 request = original
                 transferPart = part
@@ -1669,7 +1669,7 @@ final class DownloadManager {
     private func prepareConvertedDownload(
         record: DownloadedMediaRecord, sourceMedia: MediaVersion, mediaIndex: Int
     ) async throws -> ConvertedDownload {
-        guard let profileID = record.accountProfileID else { throw PlexServiceError.notAuthenticated }
+        guard let profileID = record.accountProfileID else { throw MediaServiceError.notAuthenticated }
         try checkPreparation(record)
         guard var latest = self.record(globalKey: record.globalKey) else { throw CancellationError() }
         if latest.queueClientIdentifier == nil {
@@ -1723,7 +1723,7 @@ final class DownloadManager {
                 do {
                     job = try await media.conversionJob(context: pollContext, queueID: queueID, jobID: queueItemID)
                     failedPolls = 0
-                } catch PlexServiceError.networkError where failedPolls < 10 {
+                } catch MediaServiceError.networkError where failedPolls < 10 {
                     // A poll dropped by a network blip or app suspension must not
                     // fail the download; a retry would restart the conversion.
                     failedPolls += 1
@@ -1884,7 +1884,7 @@ final class DownloadManager {
                     itemID: record.itemID,
                     kind: record.providerKind
                   ) else {
-                throw PlexServiceError.decodingError("Cached metadata missing for \(record.title)")
+                throw MediaServiceError.decodingError("Cached metadata missing for \(record.title)")
             }
 
             let media = record.downloadQuality != .original ? record.convertedMedia
@@ -1892,7 +1892,7 @@ final class DownloadManager {
                     ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution))
             guard let media,
                   let part = media.parts.first(where: { $0.id == record.partID }) ?? media.parts.first else {
-                throw PlexServiceError.decodingError("Cached media part missing for \(record.title)")
+                throw MediaServiceError.decodingError("Cached media part missing for \(record.title)")
             }
 
             let targetURL = try fileStore.targetVideoURL(
@@ -1952,7 +1952,7 @@ final class DownloadManager {
     ) async throws -> MediaDetails {
         guard !isProfileSwitching,
               let accountProfileID = media.activeProfileID?.nilIfEmpty else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
 
         let kind = snapshotKind(for: serverID)
@@ -1971,7 +1971,7 @@ final class DownloadManager {
         )
         let decoded = try decodeSnapshot(data, serverID: serverID, kind: kind) { try $0.details(from: data, serverID: serverID) }
         guard let details = decoded.first else {
-            throw PlexServiceError.decodingError("No metadata found for \(itemID)")
+            throw MediaServiceError.decodingError("No metadata found for \(itemID)")
         }
         await cacheArtwork(for: details, serverID: serverID)
         return details
@@ -1981,7 +1981,7 @@ final class DownloadManager {
     private func fetchAndCacheChildren(itemID: String, serverID: String) async throws -> Data {
         guard !isProfileSwitching,
               let accountProfileID = media.activeProfileID?.nilIfEmpty else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
 
         let data = try await media.metadataSnapshot(.children(itemID: itemID), serverID: serverID)
@@ -2023,7 +2023,7 @@ final class DownloadManager {
     }
 
     /// Decodes a just-fetched snapshot with its provider's format. A failure
-    /// reads exactly as the online decode's (`PlexServiceError.decodingError`).
+    /// reads exactly as the online decode's (`MediaServiceError.decodingError`).
     private func decodeSnapshot<T>(
         _ data: Data,
         serverID: String,
@@ -2031,12 +2031,12 @@ final class DownloadManager {
         _ decode: (any MetadataSnapshotFormat) throws -> [T]
     ) throws -> [T] {
         guard let format = metadataCache.formats.format(for: kind) else {
-            throw PlexServiceError.decodingError("No metadata format for this server")
+            throw MediaServiceError.decodingError("No metadata format for this server")
         }
         do {
             return try decode(format)
         } catch {
-            throw PlexServiceError.decodingError(String(describing: error))
+            throw MediaServiceError.decodingError(String(describing: error))
         }
     }
 
@@ -2815,7 +2815,7 @@ final class DownloadManager {
             return downloadError.localizedDescription
         }
 
-        if let plexError = error as? PlexServiceError {
+        if let plexError = error as? MediaServiceError {
             switch plexError {
             case .notAuthenticated, .unauthorized:
                 return "Plex authentication expired. Sign in again, then retry the download."

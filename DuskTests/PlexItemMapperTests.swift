@@ -71,7 +71,7 @@ struct PlexItemMapperTests {
         #expect(row.serverID == "srv")
         #expect(row.mergeIdentity == nil)
         #expect(row.items.allSatisfy { $0.serverID == "srv" })
-        #expect(row.sources == [PlexHubSource(serverID: "srv", key: "/hubs/x", size: 2, more: true, hubIdentifier: "movie.recentlyadded.2")])
+        #expect(row.sources == [HomeRowSource(serverID: "srv", key: "/hubs/x", size: 2, more: true, hubIdentifier: "movie.recentlyadded.2")])
 
         #expect(PlexItemMapper.map(dto, serverID: nil).sources.isEmpty)
     }

@@ -150,7 +150,7 @@ struct MovieLibraryMergeTests {
         let serverID = "movie-copies-\(UUID().uuidString)"
         let host = stub.host("movie-copies", .ok(serverID))
         let service = MediaService(urlProtocolClasses: [SelectionStub.self])
-        let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: [
+        let server = try JSONDecoder().decode(AccountServer.self, from: JSONSerialization.data(withJSONObject: [
             "name": "Copies", "clientIdentifier": serverID, "connections": [],
         ]))
         service.pool.adopt(server: server, baseURL: URL(string: "https://\(host)")!, token: "test-token", connection: nil)

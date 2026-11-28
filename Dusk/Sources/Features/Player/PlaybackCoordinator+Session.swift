@@ -947,12 +947,12 @@ extension PlaybackCoordinator {
             }
             group.addTask {
                 try await Task.sleep(for: deadline)
-                throw PlexServiceError.networkError("The server did not answer in time.")
+                throw MediaServiceError.networkError("The server did not answer in time.")
             }
 
             defer { group.cancelAll() }
             guard let details = try await group.next() else {
-                throw PlexServiceError.networkError("The server did not answer in time.")
+                throw MediaServiceError.networkError("The server did not answer in time.")
             }
             return details
         }

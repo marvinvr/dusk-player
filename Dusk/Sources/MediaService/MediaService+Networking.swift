@@ -101,7 +101,7 @@ extension MediaService {
         // "not authorized" instead of a generic "no server" when that is why the
         // session is missing.
         guard let primaryID = pool.primary?.serverID ?? pool.priorityOrderedIdentifiers.first else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         return primaryID
     }

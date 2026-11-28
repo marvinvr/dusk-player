@@ -1,6 +1,6 @@
 import Foundation
 
-/// One row of `GET /hubs/sections/{id}/manage`. Mapped to `PlexManagedHub` by
+/// One row of `GET /hubs/sections/{id}/manage`. Mapped to `ManagedHub` by
 /// `PlexHubMapper`.
 struct PlexManagedHubDTO: Decodable, Sendable {
     let identifier: String

@@ -18,7 +18,7 @@ extension MediaService {
     /// protected member; it is sent only in the switch request.
     func switchProfile(_ profile: Profile, secret: String?, remember: Bool) async throws {
         guard let user = plexAccount.plexProfiles.homeUser(for: profile) else {
-            throw PlexServiceError.homeUserUnavailable
+            throw MediaServiceError.homeUserUnavailable
         }
         try await switchHomeUser(user, pin: secret, remember: remember)
     }
@@ -34,7 +34,7 @@ extension MediaService {
     /// cached identity offline, leaving online validation pending.
     func bootstrapHomeSession() async throws {
         guard let primaryAccountToken else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
 
         do {
@@ -137,17 +137,17 @@ extension MediaService {
         remember: Bool
     ) async throws {
         guard homeUsers.contains(where: { $0.id == user.id }) else {
-            throw PlexServiceError.homeUserUnavailable
+            throw MediaServiceError.homeUserUnavailable
         }
         guard let primaryAccountToken else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
 
         let normalizedPIN = pin?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
         if user.isProtected, normalizedPIN == nil {
-            throw PlexServiceError.homePINRequired
+            throw MediaServiceError.homePINRequired
         }
 
         let switchedToken = try await plexAccount.plexProfiles.switchToken(

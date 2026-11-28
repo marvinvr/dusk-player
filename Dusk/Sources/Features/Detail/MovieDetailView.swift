@@ -186,7 +186,7 @@ struct MovieDetailView: View {
         let parts = [
             details.year.map(String.init),
             details.editionTitle,
-            PlexContentRating.display(details.contentRating),
+            ContentRatingLabel.display(details.contentRating),
             viewModel.formattedDuration,
         ].compactMap { $0 }
 

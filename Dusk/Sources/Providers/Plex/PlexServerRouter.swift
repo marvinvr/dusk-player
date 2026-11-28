@@ -27,7 +27,7 @@ final class PlexServerRouter {
     }
 
     private func pool() throws -> any SessionRecovering {
-        guard let recovering else { throw PlexServiceError.noServerConnected }
+        guard let recovering else { throw MediaServiceError.noServerConnected }
         return recovering
     }
 
@@ -66,7 +66,7 @@ final class PlexServerRouter {
         // A server the user switched off is not a server that is merely down:
         // never reconnect it behind their back, whoever is asking.
         guard pool.connectionState(for: targetID) != .disabled else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
 
         if pool.session(for: targetID) == nil {
@@ -101,7 +101,7 @@ final class PlexServerRouter {
                 timeoutInterval: timeoutInterval,
                 serverID: targetID
             )
-        } catch let error as PlexServiceError where error == .unauthorized {
+        } catch let error as MediaServiceError where error == .unauthorized {
             plexAuthLogger.notice("Server request unauthorized for \(path, privacy: .public); attempting token refresh")
             pool.markUnauthorized(serverID: targetID)
             try await pool.refreshServerAuthorization(serverID: targetID)
@@ -113,12 +113,12 @@ final class PlexServerRouter {
                     timeoutInterval: timeoutInterval,
                     serverID: targetID
                 )
-            } catch let retryError as PlexServiceError where retryError == .unauthorized {
+            } catch let retryError as MediaServiceError where retryError == .unauthorized {
                 // Leave the rest of the pool alone; only this server is out.
                 pool.markUnauthorized(serverID: targetID)
                 throw retryError
             }
-        } catch let error as PlexServiceError where shouldRefreshServerEndpoint(after: error) {
+        } catch let error as MediaServiceError where shouldRefreshServerEndpoint(after: error) {
             // A cancelled request is not a broken endpoint. URLSession reports
             // cancellation as an ordinary transport failure, so without this a
             // superseded screen load would re-probe every server it still had
@@ -165,7 +165,7 @@ final class PlexServerRouter {
         }
         let candidate = ConnectionCandidate(
             baseURL: connection.baseURL,
-            connection: connection.connection ?? PlexConnection.synthesized(for: connection.baseURL),
+            connection: connection.connection ?? ServerEndpoint.synthesized(for: connection.baseURL),
             source: .lastKnownGood
         )
         var headers = client.plexRequestHeaders
@@ -200,14 +200,14 @@ final class PlexServerRouter {
         guard let connection = pool.session(for: serverID) else {
             switch pool.connectionState(for: serverID) {
             case .unauthorized:
-                throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
+                throw isAuthenticationFresh ? MediaServiceError.authenticationPending : MediaServiceError.unauthorized
             default:
-                throw PlexServiceError.noServerConnected
+                throw MediaServiceError.noServerConnected
             }
         }
 
         guard let url = client.buildURL(base: connection.baseURL.absoluteString, path: path, queryItems: queryItems) else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
 
         var request = URLRequest(url: url)
@@ -226,7 +226,7 @@ final class PlexServerRouter {
     /// (all `networkError`), a URL that cannot be built on the endpoint
     /// (`invalidURL`), and gateway-ish HTTP statuses from a proxy in front of a
     /// server that went away.
-    private func shouldRefreshServerEndpoint(after error: PlexServiceError) -> Bool {
+    private func shouldRefreshServerEndpoint(after error: MediaServiceError) -> Bool {
         switch error {
         case .networkError(_), .invalidURL:
             return activeAccountToken != nil
@@ -278,7 +278,7 @@ final class PlexServerRouter {
 
         do {
             return try await sendScrubPreviewData(path: path, accept: accept, serverID: serverID)
-        } catch let error as PlexServiceError where error == .unauthorized {
+        } catch let error as MediaServiceError where error == .unauthorized {
             try await pool.refreshServerAuthorization(serverID: serverID)
             return try await sendScrubPreviewData(path: path, accept: accept, serverID: serverID)
         }
@@ -289,14 +289,14 @@ final class PlexServerRouter {
         guard let connection = pool.session(for: serverID) else {
             switch pool.connectionState(for: serverID) {
             case .unauthorized:
-                throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
+                throw isAuthenticationFresh ? MediaServiceError.authenticationPending : MediaServiceError.unauthorized
             default:
-                throw PlexServiceError.noServerConnected
+                throw MediaServiceError.noServerConnected
             }
         }
 
         guard let url = client.buildURL(base: connection.baseURL.absoluteString, path: path) else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
 
         var request = URLRequest(url: url)
@@ -402,7 +402,7 @@ extension PlexServerRouter: PlexAccountTransport {
         retriesFreshAuthentication: Bool,
         bootstrap: Bool
     ) async throws -> Data {
-        guard let account else { throw PlexServiceError.notAuthenticated }
+        guard let account else { throw MediaServiceError.notAuthenticated }
         return try await account.plexTVData(
             method: method,
             path: path,
@@ -416,7 +416,7 @@ extension PlexServerRouter: PlexAccountTransport {
         )
     }
 
-    func accountServer(for serverID: String) -> PlexServer? {
+    func accountServer(for serverID: String) -> AccountServer? {
         recovering?.knownServer(for: serverID)
     }
 }

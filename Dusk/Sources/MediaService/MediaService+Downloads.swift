@@ -52,7 +52,7 @@ extension MediaService {
     /// healing server read every other request takes.
     func metadataSnapshot(_ key: MetadataSnapshotKey, serverID: String) async throws -> Data {
         guard let format = metadataSnapshotFormats.format(for: downloadProviderKind(for: serverID)) else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         let request = format.fetchRequest(for: key)
         return try await rawServerRequest(path: request.path, queryItems: request.queryItems, serverID: serverID)
@@ -72,7 +72,7 @@ extension MediaService {
         }
         guard !clientIdentifier.isEmpty, let connection = pool.connection(for: serverID),
               let downloads = connection.provider?.downloads else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         return DownloadConversionContext(
             profileID: profileID,
@@ -132,7 +132,7 @@ extension MediaService {
     }
 
     private func conversionProvider(_ context: DownloadConversionContext) throws -> any DownloadProviding {
-        guard let downloads = context.connection.provider?.downloads else { throw PlexServiceError.noServerConnected }
+        guard let downloads = context.connection.provider?.downloads else { throw MediaServiceError.noServerConnected }
         return downloads
     }
 
@@ -143,7 +143,7 @@ extension MediaService {
     fileprivate func validateConversionContext(_ context: DownloadConversionContext) throws {
         guard activeProfileID == context.profileID else { throw DownloadPreparationError.wrongProfile }
         guard pool.state(for: context.connection.serverID) != .disabled else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
     }
 }
@@ -159,7 +159,7 @@ private struct ConversionTransport: DownloadConversionTransport {
     func request(method: String, path: String, queryItems: [URLQueryItem]) throws -> URLRequest {
         try media.validateConversionContext(context)
         guard let url = media.buildURL(base: context.connection.baseURL.absoluteString, path: path, queryItems: queryItems) else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -177,7 +177,7 @@ private struct ConversionTransport: DownloadConversionTransport {
             try Task.checkCancellation()
             try media.validateConversionContext(context)
             return data
-        } catch PlexServiceError.httpError(let status) where canExpire && [404, 410].contains(status) {
+        } catch MediaServiceError.httpError(let status) where canExpire && [404, 410].contains(status) {
             throw DownloadPreparationError.expired
         }
     }

@@ -1621,7 +1621,7 @@ let detailHeroRegularPrimaryWidth: CGFloat = 260
 // MARK: - Actor Credit Card
 
 struct ActorCreditCard: View {
-    let person: PlexPersonReference
+    let person: PersonReference
     /// The server this credit was read from; the person's page and avatar both
     /// have to be fetched from it, because person ids are per-server tag ids.
     let serverID: String?
@@ -1757,7 +1757,7 @@ struct DetailCastSection: View {
                 LazyHStack(spacing: castSpacing) {
                     ForEach(Array(roles.prefix(maxVisibleRoles).enumerated()), id: \.offset) { _, role in
                         ActorCreditCard(
-                            person: PlexPersonReference(role: role),
+                            person: PersonReference(role: role),
                             serverID: serverID,
                             media: media
                         )

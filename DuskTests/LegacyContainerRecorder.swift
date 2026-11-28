@@ -246,7 +246,7 @@ struct LegacyContainerRecorder {
     }
 
     @Test func recordServerSnapshots() throws {
-        let servers = try JSONDecoder().decode([PlexServer].self, from: Data(V.serverResourcesJSON.utf8))
+        let servers = try JSONDecoder().decode([AccountServer].self, from: Data(V.serverResourcesJSON.utf8))
         let data = LegacyFixture.withStandardDefault("PlexServerSnapshots", set: nil) {
             ServerPool.saveSnapshots(servers)
             return UserDefaults.standard.data(forKey: "PlexServerSnapshots")

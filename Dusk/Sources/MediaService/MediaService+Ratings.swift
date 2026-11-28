@@ -11,7 +11,7 @@ extension MediaService {
     /// star), or clears it with nil.
     func setUserRating(_ rating: Int?, id: MediaItemID) async throws {
         guard let facet = userRating(on: try resolveServerID(id.serverID)) else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         try await facet.setRating(rating, itemID: id.itemID)
     }

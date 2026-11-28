@@ -182,7 +182,7 @@ struct SeasonDetailView: View {
         let parts = [
             viewModel.episodeCountText,
             viewModel.watchedEpisodeCountText,
-            PlexContentRating.display(details.contentRating),
+            ContentRatingLabel.display(details.contentRating),
         ].compactMap { $0 }
 
         if !parts.isEmpty {

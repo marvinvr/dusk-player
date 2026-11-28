@@ -60,16 +60,16 @@ struct PlexProfiles: ProfileProviding {
                 accountToken: primaryToken,
                 retriesFreshAuthentication: false
             )
-        } catch let error as PlexServiceError {
+        } catch let error as MediaServiceError {
             if user.isProtected,
                error == .unauthorized || error == .httpError(statusCode: 403) {
-                throw PlexServiceError.homePINIncorrect
+                throw MediaServiceError.homePINIncorrect
             }
             throw error
         }
 
         guard let switchedToken = Self.switchToken(from: responseData) else {
-            throw PlexServiceError.decodingError(
+            throw MediaServiceError.decodingError(
                 "Plex did not return an account token when switching Home users."
             )
         }
@@ -96,7 +96,7 @@ struct PlexProfiles: ProfileProviding {
             }
             return identity.id == user.id
                 || (user.username != nil && user.username == identity.username)
-        } catch let error as PlexServiceError
+        } catch let error as MediaServiceError
             where error == .unauthorized || error == .httpError(statusCode: 403) {
             plexAuthLogger.notice(
                 "Remembered Plex Home token is no longer valid; requiring user selection"
@@ -122,7 +122,7 @@ struct PlexProfiles: ProfileProviding {
         }
 
         guard let object = try? JSONSerialization.jsonObject(with: data) else {
-            throw PlexServiceError.decodingError("Invalid Plex Home users response.")
+            throw MediaServiceError.decodingError("Invalid Plex Home users response.")
         }
 
         let rawUsers: [Any]?
@@ -133,7 +133,7 @@ struct PlexProfiles: ProfileProviding {
         }
 
         guard let rawUsers else {
-            throw PlexServiceError.decodingError(
+            throw MediaServiceError.decodingError(
                 "Expected a Plex Home users array or envelope."
             )
         }
@@ -147,7 +147,7 @@ struct PlexProfiles: ProfileProviding {
         }
 
         if users.count != rawUsers.count {
-            throw PlexServiceError.decodingError(
+            throw MediaServiceError.decodingError(
                 "Plex Home returned users in an unsupported format."
             )
         }

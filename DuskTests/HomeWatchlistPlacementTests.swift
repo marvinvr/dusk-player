@@ -14,8 +14,8 @@ struct HomeWatchlistPlacementTests {
             hub("Recently Added TV", identifier: "tv.recentlyadded.2"),
             hub("On Deck", identifier: "tv.ondeck.2"),
         ]
-        #expect(HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: nil) == 3)
-        #expect(HomeWatchlistPlacement.index(in: [], plexHomeHubs: nil) == 0)
+        #expect(HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: nil) == 3)
+        #expect(HomeWatchlistPlacement.index(in: [], homeLayoutHubs: nil) == 0)
 
         // plex-demo's /hubs: Recently Added rows keyed only by their paging URL.
         let pms = try [
@@ -23,10 +23,10 @@ struct HomeWatchlistPlacementTests {
             hub("Recently Added TV", identifier: "home.television.recent", key: "/hubs/home/recentlyAdded?type=2"),
             hub("Recently Added Photos", identifier: "home.photos.recent", key: "/hubs/home/recentlyAdded?type=13"),
         ]
-        #expect(HomeWatchlistPlacement.index(in: pms, plexHomeHubs: nil) == 3)
+        #expect(HomeWatchlistPlacement.index(in: pms, homeLayoutHubs: nil) == 3)
 
         let noRecent = try [hub("Top Rated", identifier: "movie.toprated.1"), hub("Genres", identifier: "movie.genre.1")]
-        #expect(HomeWatchlistPlacement.index(in: noRecent, plexHomeHubs: nil) == noRecent.count)
+        #expect(HomeWatchlistPlacement.index(in: noRecent, homeLayoutHubs: nil) == noRecent.count)
 
         // Below the old fourth-row cap, and not past the hubs that follow it.
         let late = try (0..<6).map { try hub("Row \($0)", identifier: "movie.curated.\($0)") }
@@ -34,7 +34,7 @@ struct HomeWatchlistPlacementTests {
                 hub("Recently Added", identifier: "movie.recentlyadded.9"),
                 hub("Top Rated", identifier: "movie.toprated.9"),
             ]
-        #expect(HomeWatchlistPlacement.index(in: late, plexHomeHubs: nil) == 7)
+        #expect(HomeWatchlistPlacement.index(in: late, homeLayoutHubs: nil) == 7)
     }
 
     @Test("Plex's customized layout places the row after its nearest shown predecessor")
@@ -45,23 +45,23 @@ struct HomeWatchlistPlacementTests {
             hub("Top Rated", identifier: "movie.toprated.1"),
         ]
         let layout = [
-            PlexHomeHubSetting(hubIdentifier: "home.continue"),
-            PlexHomeHubSetting(hubIdentifier: "tv.recentlyadded.2", machineIdentifier: "a"),
-            PlexHomeHubSetting(hubIdentifier: "home.unknown.cloud"),
-            PlexHomeHubSetting(hubIdentifier: "home.watchlist"),
-            PlexHomeHubSetting(hubIdentifier: "movie.recentlyadded.1", machineIdentifier: "a"),
+            HomeLayoutHub(hubIdentifier: "home.continue"),
+            HomeLayoutHub(hubIdentifier: "tv.recentlyadded.2", machineIdentifier: "a"),
+            HomeLayoutHub(hubIdentifier: "home.unknown.cloud"),
+            HomeLayoutHub(hubIdentifier: "home.watchlist"),
+            HomeLayoutHub(hubIdentifier: "movie.recentlyadded.1", machineIdentifier: "a"),
         ]
-        #expect(HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: layout) == 2)
+        #expect(HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: layout) == 2)
 
         // Another server's row with the same identifier is not the anchor.
         let otherServer = [
-            PlexHomeHubSetting(hubIdentifier: "tv.recentlyadded.2", machineIdentifier: "b"),
-            PlexHomeHubSetting(hubIdentifier: "home.watchlist"),
+            HomeLayoutHub(hubIdentifier: "tv.recentlyadded.2", machineIdentifier: "b"),
+            HomeLayoutHub(hubIdentifier: "home.watchlist"),
         ]
-        #expect(HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: otherServer) == 0)
+        #expect(HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: otherServer) == 0)
 
-        let first = [PlexHomeHubSetting(hubIdentifier: "home.watchlist"), layout[1]]
-        #expect(HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: first) == 0)
+        let first = [HomeLayoutHub(hubIdentifier: "home.watchlist"), layout[1]]
+        #expect(HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: first) == 0)
     }
 
     @Test("Hidden in Plex is hidden here; absent from Plex's layout falls back to the default")
@@ -71,10 +71,10 @@ struct HomeWatchlistPlacementTests {
             hub("Top Rated", identifier: "movie.toprated.1"),
             hub("Recently Added TV", identifier: "tv.recentlyadded.2"),
         ]
-        let hidden = [PlexHomeHubSetting(hubIdentifier: "home.watchlist", isHidden: true)]
-        #expect(HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: hidden) == nil)
-        let absent = [PlexHomeHubSetting(hubIdentifier: "movie.toprated.1", machineIdentifier: "a")]
-        #expect(HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: absent) == 3)
+        let hidden = [HomeLayoutHub(hubIdentifier: "home.watchlist", isHidden: true)]
+        #expect(HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: hidden) == nil)
+        let absent = [HomeLayoutHub(hubIdentifier: "movie.toprated.1", machineIdentifier: "a")]
+        #expect(HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: absent) == 3)
     }
 
     @Test("Plex Web home hub entries decode from the experience blob")
@@ -82,9 +82,9 @@ struct HomeWatchlistPlacementTests {
         let raw = try #require(DuskJSONValue.decode(jsonString: """
         {"hubIdentifier":"movie.recentlyadded.1","isHidden":true,"server":{"machineIdentifier":"abc"}}
         """))
-        let setting = try #require(PlexHomeHubSetting(raw: raw))
-        #expect(setting == PlexHomeHubSetting(hubIdentifier: "movie.recentlyadded.1", machineIdentifier: "abc", isHidden: true))
-        #expect(PlexHomeHubSetting(raw: .object([:])) == nil)
+        let setting = try #require(HomeLayoutHub(raw: raw))
+        #expect(setting == HomeLayoutHub(hubIdentifier: "movie.recentlyadded.1", machineIdentifier: "abc", isHidden: true))
+        #expect(HomeLayoutHub(raw: .object([:])) == nil)
     }
 
     @Test("Only plex:// movies and shows can be watchlisted")

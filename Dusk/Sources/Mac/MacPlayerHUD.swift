@@ -57,7 +57,7 @@ struct MacPlayerHUD: View {
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
-    let scrubPreviewSource: PlexScrubPreviewSource?
+    let scrubPreviewSource: ScrubPreviewFrameSet?
     let onDismiss: () -> Void
 
     @State private var isHoveringBar = false
@@ -688,7 +688,7 @@ enum MacPlayerTime {
 /// the viewer clicks or drags. An accessible "Playback Position" slider.
 private struct MacPlayerScrubber: View {
     let viewModel: PlayerViewModel
-    let scrubPreviewSource: PlexScrubPreviewSource?
+    let scrubPreviewSource: ScrubPreviewFrameSet?
 
     @State private var hoverX: CGFloat?
     @State private var width: CGFloat = 0

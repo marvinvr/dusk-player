@@ -77,7 +77,7 @@ struct MediaItem: Sendable, Identifiable {
     /// Plex's scalar guid. Modern servers send a `plex://` global metadata id
     /// here, which is the strongest cross-server content identity we get.
     let guid: String?
-    let guids: [PlexGuid]
+    let guids: [ItemGuid]
 }
 
 extension MediaItem {
@@ -174,7 +174,7 @@ struct Tag: Sendable, Hashable {
 }
 
 /// One entry of Plex's `Guid` array (`tmdb://603`). Read through `ExternalIDs`.
-struct PlexGuid: Codable, Sendable, Hashable {
+struct ItemGuid: Codable, Sendable, Hashable {
     let id: String
 }
 
@@ -229,7 +229,7 @@ extension MediaItem {
 }
 
 /// A person page's subject (`/library/people/{id}`).
-struct PlexPerson: Sendable, Identifiable {
+struct PersonDetails: Sendable, Identifiable {
     var id: String { personID ?? tag }
 
     let personID: String?
@@ -239,7 +239,7 @@ struct PlexPerson: Sendable, Identifiable {
     let thumb: String?
 }
 
-struct PlexPersonReference: Sendable, Hashable, Identifiable {
+struct PersonReference: Sendable, Hashable, Identifiable {
     let personID: String?
     let name: String
     let thumb: String?
@@ -255,7 +255,7 @@ struct PlexPersonReference: Sendable, Hashable, Identifiable {
     }
 }
 
-extension PlexPersonReference {
+extension PersonReference {
     init(role: Person) {
         self.init(
             personID: role.personID,
@@ -276,7 +276,7 @@ extension PlexPersonReference {
         )
     }
 
-    init(person: PlexPerson, roleName: String? = nil) {
+    init(person: PersonDetails, roleName: String? = nil) {
         self.init(
             personID: person.personID,
             name: person.tag,

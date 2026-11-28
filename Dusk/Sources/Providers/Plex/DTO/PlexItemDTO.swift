@@ -2,7 +2,7 @@ import Foundation
 
 // Plex's list/hub/search item (`Metadata` / `Directory` rows) and the tag,
 // role and person shapes nested in it. Wire shapes only: the domain types
-// (`MediaItem`, `Tag`, `Person`, `PlexPerson`) are built by `PlexItemMapper`,
+// (`MediaItem`, `Tag`, `Person`, `PersonDetails`) are built by `PlexItemMapper`,
 // which also stamps the server.
 //
 // The `CodingKeys` are Plex's keys and must not change: the offline metadata
@@ -61,7 +61,7 @@ struct PlexItemDTO: Decodable, Sendable {
     let writers: [PlexTagDTO]?
     let roles: [PlexRoleDTO]?
     let guid: String?
-    let guids: [PlexGuid]
+    let guids: [ItemGuid]
 
     enum CodingKeys: String, CodingKey {
         case ratingKey, key, type, subtype, librarySectionID, title, editionTitle, guid
@@ -139,7 +139,7 @@ struct PlexItemDTO: Decodable, Sendable {
         writers = try container.decodeIfPresent([PlexTagDTO].self, forKey: .writers)
         roles = try container.decodeIfPresent([PlexRoleDTO].self, forKey: .roles)
         guid = try container.decodeIfPresent(String.self, forKey: .guid)
-        guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
+        guids = try container.decodeIfPresent([ItemGuid].self, forKey: .guids) ?? []
     }
 }
 

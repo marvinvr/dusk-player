@@ -50,7 +50,7 @@ enum LibraryKind: String, Codable, Sendable, CaseIterable {
 /// it never hides the library itself: it stays in the library list and can be
 /// browsed, only its titles leave Home (and, for `.excludedFromHomeAndSearch`,
 /// search and Siri). See `HiddenLibraryFilter.Scope`.
-enum PlexLibraryVisibility: Int, Codable, Sendable, Hashable {
+enum LibraryVisibility: Int, Codable, Sendable, Hashable {
     /// "Include in home screen and global search" (`hidden="0"` or absent).
     case included = 0
     /// "Exclude from home screen".
@@ -103,7 +103,7 @@ struct Library: Sendable, Identifiable {
     let art: String?
     let composite: String?
     /// The server-side Visibility setting (library › Advanced), Plex's `hidden`.
-    let visibility: PlexLibraryVisibility
+    let visibility: LibraryVisibility
 
     private static let videoSectionAgents: Set<String> = [
         "tv.plex.agents.none",
@@ -127,7 +127,7 @@ struct Library: Sendable, Identifiable {
     }
 }
 
-struct PlexLibraryFilter: Codable, Sendable, Hashable {
+struct LibraryFilterEntry: Codable, Sendable, Hashable {
     let filter: String
     let filterType: String?
     let key: String
@@ -135,7 +135,7 @@ struct PlexLibraryFilter: Codable, Sendable, Hashable {
     let type: String?
 }
 
-struct PlexLibraryFilterValue: Codable, Sendable, Hashable, Identifiable {
+struct LibraryFilterValue: Codable, Sendable, Hashable, Identifiable {
     var id: String { key }
 
     let key: String

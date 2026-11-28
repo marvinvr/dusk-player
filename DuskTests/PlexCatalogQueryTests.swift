@@ -92,10 +92,10 @@ struct PlexCatalogQueryTests {
     @Test("Offered fields: sheet order, boolean rows toggle, collection only when asked")
     func filterFields() {
         let rows = [
-            PlexLibraryFilter(filter: "hdr", filterType: "boolean", key: "/library/sections/1/hdr", title: "HDR", type: "filter"),
-            PlexLibraryFilter(filter: "collection", filterType: "string", key: "/library/sections/1/collection", title: "Collection", type: "filter"),
-            PlexLibraryFilter(filter: "decade", filterType: "integer", key: "/library/sections/1/decade", title: "Decade", type: "filter"),
-            PlexLibraryFilter(filter: "genre", filterType: "string", key: "/library/sections/1/genre", title: "Genre", type: "filter"),
+            LibraryFilterEntry(filter: "hdr", filterType: "boolean", key: "/library/sections/1/hdr", title: "HDR", type: "filter"),
+            LibraryFilterEntry(filter: "collection", filterType: "string", key: "/library/sections/1/collection", title: "Collection", type: "filter"),
+            LibraryFilterEntry(filter: "decade", filterType: "integer", key: "/library/sections/1/decade", title: "Decade", type: "filter"),
+            LibraryFilterEntry(filter: "genre", filterType: "string", key: "/library/sections/1/genre", title: "Genre", type: "filter"),
         ]
         let fields = PlexCatalog.filterFields(from: rows, includesCollection: true)
         #expect(fields.map(\.parameter) == ["decade", "hdr", "collection"])
@@ -106,7 +106,7 @@ struct PlexCatalogQueryTests {
 
     @Test("Percent-encoded value keys are decoded once")
     func filterChoice() {
-        let choice = PlexCatalog.filterChoice(PlexLibraryFilterValue(key: "Not%20Rated", title: "Not Rated", type: nil))
+        let choice = PlexCatalog.filterChoice(LibraryFilterValue(key: "Not%20Rated", title: "Not Rated", type: nil))
         #expect(choice.value == "Not Rated")
         #expect(choice.title == "Not Rated")
     }

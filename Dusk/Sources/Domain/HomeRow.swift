@@ -2,7 +2,7 @@ import Foundation
 
 /// One server's contribution to a hub row. A merged row keeps one of these per
 /// server so "Show All" can page each source and re-merge the results.
-struct PlexHubSource: Sendable, Hashable, Codable {
+struct HomeRowSource: Sendable, Hashable, Codable {
     let serverID: String
     /// The hub's own `key`, which is what pages the row on that server.
     let key: String?
@@ -41,7 +41,7 @@ struct HomeRow: Sendable, Identifiable, Hashable {
 
     /// Every server this row draws from, in priority order. A freshly decoded
     /// hub has exactly one entry: itself.
-    let sources: [PlexHubSource]
+    let sources: [HomeRowSource]
 
     let key: String?
     let title: String
@@ -86,7 +86,7 @@ struct HomeRow: Sendable, Identifiable, Hashable {
         mergeKey: String,
         canHide: Bool,
         serverID: String? = nil,
-        sources: [PlexHubSource] = [],
+        sources: [HomeRowSource] = [],
         mergeIdentity: String? = nil
     ) {
         self.serverID = serverID
@@ -145,7 +145,7 @@ struct HomeRow: Sendable, Identifiable, Hashable {
     /// Ask `sources` instead — `isPageable`, `hasMoreOnAnySource`,
     /// `totalSourceSize` (`MultiServer/HubMerge.swift`).
     /// - Parameter identity: the merge key, which becomes the row's `id`.
-    func merged(items: [MediaItem], sources: [PlexHubSource], identity: String? = nil) -> HomeRow {
+    func merged(items: [MediaItem], sources: [HomeRowSource], identity: String? = nil) -> HomeRow {
         HomeRow(
             key: key,
             title: title,

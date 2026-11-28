@@ -128,7 +128,7 @@ Tokens and persisted state:
     probe race for that server. It can differ from the base URL above — an
     HTTPS connection whose HTTP fallback won reports the former and is reached
     over the latter — so both are kept.
-  - `PlexServerSnapshots`: tokenless `PlexServer` snapshots of every server the
+  - `PlexServerSnapshots`: tokenless `AccountServer` snapshots of every server the
     account has seen, in priority order. Only `pool.connectAll` rewrites it, so
     a disabled server keeps its snapshot and costs no round-trip when it is
     turned back on.
@@ -137,7 +137,7 @@ Tokens and persisted state:
   (`ServerPool.restorableBaseURL`), so Home/Libraries/Search have content
   immediately; `ServerConnectionCoordinator`'s pass then verifies and refreshes
   them, and a restored endpoint that has since moved fails over on its next
-  request. A restored session has no winning `PlexConnection` unless the base
+  request. A restored session has no winning `ServerEndpoint` unless the base
   URL still matches one of the snapshot's connections, so its locality reads as
   unknown until the next probe.
 - `PlexServerURL` / `PlexServerData` / `PlexLastGoodConnectionURI` and Keychain
@@ -262,7 +262,7 @@ reach his server on build 76):
   `isExpensive` forces a full re-selection.
 - **Diagnostics**: every selection stores a `ConnectionReport`
   (`ServerPool.reports`, in memory, never a token) and logs it under the
-  `PlexConnection` category. Settings › Server Priority › Connection
+  `ServerEndpoint` category. Settings › Server Priority › Connection
   Diagnostics lists each candidate, its outcome, latency and the winner, can
   probe everything to completion (`ServerPool.diagnoseAll`), re-select, and
   copy the report (iOS). Ask testers for that report before guessing.
@@ -357,7 +357,7 @@ facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
   still decoded as domain types (the transitional `PlexItemDecodingBridge`) get
   it from that decoder. A hand-rolled `JSONDecoder` loses that stamp and
   produces unattributable items — always go through the pool.
-- Use `decodeJSON(_:from:)` so decode failures become `PlexServiceError`.
+- Use `decodeJSON(_:from:)` so decode failures become `MediaServiceError`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
 - `PlexTransportSecurity` is the credential transport boundary. Plain HTTP is
   a normal transport like in Plex's own apps (owner's decision 2026-11-10,
@@ -467,7 +467,7 @@ Extras (`MediaService+Extras.swift`, `Domain/Extra.swift`):
   season, or episode. Rows are `type: "clip"` items with a numeric `extraType`
   (1 trailer, 2 deleted scene, 3 interview, 4 music video, 5 behind the scenes,
   6 scene/sample, 7 live music video, 8 lyric video, 9 concert, 10 featurette,
-  11 short, 12 other) and the same kind as a camelCase `subtype`; `PlexExtraType`
+  11 short, 12 other) and the same kind as a camelCase `subtype`; `ExtraKind`
   takes the number (int or string) and falls back to the subtype. The payload is
   decoded twice (`MediaItem` + `PlexExtraFieldsDTO`) and paired by rating key in
   `PlexUserContentMapper.extras(items:fields:)`, so
@@ -809,7 +809,7 @@ Files: `Providers/Plex/PlexPlayback.swift` (requests), routed by
 File: `MediaService+Watchlist.swift` (load, server matching, optimistic edits),
 routed to `WatchlistProviding` = `Providers/Plex/PlexWatchlist.swift` (the
 Discover and plex.tv calls); models `Domain/Watchlist.swift` (`WatchlistEntry`,
-`WatchlistAvailability`, `PlexHomeHubSetting`), shared state
+`WatchlistAvailability`, `HomeLayoutHub`), shared state
 `MediaService/WatchlistStore.swift` (`media.watchlist`).
 - Account-level, on `https://discover.provider.plex.tv` (`PlexWatchlist.discoverBase`,
   the mock's `/discover` prefix in screenshot mode), with the active profile's token.
@@ -843,14 +843,14 @@ Discover and plex.tv calls); models `Domain/Watchlist.swift` (`WatchlistEntry`,
   (all three, 1/0, as Plex Web sends them) sets them. `GET /hubs` rows usually lack
   `librarySectionID`, and their identifier is kind + section + variant
   (`movie.curated.2.1`), so the trailing number is NOT the section
-  (`PlexManagedHub.matches`). Owner-only. See `MediaService+HomeRows.swift`
+  (`ManagedHub.matches`). Owner-only. See `MediaService+HomeRows.swift`
 (permission, routes) and `PlexHomeRows.managedRow(for:source:libraryIDs:)`.
 
 ## Playlists
 File: `MediaService+Playlists.swift` (routes, store loading), Plex requests in
 `Providers/Plex/PlexPlaylists.swift` behind `PlaylistProviding`
 (`MediaService.playlistFacet(on:)`), models `Domain/Playlist.swift`
-(`Playlist`, `PlaylistEntry`, `PlexPlaylistAddResult`), shared state
+(`Playlist`, `PlaylistEntry`, `PlaylistAddResult`), shared state
 `MediaService/PlaylistStore.swift` (`media.playlists`).
 - A playlist belongs to one server and to the signed-in (Home) user. Every call
   routes to the playlist's server; an item can only be added to a playlist on

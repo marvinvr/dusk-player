@@ -54,7 +54,7 @@ struct PlexDownloads: DownloadProviding {
         let data: Data
         do {
             data = try await transport.send(method: "POST", path: "/downloadQueue", queryItems: [], canExpire: false)
-        } catch PlexServiceError.httpError(let status) where status == 404 {
+        } catch MediaServiceError.httpError(let status) where status == 404 {
             // Servers before PMS 1.41.9 have no download queue.
             throw PlexDownloadQueueError.preparationFailed(
                 "This Plex server can't convert downloads. Update Plex Media Server or download in Original quality."
@@ -162,11 +162,11 @@ struct PlexDownloads: DownloadProviding {
         case 404, 410:
             throw PlexDownloadQueueError.expired
         case 401:
-            throw PlexServiceError.unauthorized
+            throw MediaServiceError.unauthorized
         case 405, 501:
             expectedBytes = nil // Some PMS versions do not implement HEAD.
         default:
-            throw PlexServiceError.httpError(statusCode: http.statusCode)
+            throw MediaServiceError.httpError(statusCode: http.statusCode)
         }
 
         let convertedMedia = decision.convertedMedia(

@@ -76,7 +76,7 @@ struct MediaDetails: Sendable, Identifiable {
     let collections: [Tag]?
     /// Plex's scalar guid (`plex://…` on modern servers). See `ContentKey`.
     let guid: String?
-    let guids: [PlexGuid]
+    let guids: [ItemGuid]
     let markers: [Marker]
 
     /// The media versions for this item. A single item can have multiple
@@ -146,19 +146,19 @@ struct Marker: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-struct PlexScrubPreviewFrame: Sendable {
+struct ScrubPreviewFrame: Sendable {
     let timestampMs: Int64
     let imageData: Data
 }
 
-struct PlexScrubPreviewSource: Sendable {
-    let frames: [PlexScrubPreviewFrame]
+struct ScrubPreviewFrameSet: Sendable {
+    let frames: [ScrubPreviewFrame]
 
     var isAvailable: Bool {
         !frames.isEmpty
     }
 
-    func frame(at position: TimeInterval) -> PlexScrubPreviewFrame? {
+    func frame(at position: TimeInterval) -> ScrubPreviewFrame? {
         guard !frames.isEmpty else { return nil }
 
         let positionMs = Int64(max(0, position) * 1000)

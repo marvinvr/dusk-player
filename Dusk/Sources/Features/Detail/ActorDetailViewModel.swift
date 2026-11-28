@@ -9,12 +9,12 @@ final class ActorDetailViewModel {
     /// back to the primary one.
     let serverID: String?
 
-    private(set) var person: PlexPersonReference
+    private(set) var person: PersonReference
     private(set) var filmography: [MediaItem] = []
     private(set) var isLoading = false
     private(set) var error: String?
 
-    init(person: PlexPersonReference, serverID: String? = nil, media: MediaService) {
+    init(person: PersonReference, serverID: String? = nil, media: MediaService) {
         self.person = person
         self.serverID = serverID
         self.media = media
@@ -74,8 +74,8 @@ final class ActorDetailViewModel {
         item.filmographyPosterSubtitle
     }
 
-    private func mergePersonDetails(_ loadedPerson: PlexPerson) {
-        person = PlexPersonReference(
+    private func mergePersonDetails(_ loadedPerson: PersonDetails) {
+        person = PersonReference(
             personID: loadedPerson.personID ?? person.personID,
             name: loadedPerson.tag,
             thumb: loadedPerson.thumb ?? person.thumb,

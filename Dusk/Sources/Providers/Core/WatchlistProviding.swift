@@ -9,7 +9,7 @@ import Foundation
 /// `WatchlistStore`). The methods run on the main actor, where the facade and
 /// its request routing live.
 ///
-/// `PlexHomeHubSetting` keeps its Plex name until the boundary pass
+/// `HomeLayoutHub` keeps its Plex name until the boundary pass
 /// (05-plan P0-19).
 protocol WatchlistProviding: Sendable {
     /// Movies and shows on the list, newest first, each title once.
@@ -26,5 +26,5 @@ protocol WatchlistProviding: Sendable {
 
     /// The account's own Home layout, where it says where the Watchlist row
     /// goes. nil for the default layout, or when it cannot be read.
-    @MainActor func homeLayout() async -> [PlexHomeHubSetting]?
+    @MainActor func homeLayout() async -> [HomeLayoutHub]?
 }

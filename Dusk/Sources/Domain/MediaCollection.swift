@@ -31,7 +31,7 @@ extension MediaCollection {
     /// tag id, an `.../all?collection=<id>` fast key, or a path ending in the
     /// id, so the plain value is extracted the same way
     /// `LibraryGenreSupport.extractFilterValue` handles genre keys.
-    init?(filterValue: PlexLibraryFilterValue, serverID: String? = nil) {
+    init?(filterValue: LibraryFilterValue, serverID: String? = nil) {
         let rawKey = filterValue.key
         let extractedKey: String?
 

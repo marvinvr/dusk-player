@@ -83,12 +83,12 @@ extension MediaService {
     private func rawImageServerRequest(url: URL, connection: ServerSession) async throws -> Data {
         do {
             return try await sendImageServerRequest(url: url, connection: connection)
-        } catch let error as PlexServiceError where error == .unauthorized {
+        } catch let error as MediaServiceError where error == .unauthorized {
             plexAuthLogger.notice("Image request unauthorized for \(url.path, privacy: .public); attempting token refresh")
             let refreshed = try await refreshedImageConnection(serverID: connection.serverID)
             do {
                 return try await sendImageServerRequest(url: url, connection: refreshed)
-            } catch let retryError as PlexServiceError where retryError == .unauthorized {
+            } catch let retryError as MediaServiceError where retryError == .unauthorized {
                 // Only this server is out; the rest of the pool keeps working.
                 pool.markUnauthorized(serverID: connection.serverID)
                 throw retryError
@@ -101,7 +101,7 @@ extension MediaService {
     private func refreshedImageConnection(serverID: String) async throws -> ServerSession {
         try await refreshServerAuthorization(serverID: serverID)
         guard let connection = pool.connection(for: serverID) else {
-            throw PlexServiceError.unauthorized
+            throw MediaServiceError.unauthorized
         }
         return connection
     }
@@ -134,11 +134,11 @@ extension MediaService {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw PlexServiceError.networkError(error.localizedDescription)
+            throw MediaServiceError.networkError(error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw PlexServiceError.networkError("Invalid response")
+            throw MediaServiceError.networkError("Invalid response")
         }
 
         switch http.statusCode {
@@ -148,9 +148,9 @@ extension MediaService {
             }
             return data
         case 401:
-            throw PlexServiceError.unauthorized
+            throw MediaServiceError.unauthorized
         default:
-            throw PlexServiceError.httpError(statusCode: http.statusCode)
+            throw MediaServiceError.httpError(statusCode: http.statusCode)
         }
     }
 

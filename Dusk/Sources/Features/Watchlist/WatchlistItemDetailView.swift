@@ -92,7 +92,7 @@ final class WatchlistItemDetailViewModel {
         }
         return [
             entry.year.map(String.init),
-            PlexContentRating.display(entry.contentRating),
+            ContentRatingLabel.display(entry.contentRating),
             length,
             entry.type == .show ? "TV Show" : "Movie",
         ].compactMap { $0 }.joined(separator: " · ")

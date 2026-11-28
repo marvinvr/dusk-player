@@ -52,7 +52,7 @@ struct PlexUserData: UserDataProviding {
     }
 
     private func send(path: String, queryItems: [URLQueryItem]) async throws -> Data {
-        guard let transport else { throw PlexServiceError.noServerConnected }
+        guard let transport else { throw MediaServiceError.noServerConnected }
         return try await transport.rawServerRequest(
             method: "GET",
             path: path,

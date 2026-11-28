@@ -48,7 +48,7 @@ struct FieldVocabularyTests {
 
     @Test func watchlistTakesTheFirstNumericTMDBID() {
         let entry = WatchlistEntry(itemID: "1", guid: "plex://movie/x", type: .movie, title: "X",
-                                   guids: [PlexGuid(id: "tmdb://abc"), PlexGuid(id: "tmdb://42")])
+                                   guids: [ItemGuid(id: "tmdb://abc"), ItemGuid(id: "tmdb://42")])
         #expect(entry.tmdbID == 42)
     }
 

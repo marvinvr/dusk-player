@@ -193,7 +193,7 @@ final class PlexAccountProvider: MediaAccountProvider {
         }
     }
 
-    static func seed(for server: PlexServer) -> ServerSessionSeed {
+    static func seed(for server: AccountServer) -> ServerSessionSeed {
         ServerSessionSeed(
             serverID: server.clientIdentifier,
             name: server.name,
@@ -229,9 +229,9 @@ final class PlexAccountProvider: MediaAccountProvider {
     /// The account's Plex Media Servers from plex.tv `/api/v2/resources`, with
     /// their connections and server-scoped tokens.
     @MainActor
-    func discoverServers() async throws -> [PlexServer] {
+    func discoverServers() async throws -> [AccountServer] {
         guard !state.needsHomeUserSelection, let activeAccountToken = state.activeAccountToken else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
 
         return try await retryAfterFreshAuthentication {
@@ -242,27 +242,27 @@ final class PlexAccountProvider: MediaAccountProvider {
                     URLQueryItem(name: "includeHttps", value: "1"),
                     URLQueryItem(name: "includeRelay", value: "1"),
                 ]
-            ) else { throw PlexServiceError.invalidURL }
+            ) else { throw MediaServiceError.invalidURL }
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             client.applyHeaders(to: &request, token: activeAccountToken)
             guard state.bootstrapNetworkAvailable else {
-                throw PlexServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
+                throw MediaServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
             }
             let data = try await execute(request, using: client.bootstrapSession)
 
             guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw PlexServiceError.decodingError("Expected JSON array from resources endpoint")
+                throw MediaServiceError.decodingError("Expected JSON array from resources endpoint")
             }
 
             let decoder = JSONDecoder()
-            let servers = jsonArray.compactMap { json -> PlexServer? in
+            let servers = jsonArray.compactMap { json -> AccountServer? in
                 guard Self.isMediaServerResource(json) else { return nil }
                 guard let itemData = try? JSONSerialization.data(withJSONObject: json) else {
                     return nil
                 }
-                return try? decoder.decode(PlexServer.self, from: itemData)
+                return try? decoder.decode(AccountServer.self, from: itemData)
             }
 
             if isAuthenticationFresh,
@@ -315,10 +315,10 @@ final class PlexAccountProvider: MediaAccountProvider {
         bootstrap: Bool = false
     ) async throws -> Data {
         if bootstrap, !state.bootstrapNetworkAvailable {
-            throw PlexServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
+            throw MediaServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
         }
         guard let url = client.buildURL(base: Self.plexTVBase, path: path, queryItems: queryItems) else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
 
         var request = URLRequest(url: url)
@@ -420,14 +420,14 @@ final class PlexAccountProvider: MediaAccountProvider {
 
                 if isAuthenticationFresh, shouldRetryAfterFreshAuthentication(error) {
                     plexAuthLogger.notice("Authentication bootstrap still pending after retries: \(error.localizedDescription, privacy: .public)")
-                    throw PlexServiceError.authenticationPending
+                    throw MediaServiceError.authenticationPending
                 }
 
                 throw error
             }
         }
 
-        throw lastError ?? PlexServiceError.authenticationPending
+        throw lastError ?? MediaServiceError.authenticationPending
     }
 
     @MainActor
@@ -438,7 +438,7 @@ final class PlexAccountProvider: MediaAccountProvider {
             return true
         }
 
-        guard let plexError = error as? PlexServiceError else {
+        guard let plexError = error as? MediaServiceError else {
             return false
         }
 

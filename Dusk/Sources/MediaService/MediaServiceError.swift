@@ -1,6 +1,6 @@
 import Foundation
 
-enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
+enum MediaServiceError: Error, Sendable, Equatable, LocalizedError {
     case notImplemented
     case notAuthenticated
     case noServerConnected
@@ -50,7 +50,7 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
     /// A request that got no answer in time. Kept a `networkError` so every
     /// caller that already handles network failures treats it the same way;
     /// only the request layer tells it apart (see `rawServerRequest`).
-    static let requestTimedOut = PlexServiceError.networkError("The request timed out.")
+    static let requestTimedOut = MediaServiceError.networkError("The request timed out.")
 
     /// The stored Plex account session is missing or rejected. Retrying the
     /// failed request cannot recover it; the user has to sign in again.
@@ -61,5 +61,15 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
         default:
             false
         }
+    }
+}
+
+extension MediaServiceError: CustomNSError {
+    /// Frozen: error reports send the NSError domain, which is this type's
+    /// pre-provider name (`<module>.PlexServiceError`). Codes are the default
+    /// case codes, unchanged.
+    static var errorDomain: String {
+        let module = String(reflecting: MediaServiceError.self).prefix { $0 != "." }
+        return "\(module).PlexServiceError"
     }
 }

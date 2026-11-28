@@ -72,12 +72,12 @@ struct PlexPlaylists: PlaylistProviding {
             ]
         )
         guard let playlist = try metadata(PlexPlaylistDTO.self, from: data).first else {
-            throw PlexServiceError.decodingError("Plex did not return the new playlist.")
+            throw MediaServiceError.decodingError("Plex did not return the new playlist.")
         }
         return PlexUserContentMapper.playlist(playlist, serverID: serverID)
     }
 
-    @MainActor func add(itemIDs: [String], to playlistID: String) async throws -> PlexPlaylistAddResult {
+    @MainActor func add(itemIDs: [String], to playlistID: String) async throws -> PlaylistAddResult {
         let transport = try routed()
         let data = try await send(
             method: "PUT",
@@ -89,7 +89,7 @@ struct PlexPlaylists: PlaylistProviding {
         let container = try? transport.decodeJSON(PlaylistAddResponse.self, from: data, serverID: serverID)
             .MediaContainer
         let requested = container?.leafCountRequested ?? itemIDs.count
-        return PlexPlaylistAddResult(added: container?.leafCountAdded ?? requested, requested: requested)
+        return PlaylistAddResult(added: container?.leafCountAdded ?? requested, requested: requested)
     }
 
     @MainActor func removeEntry(_ entryID: Int, from playlistID: String) async throws {
@@ -144,7 +144,7 @@ struct PlexPlaylists: PlaylistProviding {
     }
 
     @MainActor private func routed() throws -> any PlexServerTransport {
-        guard let transport else { throw PlexServiceError.noServerConnected }
+        guard let transport else { throw MediaServiceError.noServerConnected }
         return transport
     }
 }

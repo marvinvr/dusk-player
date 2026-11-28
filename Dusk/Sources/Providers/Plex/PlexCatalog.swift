@@ -71,7 +71,7 @@ struct PlexCatalog: CatalogProviding {
     /// The section's `collection` filter values: one per channel in a video
     /// library. Each `key` is a `LibraryFilter.collectionID`.
     func channelCollections(libraryID: String) async throws -> [MediaCollection] {
-        let values: [PlexLibraryFilterValue] = try await directories(path: "/library/sections/\(libraryID)/collection")
+        let values: [LibraryFilterValue] = try await directories(path: "/library/sections/\(libraryID)/collection")
         return values.compactMap { MediaCollection(filterValue: $0, serverID: serverID) }
     }
 
@@ -140,7 +140,7 @@ struct PlexCatalog: CatalogProviding {
         )
         let response = try transport.decodeJSON(MetadataResponse<PlexMediaDetailsDTO>.self, from: data, serverID: serverID)
         guard let details = response.MediaContainer.Metadata?.first else {
-            throw PlexServiceError.decodingError("No metadata found for ratingKey \(itemID)")
+            throw MediaServiceError.decodingError("No metadata found for ratingKey \(itemID)")
         }
         return PlexItemMapper.map(details, serverID: serverID)
     }
@@ -161,10 +161,10 @@ struct PlexCatalog: CatalogProviding {
     // MARK: - People, extras, search
 
     /// Person ids are per-server tag ids, exactly like rating keys.
-    func person(id: String) async throws -> PlexPerson {
+    func person(id: String) async throws -> PersonDetails {
         let people: [PlexPersonDTO] = try await directories(path: "/library/people/\(id)")
         guard let person = people.first else {
-            throw PlexServiceError.decodingError("No person found for id \(id)")
+            throw MediaServiceError.decodingError("No person found for id \(id)")
         }
         return PlexItemMapper.map(person)
     }
@@ -318,12 +318,12 @@ struct PlexCatalog: CatalogProviding {
     }
 
     /// The section's `/filters` rows.
-    func rawFilters(libraryID: String) async throws -> [PlexLibraryFilter] {
+    func rawFilters(libraryID: String) async throws -> [LibraryFilterEntry] {
         try await directories(path: "/library/sections/\(libraryID)/filters")
     }
 
-    /// The values of one `/filters` row (`PlexLibraryFilter.key`).
-    func rawFilterValues(path: String) async throws -> [PlexLibraryFilterValue] {
+    /// The values of one `/filters` row (`LibraryFilterEntry.key`).
+    func rawFilterValues(path: String) async throws -> [LibraryFilterValue] {
         try await directories(path: path)
     }
 
@@ -339,7 +339,7 @@ struct PlexCatalog: CatalogProviding {
     // MARK: - Requests
 
     private func routed() throws -> any PlexServerTransport {
-        guard let transport else { throw PlexServiceError.noServerConnected }
+        guard let transport else { throw MediaServiceError.noServerConnected }
         return transport
     }
 
@@ -493,7 +493,7 @@ extension PlexCatalog {
 
     /// The offered fields among a section's `/filters` rows. A `boolean` row
     /// is a toggle (`hdr=1`); any other lists its values at its `key`.
-    nonisolated static func filterFields(from filters: [PlexLibraryFilter], includesCollection: Bool) -> [LibraryFilterField] {
+    nonisolated static func filterFields(from filters: [LibraryFilterEntry], includesCollection: Bool) -> [LibraryFilterField] {
         let byName = Dictionary(filters.map { ($0.filter, $0) }, uniquingKeysWith: { first, _ in first })
         return offeredFilters.compactMap { offered in
             guard includesCollection || offered.parameter != "collection",
@@ -505,7 +505,7 @@ extension PlexCatalog {
 
     /// Plex percent-encodes some keys (`Not%20Rated`): the choice keeps the
     /// decoded value, which is encoded once when the query is built.
-    nonisolated static func filterChoice(_ value: PlexLibraryFilterValue) -> LibraryFilterChoice {
+    nonisolated static func filterChoice(_ value: LibraryFilterValue) -> LibraryFilterChoice {
         LibraryFilterChoice(value: value.key.removingPercentEncoding ?? value.key, title: value.title)
     }
 

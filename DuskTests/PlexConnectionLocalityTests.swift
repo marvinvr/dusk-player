@@ -9,9 +9,9 @@ struct PlexConnectionLocalityTests {
         address: String,
         local: Bool,
         relay: Bool = false
-    ) -> PlexConnection {
+    ) -> ServerEndpoint {
         let url = URL(string: uri)!
-        return PlexConnection(
+        return ServerEndpoint(
             protocol: url.scheme ?? "https", address: address, port: url.port ?? 32400,
             uri: uri, local: local, relay: relay, iPv6: address.contains(":")
         )
@@ -48,10 +48,10 @@ struct PlexConnectionLocalityTests {
 
     @Test func privateRanges() {
         for address in ["10.1.2.3", "172.16.0.1", "172.31.255.1", "192.168.0.1", "127.0.0.1", "169.254.1.1", "fd12::1", "[fc00::5]", "::1"] {
-            #expect(PlexConnection.isPrivateAddress(address), "\(address)")
+            #expect(ServerEndpoint.isPrivateAddress(address), "\(address)")
         }
         for address in ["172.32.0.1", "100.64.0.1", "8.8.8.8", "2001:db8::1", "plex.example.com"] {
-            #expect(!PlexConnection.isPrivateAddress(address), "\(address)")
+            #expect(!ServerEndpoint.isPrivateAddress(address), "\(address)")
         }
     }
 
@@ -78,28 +78,28 @@ struct PlexConnectionLocalityTests {
 
     @Test func tailnetRanges() {
         for address in ["100.64.0.0", "100.115.114.92", "100.127.255.255", "fd7a:115c:a1e0::1", "[fd7a:115c:a1e0:ab12::5]", "::ffff:100.100.100.100"] {
-            #expect(PlexConnection.isTailnetAddress(address), "\(address)")
-            #expect(!PlexConnection.isPrivateAddress(address), "\(address)")
+            #expect(ServerEndpoint.isTailnetAddress(address), "\(address)")
+            #expect(!ServerEndpoint.isPrivateAddress(address), "\(address)")
         }
         for address in ["100.63.255.255", "100.128.0.0", "10.0.0.1", "fd7a:115c:a1e1::1", "fd12::1", "8.8.8.8", "storage"] {
-            #expect(!PlexConnection.isTailnetAddress(address), "\(address)")
+            #expect(!ServerEndpoint.isTailnetAddress(address), "\(address)")
         }
-        #expect(PlexConnection.plexDirectIPAddress(in: "100-115-114-92.abc.plex.direct") == "100.115.114.92")
+        #expect(ServerEndpoint.plexDirectIPAddress(in: "100-115-114-92.abc.plex.direct") == "100.115.114.92")
     }
 
     @Test func singleLabelHostNames() {
         for host in ["storage", "NAS", "my-nas", "plex2"] {
-            #expect(PlexConnection.isSingleLabelHostName(host), "\(host)")
+            #expect(ServerEndpoint.isSingleLabelHostName(host), "\(host)")
         }
         for host in ["", "storage.", "plex.example.com", "134744072", "0x08080808", "-nas", "::1", "stör"] {
-            #expect(!PlexConnection.isSingleLabelHostName(host), "\(host)")
+            #expect(!ServerEndpoint.isSingleLabelHostName(host), "\(host)")
         }
     }
 
     @Test func plexDirectDecoding() {
-        #expect(PlexConnection.plexDirectIPAddress(in: "192-168-1-10.abc.plex.direct") == "192.168.1.10")
-        #expect(PlexConnection.plexDirectIPAddress(in: "fd00-0-0-0-0-0-0-1.abc.plex.direct") == "fd00:0:0:0:0:0:0:1")
-        #expect(PlexConnection.plexDirectIPAddress(in: "plex.example.com") == nil)
+        #expect(ServerEndpoint.plexDirectIPAddress(in: "192-168-1-10.abc.plex.direct") == "192.168.1.10")
+        #expect(ServerEndpoint.plexDirectIPAddress(in: "fd00-0-0-0-0-0-0-1.abc.plex.direct") == "fd00:0:0:0:0:0:0:1")
+        #expect(ServerEndpoint.plexDirectIPAddress(in: "plex.example.com") == nil)
     }
 
     @Test func dockerBridgeAddressIsKeptButTriedAfterOtherLocalAddresses() throws {
@@ -110,7 +110,7 @@ struct PlexConnectionLocalityTests {
           {"protocol":"https","address":"192.168.1.10","port":32400,"uri":"https://192-168-1-10.abc.plex.direct:32400","local":true,"relay":false}
         ]}
         """
-        let server = try JSONDecoder().decode(PlexServer.self, from: Data(json.utf8))
+        let server = try JSONDecoder().decode(AccountServer.self, from: Data(json.utf8))
         #expect(server.sortedConnections.map(\.address) == ["192.168.1.10", "172.18.0.2", "84.73.1.2"])
         #expect(!server.connections[0].isKnownUnreachableAddress)
     }

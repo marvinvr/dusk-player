@@ -167,7 +167,7 @@ struct ShowDetailView: View {
         let parts = [
             details.year.map(String.init),
             details.editionTitle,
-            PlexContentRating.display(details.contentRating),
+            ContentRatingLabel.display(details.contentRating),
             viewModel.seasonCountText,
             viewModel.episodeCountText,
         ].compactMap { $0 }

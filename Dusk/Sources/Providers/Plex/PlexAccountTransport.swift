@@ -49,5 +49,5 @@ protocol PlexAccountTransport: AnyObject, Sendable {
 
     /// A connected server, for building the account's record of one of its
     /// libraries. nil when the server is not in the pool.
-    func accountServer(for serverID: String) -> PlexServer?
+    func accountServer(for serverID: String) -> AccountServer?
 }

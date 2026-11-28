@@ -141,16 +141,16 @@ struct PlexTransportSecurityTests {
         #expect(PlexTransportSecurity.allowsRedirect(URLRequest(url: URL(string: "https://public.example/web")!), original: original))
     }
 
-    private func connection(_ uri: String, address: String, local: Bool = false) -> PlexConnection {
+    private func connection(_ uri: String, address: String, local: Bool = false) -> ServerEndpoint {
         let url = URL(string: uri)!
-        return PlexConnection(protocol: url.scheme!, address: address, port: url.port ?? 32400,
+        return ServerEndpoint(protocol: url.scheme!, address: address, port: url.port ?? 32400,
                               uri: uri, local: local, relay: false, iPv6: address.contains(":"))
     }
 
-    private func server(_ connections: [PlexConnection], id: String = UUID().uuidString) throws -> PlexServer {
+    private func server(_ connections: [ServerEndpoint], id: String = UUID().uuidString) throws -> AccountServer {
         var object: [String: Any] = ["name": "Test", "clientIdentifier": id]
         object["connections"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(connections))
-        return try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: object))
+        return try JSONDecoder().decode(AccountServer.self, from: JSONSerialization.data(withJSONObject: object))
     }
 }
 

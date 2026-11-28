@@ -57,7 +57,7 @@ struct PlexMediaDetailsDTO: Decodable, Sendable {
     let roles: [PlexRoleDTO]?
     let collections: [PlexTagDTO]?
     let guid: String?
-    let guids: [PlexGuid]
+    let guids: [ItemGuid]
     /// In payload order; the mapper sorts them by start.
     let markers: [Marker]
     let media: [MediaVersion]
@@ -129,7 +129,7 @@ struct PlexMediaDetailsDTO: Decodable, Sendable {
         roles = try container.decodeIfPresent([PlexRoleDTO].self, forKey: .roles)
         collections = try container.decodeIfPresent([PlexTagDTO].self, forKey: .collections)
         guid = try container.decodeIfPresent(String.self, forKey: .guid)
-        guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
+        guids = try container.decodeIfPresent([ItemGuid].self, forKey: .guids) ?? []
         markers = try container.decodeIfPresent([Marker].self, forKey: .markers) ?? []
         media = try container.decodeIfPresent([MediaVersion].self, forKey: .media) ?? []
     }

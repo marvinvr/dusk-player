@@ -27,7 +27,7 @@ protocol MarkerProviding: Sendable {
 /// Preview frames for the scrubber: Plex's BIF file, Jellyfin's trickplay
 /// sheets, or frames generated on the device.
 ///
-/// The player controls still take Plex's frame set (`PlexScrubPreviewSource`)
+/// The player controls still take Plex's frame set (`ScrubPreviewFrameSet`)
 /// and read it synchronously; moving them to this protocol is not part of
 /// Phase 0.
 protocol ScrubPreviewSource: Sendable {

@@ -40,7 +40,7 @@ final class ServerPool {
 
     private(set) var states: [String: ServerConnectionState] = [:]
     /// Tokenless server snapshots, keyed by machine identifier.
-    private(set) var servers: [String: PlexServer] = [:]
+    private(set) var servers: [String: AccountServer] = [:]
     /// Known machine identifiers in priority order.
     private(set) var order: [String] = []
 
@@ -93,7 +93,7 @@ final class ServerPool {
         return servers[serverID].flatMap(makeProvider(for:))
     }
 
-    private func makeProvider(for server: PlexServer) -> (any MediaServerProvider)? {
+    private func makeProvider(for server: AccountServer) -> (any MediaServerProvider)? {
         providers?.factory(for: serverRegistry.kind(for: server.clientIdentifier))?.makeServerProvider(
             ServerSessionSeed(
                 serverID: server.clientIdentifier,
@@ -162,7 +162,7 @@ final class ServerPool {
         return states[serverID]?.connection
     }
 
-    func server(for serverID: String) -> PlexServer? {
+    func server(for serverID: String) -> AccountServer? {
         servers[serverID]
     }
 
@@ -190,7 +190,7 @@ final class ServerPool {
 
     /// Connects every enabled server in parallel. Never throws: a server that
     /// cannot be reached simply ends up `.offline` while the others come up.
-    func connectAll(_ discovered: [PlexServer], priority: ServerPriorityStore, trigger: String = "Connect", using session: URLSession? = nil) async {
+    func connectAll(_ discovered: [AccountServer], priority: ServerPriorityStore, trigger: String = "Connect", using session: URLSession? = nil) async {
         let generation = self.generation
         register(discovered, priority: priority)
         // Only discovery sees the whole account, so this is the one place that
@@ -290,7 +290,7 @@ final class ServerPool {
     /// Returns the live connection, or nil with the failure recorded in `states`.
     @discardableResult
     func connect(
-        to server: PlexServer,
+        to server: AccountServer,
         priority: ServerPriorityStore? = nil,
         trigger: String = "Reconnect",
         using session: URLSession? = nil
@@ -331,10 +331,10 @@ final class ServerPool {
     /// Records a session established elsewhere — currently only the cold-launch
     /// restore, which re-adopts last launch's endpoints before any probe runs.
     func adopt(
-        server: PlexServer,
+        server: AccountServer,
         baseURL: URL,
         token: String,
-        connection: PlexConnection?,
+        connection: ServerEndpoint?,
         priority: ServerPriorityStore? = nil,
         verified: Bool = true
     ) {
@@ -428,15 +428,15 @@ final class ServerPool {
         "\(MediaService.keychainServerTokenKey).\(serverID)"
     }
 
-    static func storedSnapshots() -> [PlexServer] {
+    static func storedSnapshots() -> [AccountServer] {
         guard let data = UserDefaults.standard.data(forKey: defaultsSnapshotsKey),
-              let servers = try? JSONDecoder().decode([PlexServer].self, from: data) else {
+              let servers = try? JSONDecoder().decode([AccountServer].self, from: data) else {
             return []
         }
         return servers
     }
 
-    static func saveSnapshots(_ servers: [PlexServer]) {
+    static func saveSnapshots(_ servers: [AccountServer]) {
         guard let data = try? JSONEncoder().encode(servers.map(\.withoutAccessToken)) else { return }
         UserDefaults.standard.set(data, forKey: defaultsSnapshotsKey)
     }
@@ -507,7 +507,7 @@ final class ServerPool {
         token: String?,
         lastGoodURI: String?,
         baseURL: URL?,
-        snapshot: PlexServer
+        snapshot: AccountServer
     ) {
         if storedToken(serverID: serverID) == nil, let token = token?.nilIfEmpty {
             saveToken(token, serverID: serverID)
@@ -530,11 +530,11 @@ final class ServerPool {
     /// raw-address `http://` form of an HTTPS plex.direct connection, and the
     /// endpoint this device used last when plex.tv no longer lists it. Order is
     /// not priority — `ConnectionSelector` ranks them — but it is stable.
-    static func connectionCandidates(for server: PlexServer, lastKnownGood: URL? = nil) -> [ConnectionCandidate] {
+    static func connectionCandidates(for server: AccountServer, lastKnownGood: URL? = nil) -> [ConnectionCandidate] {
         var candidates: [ConnectionCandidate] = []
         var seen = Set<String>()
 
-        func append(_ uri: String?, _ connection: PlexConnection, _ source: ConnectionCandidateSource) {
+        func append(_ uri: String?, _ connection: ServerEndpoint, _ source: ConnectionCandidateSource) {
             guard let uri, let url = PlexTransportSecurity.authenticatedURL(URL(string: uri)) else { return }
             guard seen.insert(normalizedKey(url)).inserted else { return }
             candidates.append(ConnectionCandidate(baseURL: url, connection: connection, source: source))
@@ -551,7 +551,7 @@ final class ServerPool {
         if let lastKnownGood, PlexTransportSecurity.allowsToken(in: lastKnownGood),
            !seen.contains(normalizedKey(lastKnownGood)) {
             let connection = server.connections.first { URL(string: $0.uri)?.host == lastKnownGood.host }
-                ?? PlexConnection.synthesized(for: lastKnownGood)
+                ?? ServerEndpoint.synthesized(for: lastKnownGood)
             append(lastKnownGood.absoluteString, connection, .lastKnownGood)
         }
 
@@ -578,9 +578,9 @@ final class ServerPool {
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return nil
         }
-        let address = PlexConnection.plexDirectIPAddress(in: host) ?? host
-        if PlexConnection.isPrivateAddress(address) || PlexConnection.isTailnetAddress(address)
-            || PlexConnection.isTailnetHostName(host) || PlexConnection.isSingleLabelHostName(host)
+        let address = ServerEndpoint.plexDirectIPAddress(in: host) ?? host
+        if ServerEndpoint.isPrivateAddress(address) || ServerEndpoint.isTailnetAddress(address)
+            || ServerEndpoint.isTailnetHostName(host) || ServerEndpoint.isSingleLabelHostName(host)
             || host == "localhost" || host.hasSuffix(".local") {
             return nil
         }
@@ -618,7 +618,7 @@ final class ServerPool {
     /// Files the snapshots away and re-sorts the known servers by priority.
     /// Never drops a server the pool already knows about: `connect(to:)` hands
     /// in a single server and must not wipe the rest of the ordering.
-    private func register(_ discovered: [PlexServer], priority: ServerPriorityStore?) {
+    private func register(_ discovered: [AccountServer], priority: ServerPriorityStore?) {
         if let priority {
             priorityStore = priority
         }
@@ -655,7 +655,7 @@ final class ServerPool {
         return identifiers
     }
 
-    private func makeWork(for server: PlexServer, trigger: String) -> WorkResolution {
+    private func makeWork(for server: AccountServer, trigger: String) -> WorkResolution {
         let serverID = server.clientIdentifier
         guard !serverID.isEmpty else {
             return .unavailable(.offline("Server has no identifier"))

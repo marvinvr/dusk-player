@@ -299,7 +299,7 @@ struct ConnectionSelectionTests {
         let kept = resources.filter(MediaService.isMediaServerResource)
         #expect(kept.compactMap { $0["name"] as? String } == ["Netflix++", "plex-demo"])
 
-        let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: kept[0]))
+        let server = try JSONDecoder().decode(AccountServer.self, from: JSONSerialization.data(withJSONObject: kept[0]))
         #expect(server.clientIdentifier == "d2671870fcca288dd4b03fa5e99268f3e7973beb")
         let urls = ServerPool.connectionCandidates(for: server).map(\.baseURL.absoluteString)
         #expect(urls.contains("https://plex.mvr.bz:443"))
@@ -483,17 +483,17 @@ struct ConnectionSelectionTests {
         )
     }
 
-    private func connection(_ uri: String, address: String, local: Bool = false, relay: Bool = false) -> PlexConnection {
+    private func connection(_ uri: String, address: String, local: Bool = false, relay: Bool = false) -> ServerEndpoint {
         let url = URL(string: uri)!
-        return PlexConnection(protocol: url.scheme!, address: address, port: url.port ?? 443,
+        return ServerEndpoint(protocol: url.scheme!, address: address, port: url.port ?? 443,
                               uri: uri, local: local, relay: relay, iPv6: address.contains(":"))
     }
 
-    private func server(_ connections: [PlexConnection], id: String = UUID().uuidString, token: String? = nil) throws -> PlexServer {
+    private func server(_ connections: [ServerEndpoint], id: String = UUID().uuidString, token: String? = nil) throws -> AccountServer {
         var object: [String: Any] = ["name": "Test", "clientIdentifier": id, "owned": true]
         if let token { object["accessToken"] = token }
         object["connections"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(connections))
-        return try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: object))
+        return try JSONDecoder().decode(AccountServer.self, from: JSONSerialization.data(withJSONObject: object))
     }
 
     private func tearDown(_ service: MediaService, _ id: String) {

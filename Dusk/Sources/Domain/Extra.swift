@@ -4,7 +4,7 @@ import Foundation
 /// clip's numeric `extraType`. The codes are Plex's own; `subtype` carries the
 /// same thing as a camelCase name (`behindTheScenes`) and stands in when a
 /// server leaves the number out.
-enum PlexExtraType: Int, Sendable, Hashable, CaseIterable {
+enum ExtraKind: Int, Sendable, Hashable, CaseIterable {
     case trailer = 1
     case deletedScene = 2
     case interview = 3
@@ -19,7 +19,7 @@ enum PlexExtraType: Int, Sendable, Hashable, CaseIterable {
     case other = 12
 
     init?(extraType: Int?, subtype: String?) {
-        if let extraType, let kind = PlexExtraType(rawValue: extraType) {
+        if let extraType, let kind = ExtraKind(rawValue: extraType) {
             self = kind
             return
         }
@@ -73,7 +73,7 @@ enum PlexExtraType: Int, Sendable, Hashable, CaseIterable {
 /// rating key (`/library/metadata/{key}/extras`).
 struct Extra: Identifiable, Sendable, Hashable {
     let item: MediaItem
-    let kind: PlexExtraType?
+    let kind: ExtraKind?
 
     var id: MediaItemID { item.id }
 

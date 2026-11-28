@@ -7,7 +7,7 @@ import Foundation
 /// The identifier is the row kind, not the row: `movie.curated` here is
 /// `movie.curated.2.1` ("Oh, The Horror!") in `GET /hubs`. See
 /// `matches(hubIdentifier:sectionID:)`.
-struct PlexManagedHub: Sendable, Hashable, Identifiable {
+struct ManagedHub: Sendable, Hashable, Identifiable {
     let identifier: String
     let title: String
     let promotedToRecommended: Bool
@@ -30,8 +30,8 @@ struct PlexManagedHub: Sendable, Hashable, Identifiable {
         self.promotedToSharedHome = promotedToSharedHome
     }
 
-    func withOwnHome(_ onHome: Bool) -> PlexManagedHub {
-        PlexManagedHub(
+    func withOwnHome(_ onHome: Bool) -> ManagedHub {
+        ManagedHub(
             identifier: identifier,
             title: title,
             promotedToRecommended: promotedToRecommended,
@@ -55,8 +55,8 @@ struct PlexManagedHub: Sendable, Hashable, Identifiable {
 }
 
 /// The Manage Recommendations entry behind (part of) a Home row.
-struct PlexManagedHomeRow: Sendable, Hashable {
+struct ManagedHomeRow: Sendable, Hashable {
     let serverID: String
     let sectionID: String
-    let hub: PlexManagedHub
+    let hub: ManagedHub
 }

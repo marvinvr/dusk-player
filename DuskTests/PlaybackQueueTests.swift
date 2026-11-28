@@ -399,7 +399,7 @@ struct UpNextResolutionTests {
         var lookups: [String] = []
         playback.queueItemLookup = { item in
             lookups.append(item.itemID)
-            guard item.itemID == "800" else { throw PlexServiceError.httpError(statusCode: 404) }
+            guard item.itemID == "800" else { throw MediaServiceError.httpError(statusCode: 404) }
             let decoder = JSONDecoder()
             decoder.userInfo[.duskServerID] = item.serverID
             return try decoder.decode(MediaDetails.self, from: Data("""
@@ -497,7 +497,7 @@ struct UpNextResolutionTests {
         for connected in service.pool.connections.map(\.serverID) {
             service.pool.markOffline(serverID: connected, reason: "Not part of this test")
         }
-        let server = try JSONDecoder().decode(PlexServer.self, from: Data("""
+        let server = try JSONDecoder().decode(AccountServer.self, from: Data("""
             {"name":"\(serverID)","clientIdentifier":"\(serverID)","provides":"server","owned":true,"presence":true,"connections":[]}
             """.utf8))
         service.pool.adopt(

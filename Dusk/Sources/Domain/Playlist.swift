@@ -113,7 +113,7 @@ struct PlaylistEntry: Sendable, Identifiable, Hashable {
 /// What `PUT /playlists/{id}/items` reports: Plex expands a show or season
 /// into its episodes and leaves out ones already in the playlist, so the two
 /// counts can differ.
-struct PlexPlaylistAddResult: Sendable, Equatable {
+struct PlaylistAddResult: Sendable, Equatable {
     let added: Int
     let requested: Int
 }

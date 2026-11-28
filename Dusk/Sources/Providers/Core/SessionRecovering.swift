@@ -27,5 +27,5 @@ protocol SessionRecovering: AnyObject {
     /// model it decodes.
     func serverDecoder(for serverID: String?) -> JSONDecoder
     /// A server the signed-in account lists, connected or not.
-    func knownServer(for serverID: String) -> PlexServer?
+    func knownServer(for serverID: String) -> AccountServer?
 }

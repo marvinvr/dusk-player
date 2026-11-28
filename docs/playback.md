@@ -2201,7 +2201,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 - `PlayerSessionView` loads scrub previews for online playback parts when
   available, through `media.scrubPreview(forPartID:serverID:)` (the marker
   facet; Plex serves a BIF file). The controls still take Plex's frame set
-  (`PlexScrubPreviewSource`) and read it synchronously. iOS shows a thumbnail popup while dragging the seek
+  (`ScrubPreviewFrameSet`) and read it synchronously. iOS shows a thumbnail popup while dragging the seek
   bar; tvOS shows it above the grown playhead while scrubbing (see "tvOS Play
   Bar"). The playhead and thumbnail move during the swipe, but the video
   position keeps tracking actual playback until Select commits. If BIF loading

@@ -283,7 +283,7 @@ final class MediaService {
             .flatMap(URL.init(string:))
         let legacyServer = defaults
             .data(forKey: Self.defaultsServerDataKey)
-            .flatMap { try? decoder.decode(PlexServer.self, from: $0) }
+            .flatMap { try? decoder.decode(AccountServer.self, from: $0) }
 
         if let legacyServer, !legacyServer.clientIdentifier.isEmpty {
             ServerPool.migrateLegacyState(
@@ -305,7 +305,7 @@ final class MediaService {
     /// Matches a restored base URL back onto the stored server's connection
     /// list by host, so a session restored without a probe still knows whether
     /// it is local, remote, or relayed.
-    private static func connection(in server: PlexServer, matching baseURL: URL) -> PlexConnection? {
+    private static func connection(in server: AccountServer, matching baseURL: URL) -> ServerEndpoint? {
         guard let host = baseURL.host else { return nil }
         return server.connections.first { connection in
             for uri in [connection.uri, connection.httpFallbackURI].compactMap({ $0 }) {
@@ -386,7 +386,7 @@ extension MediaService: SessionRecovering {
         pool.decoder(for: serverID)
     }
 
-    func knownServer(for serverID: String) -> PlexServer? {
+    func knownServer(for serverID: String) -> AccountServer? {
         pool.server(for: serverID)
     }
 }

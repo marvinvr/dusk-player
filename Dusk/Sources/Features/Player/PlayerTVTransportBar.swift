@@ -11,7 +11,7 @@ import SwiftUI
 struct PlayerTVTransportBar: View {
     let viewModel: PlayerViewModel
     let controller: PlayerTVHUDController
-    let scrubPreviewSource: PlexScrubPreviewSource?
+    let scrubPreviewSource: ScrubPreviewFrameSet?
     let reduceMotion: Bool
 
     private var isScrubbing: Bool {

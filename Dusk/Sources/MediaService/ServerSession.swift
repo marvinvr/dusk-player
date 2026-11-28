@@ -22,7 +22,7 @@ struct ServerSession: Sendable, Hashable, Identifiable {
     let token: String
     /// The connection the probe won on, when it is known. Restored sessions can
     /// come back without one; callers must treat nil as "locality unknown".
-    let connection: PlexConnection?
+    let connection: ServerEndpoint?
     /// False for a session restored from the last launch (the fast path) until
     /// a quick `/identity` check on it passes; see
     /// `MediaService.validateRestoredEndpoint`. Probed sessions are verified.

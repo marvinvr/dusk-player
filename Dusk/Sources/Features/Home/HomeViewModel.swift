@@ -579,7 +579,7 @@ final class HomeViewModel {
     /// there is no row.
     var watchlistIndex: Int? {
         guard !watchlistEntries.isEmpty else { return nil }
-        return HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: media.watchlist.homeHubs)
+        return HomeWatchlistPlacement.index(in: hubs, homeLayoutHubs: media.watchlist.homeHubs)
     }
 
     func watchlistMatch(for entry: WatchlistEntry) -> MediaItem? {
@@ -634,7 +634,7 @@ final class HomeViewModel {
     }
 
     private static func isGone(_ error: any Error) -> Bool {
-        if case let PlexServiceError.httpError(statusCode) = error { return statusCode == 404 }
+        if case let MediaServiceError.httpError(statusCode) = error { return statusCode == 404 }
         return false
     }
 

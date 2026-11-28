@@ -42,7 +42,7 @@ extension MediaService {
 
     /// Appends items (a show or season adds all its episodes).
     @discardableResult
-    func addToPlaylist(_ playlist: Playlist, ratingKeys: [String]) async throws -> PlexPlaylistAddResult {
+    func addToPlaylist(_ playlist: Playlist, ratingKeys: [String]) async throws -> PlaylistAddResult {
         try await playlistFacet(on: playlist.serverID).add(itemIDs: ratingKeys, to: playlist.itemID)
     }
 

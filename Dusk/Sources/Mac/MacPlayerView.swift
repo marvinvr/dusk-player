@@ -217,7 +217,7 @@ private struct MacPlayerSessionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.displayScale) private var displayScale
     @State private var viewModel: PlayerViewModel
-    @State private var scrubPreviewSource: PlexScrubPreviewSource?
+    @State private var scrubPreviewSource: ScrubPreviewFrameSet?
     @State private var playerContainerSize: CGSize = .zero
     @State private var upNextPosterCoveredHeight: CGFloat?
     @State private var isPointerInside = false
@@ -618,7 +618,7 @@ private struct MacPlayerSessionView: View {
         )
         guard !Task.isCancelled else { return }
         // The controls still take Plex's BIF frame set, read synchronously.
-        scrubPreviewSource = source as? PlexScrubPreviewSource
+        scrubPreviewSource = source as? ScrubPreviewFrameSet
     }
 
     // MARK: - Session wiring (mirrors `PlayerSessionView`)

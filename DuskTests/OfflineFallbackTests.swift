@@ -59,17 +59,17 @@ struct OfflineFallbackTests {
     }
 
     @Test func malformedAccountResponsesHaveAHumanError() {
-        let error = PlexServiceError.decodingError("keyNotFound(Swift.CodingKeys.authToken, DecodingError.Context(...))")
+        let error = MediaServiceError.decodingError("keyNotFound(Swift.CodingKeys.authToken, DecodingError.Context(...))")
         #expect(error.localizedDescription == "Plex sent an invalid response. Please try again.")
         #expect(!error.localizedDescription.contains("DecodingError"))
     }
 
     @Test func authenticationAndInvalidResponsesCannotRestoreACachedSession() {
-        #expect(OfflineFallback.permitsCachedSession(after: PlexServiceError.networkError("Offline")))
-        #expect(OfflineFallback.permitsCachedSession(after: PlexServiceError.httpError(statusCode: 503)))
-        #expect(!OfflineFallback.permitsCachedSession(after: PlexServiceError.unauthorized))
-        #expect(!OfflineFallback.permitsCachedSession(after: PlexServiceError.httpError(statusCode: 403)))
-        #expect(!OfflineFallback.permitsCachedSession(after: PlexServiceError.decodingError("Invalid")))
+        #expect(OfflineFallback.permitsCachedSession(after: MediaServiceError.networkError("Offline")))
+        #expect(OfflineFallback.permitsCachedSession(after: MediaServiceError.httpError(statusCode: 503)))
+        #expect(!OfflineFallback.permitsCachedSession(after: MediaServiceError.unauthorized))
+        #expect(!OfflineFallback.permitsCachedSession(after: MediaServiceError.httpError(statusCode: 403)))
+        #expect(!OfflineFallback.permitsCachedSession(after: MediaServiceError.decodingError("Invalid")))
         #expect(!OfflineFallback.permitsCachedSession(after: CancellationError()))
     }
 

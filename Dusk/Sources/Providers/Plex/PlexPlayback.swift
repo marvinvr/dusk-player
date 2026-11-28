@@ -257,7 +257,7 @@ struct PlexPlayback: PlaybackProviding {
     /// movie alone. Leaving the parameter out entirely returns no extras at all.
     @MainActor
     func prerolls(before itemID: String) async throws -> [MediaDetails] {
-        guard let router else { throw PlexServiceError.noServerConnected }
+        guard let router else { throw MediaServiceError.noServerConnected }
         let targetID = try router.resolveServerID(serverID)
         let data = try await router.rawServerRequest(
             method: "POST",
@@ -407,7 +407,7 @@ private extension PlexPlayback {
         path: String,
         queryItems: [URLQueryItem]?
     ) async throws -> Data {
-        guard let router else { throw PlexServiceError.noServerConnected }
+        guard let router else { throw MediaServiceError.noServerConnected }
         return try await router.rawServerRequest(
             method: method,
             path: path,
@@ -431,10 +431,10 @@ private extension PlexPlayback {
         audioStreamID: String?,
         subtitleStreamID: String?
     ) async throws -> ServerStream {
-        guard let router else { throw PlexServiceError.noServerConnected }
+        guard let router else { throw MediaServiceError.noServerConnected }
         let targetID = try router.resolveServerID(serverID)
         guard let connection = router.plexPlaybackSession(for: targetID) else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         let baseURL = connection.baseURL
 
@@ -491,7 +491,7 @@ private extension PlexPlayback {
             path: "/video/:/transcode/universal/start.m3u8",
             queryItems: queryItems
         ) else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
 
         plexPlaybackLogger.notice(

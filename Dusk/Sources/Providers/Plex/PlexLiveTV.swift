@@ -223,14 +223,14 @@ struct PlexLiveTV: LiveTVProviding {
               let sessionID = tuned.sessionID else {
             let message = response.MediaContainer.tuneFailureMessage
                 ?? "Plex did not return a Live TV session."
-            throw PlexServiceError.serverMessage(message)
+            throw MediaServiceError.serverMessage(message)
         }
 
         let sessionPath = tuned.sessionPath
         let media = tuned.media.map { PlexLiveTVMapper.media($0, sessionPath: sessionPath) }
             ?? Self.fallbackMedia(sessionPath: sessionPath)
         guard let part = media.firstAvailablePart else {
-            throw PlexServiceError.decodingError("Plex did not return a playable Live TV stream.")
+            throw MediaServiceError.decodingError("Plex did not return a playable Live TV stream.")
         }
         let reportKey = Self.sessionReportKey(sessionID: sessionID)
 
@@ -272,12 +272,12 @@ struct PlexLiveTV: LiveTVProviding {
             let streamPath = tuned.playbackPath
                 ?? "\(sessionPath)/\(transport.clientIdentifier)/index.m3u8"
             guard let directURL = transport.liveTVTokenizedURL(path: streamPath, serverID: targetID) else {
-                throw PlexServiceError.invalidURL
+                throw MediaServiceError.invalidURL
             }
             playbackURL = directURL
             transcodeSessionID = nil
         case .failed(let message):
-            throw PlexServiceError.decodingError(
+            throw MediaServiceError.decodingError(
                 message?.nilIfEmpty ?? "Plex could not create a Live TV stream."
             )
         }
@@ -349,7 +349,7 @@ struct PlexLiveTV: LiveTVProviding {
     }
 
     @MainActor private func routed() throws -> any PlexLiveTVTransport {
-        guard let transport else { throw PlexServiceError.noServerConnected }
+        guard let transport else { throw MediaServiceError.noServerConnected }
         return transport
     }
 

@@ -376,7 +376,7 @@ struct LegacyContainerTests {
         #expect(servers[0].accessToken == nil)
         #expect(servers[0].sourceTitle == nil)
         try #require(servers[0].connections.count == 2)
-        #expect(servers[0].connections[0] == PlexConnection(
+        #expect(servers[0].connections[0] == ServerEndpoint(
             protocol: "https", address: "192.168.1.10", port: 32400,
             uri: "https://192-168-1-10.0123456789abcdef.plex.direct:32400",
             local: true, relay: false, iPv6: false
@@ -391,7 +391,7 @@ struct LegacyContainerTests {
         #expect(servers[1].presence == false)
         #expect(servers[1].sourceTitle == "friend")
         try #require(servers[1].connections.count == 1)
-        #expect(servers[1].connections[0] == PlexConnection(
+        #expect(servers[1].connections[0] == ServerEndpoint(
             protocol: "https", address: "198.51.100.4", port: 443,
             uri: "https://relay.plex.direct:443", local: false, relay: true, iPv6: nil
         ))

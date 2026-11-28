@@ -37,7 +37,7 @@ enum OfflineFallback {
     }
 
     static func permitsCachedSession(after error: Error) -> Bool {
-        guard let error = error as? PlexServiceError else { return false }
+        guard let error = error as? MediaServiceError else { return false }
         switch error {
         case .networkError: return true
         case .httpError(let status): return (500...599).contains(status)

@@ -11,7 +11,7 @@ import Foundation
 /// live.
 ///
 /// Entries are still keyed by Plex's numeric `playlistItemID` and an add
-/// still answers `PlexPlaylistAddResult`; both keep their shape until the
+/// still answers `PlaylistAddResult`; both keep their shape until the
 /// boundary pass (05-plan P0-19) and J-07 (which turns "move after" into an
 /// index where the server wants one).
 protocol PlaylistProviding: Sendable {
@@ -29,7 +29,7 @@ protocol PlaylistProviding: Sendable {
     @MainActor func createPlaylist(title: String, itemIDs: [String]) async throws -> Playlist
 
     /// Appends items; a show or season adds its episodes.
-    @MainActor func add(itemIDs: [String], to playlistID: String) async throws -> PlexPlaylistAddResult
+    @MainActor func add(itemIDs: [String], to playlistID: String) async throws -> PlaylistAddResult
 
     @MainActor func removeEntry(_ entryID: Int, from playlistID: String) async throws
 

@@ -179,7 +179,7 @@ enum ServerStatusText {
         return "Shared by \(sourceTitle)"
     }
 
-    static func ownership(of server: PlexServer) -> String {
+    static func ownership(of server: AccountServer) -> String {
         ownership(owned: server.owned, sourceTitle: server.sourceTitle)
     }
 }

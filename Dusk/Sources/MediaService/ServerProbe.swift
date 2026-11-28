@@ -56,10 +56,10 @@ enum ConnectionCandidateSource: String, Sendable, Codable {
 /// One endpoint we could reach a server at.
 struct ConnectionCandidate: Sendable, Hashable {
     let baseURL: URL
-    let connection: PlexConnection
+    let connection: ServerEndpoint
     let source: ConnectionCandidateSource
 
-    init(baseURL: URL, connection: PlexConnection, source: ConnectionCandidateSource = .plex) {
+    init(baseURL: URL, connection: ServerEndpoint, source: ConnectionCandidateSource = .plex) {
         self.baseURL = baseURL
         self.connection = connection
         self.source = source
@@ -70,12 +70,12 @@ struct ConnectionCandidate: Sendable, Hashable {
     var locality: ConnectionLocality {
         if connection.relay { return .relay }
         let host = baseURL.host ?? ""
-        let address = PlexConnection.plexDirectIPAddress(in: host) ?? host
-        if connection.isOnLocalNetwork || PlexConnection.isPrivateAddress(address) || host.hasSuffix(".local") {
+        let address = ServerEndpoint.plexDirectIPAddress(in: host) ?? host
+        if connection.isOnLocalNetwork || ServerEndpoint.isPrivateAddress(address) || host.hasSuffix(".local") {
             return .local
         }
-        if connection.isOnTailnet || PlexConnection.isTailnetAddress(address)
-            || PlexConnection.isTailnetHostName(host) || PlexConnection.isSingleLabelHostName(host) {
+        if connection.isOnTailnet || ServerEndpoint.isTailnetAddress(address)
+            || ServerEndpoint.isTailnetHostName(host) || ServerEndpoint.isSingleLabelHostName(host) {
             return .tailnet
         }
         return .remote
@@ -122,7 +122,7 @@ struct ConnectionCandidate: Sendable, Hashable {
 
 /// Outcome of selecting a server's connection.
 enum ConnectionResolution: Sendable {
-    case connected(URL, PlexConnection)
+    case connected(URL, ServerEndpoint)
     case unauthorized
     case failed(String)
 }

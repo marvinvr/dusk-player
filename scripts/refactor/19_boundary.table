@@ -1,0 +1,25 @@
+# P0-19 neutral names (docs/jellyfin/05-plan.md P0-19, 04 §5.4). `Old New`, whole words.
+# String literals are never rewritten, so persisted keys, logger categories
+# and wire strings stay byte-identical. MediaServiceError keeps the NSError
+# domain "Dusk.PlexServiceError" that error reports send (CustomNSError, added
+# by hand after this table runs).
+
+PlexServiceError            MediaServiceError
+PlexServer                  AccountServer
+PlexConnection              ServerEndpoint
+PlexExtraType               ExtraKind
+PlexGuid                    ItemGuid
+PlexScrubPreviewFrame       ScrubPreviewFrame
+PlexScrubPreviewSource      ScrubPreviewFrameSet
+PlexLibraryVisibility       LibraryVisibility
+PlexLibraryFilter           LibraryFilterEntry
+PlexLibraryFilterValue      LibraryFilterValue
+PlexContentRating           ContentRatingLabel
+PlexPerson                  PersonDetails
+PlexPersonReference         PersonReference
+PlexManagedHub              ManagedHub
+PlexManagedHomeRow          ManagedHomeRow
+PlexHubSource               HomeRowSource
+PlexPlaylistAddResult       PlaylistAddResult
+PlexHomeHubSetting          HomeLayoutHub
+plexHomeHubs                homeLayoutHubs

@@ -11,7 +11,7 @@ struct PlexUserRating: UserRatingProviding {
 
     /// `rating=-1` clears it.
     func setRating(_ rating: Int?, itemID: String) async throws {
-        guard let transport else { throw PlexServiceError.noServerConnected }
+        guard let transport else { throw MediaServiceError.noServerConnected }
         _ = try await transport.rawServerRequest(
             method: "PUT",
             path: "/:/rate",

@@ -80,12 +80,12 @@ struct PlexRatingDisplayTests {
         ]
     )
     func contentRating(raw: String, expected: String) {
-        #expect(PlexContentRating.display(raw) == expected)
+        #expect(ContentRatingLabel.display(raw) == expected)
     }
 
     @Test("A missing or blank content rating shows nothing")
     func emptyContentRating() {
-        #expect(PlexContentRating.display(nil) == nil)
-        #expect(PlexContentRating.display("  ") == nil)
+        #expect(ContentRatingLabel.display(nil) == nil)
+        #expect(ContentRatingLabel.display("  ") == nil)
     }
 }

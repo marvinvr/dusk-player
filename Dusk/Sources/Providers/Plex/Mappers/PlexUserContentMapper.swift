@@ -44,7 +44,7 @@ enum PlexUserContentMapper {
             let field = fieldsByKey[item.itemID]
             return Extra(
                 item: item,
-                kind: PlexExtraType(extraType: field?.extraType, subtype: field?.subtype ?? item.subtype)
+                kind: ExtraKind(extraType: field?.extraType, subtype: field?.subtype ?? item.subtype)
             )
         }
     }
@@ -99,7 +99,7 @@ enum PlexUserContentMapper {
             contentRating: dto.contentRating,
             duration: dto.duration,
             childCount: dto.childCount,
-            guids: dto.guids.map { PlexGuid(id: $0) }
+            guids: dto.guids.map { ItemGuid(id: $0) }
         )
     }
 

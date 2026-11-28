@@ -27,7 +27,7 @@ enum AppNavigationRoute: Hashable {
     case downloadedVideo(id: MediaItemID)
     /// Person tag ids are per-server too, so the route carries the server the
     /// credit was read from; nil falls back to the primary server.
-    case person(PlexPersonReference, serverID: String?)
+    case person(PersonReference, serverID: String?)
     case seerrMedia(type: SeerrMediaType, id: Int)
     case seerrSeason(tvID: Int, seasonNumber: Int)
     /// A Plex Watchlist title on none of the connected servers (one that is
@@ -50,7 +50,7 @@ enum AppNavigationRoute: Hashable {
     #endif
 
     static func destination(for item: MediaItem) -> Self {
-        if let person = PlexPersonReference(item: item) {
+        if let person = PersonReference(item: item) {
             return .person(person, serverID: item.serverID)
         }
 

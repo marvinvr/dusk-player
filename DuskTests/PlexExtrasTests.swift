@@ -51,9 +51,9 @@ struct PlexExtrasTests {
     }
 
     @Test func unknownCodesFallBackToSubtypeOrNothing() {
-        #expect(PlexExtraType(extraType: 99, subtype: "featurette") == .featurette)
-        #expect(PlexExtraType(extraType: nil, subtype: "SHORT") == .short)
-        #expect(PlexExtraType(extraType: nil, subtype: "somethingNew") == nil)
-        #expect(PlexExtraType.other.label == "Extra")
+        #expect(ExtraKind(extraType: 99, subtype: "featurette") == .featurette)
+        #expect(ExtraKind(extraType: nil, subtype: "SHORT") == .short)
+        #expect(ExtraKind(extraType: nil, subtype: "somethingNew") == nil)
+        #expect(ExtraKind.other.label == "Extra")
     }
 }

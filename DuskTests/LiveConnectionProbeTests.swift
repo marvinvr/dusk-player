@@ -63,19 +63,19 @@ struct LiveConnectionProbeTests {
     }
 
     /// The same server with only connections that work away from home.
-    private static func awayCopy(of server: PlexServer) throws -> PlexServer {
+    private static func awayCopy(of server: AccountServer) throws -> AccountServer {
         var object = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(server)) as? [String: Any]
         )
         let kept = server.connections.filter { connection in
             guard !connection.relay else { return true }
             let host = URL(string: connection.uri)?.host ?? connection.address
-            let address = PlexConnection.plexDirectIPAddress(in: host) ?? host
+            let address = ServerEndpoint.plexDirectIPAddress(in: host) ?? host
             return !(connection.isOnLocalNetwork || connection.isOnTailnet
-                || PlexConnection.isPrivateAddress(address) || PlexConnection.isTailnetAddress(address)
-                || PlexConnection.isTailnetHostName(host) || PlexConnection.isSingleLabelHostName(host))
+                || ServerEndpoint.isPrivateAddress(address) || ServerEndpoint.isTailnetAddress(address)
+                || ServerEndpoint.isTailnetHostName(host) || ServerEndpoint.isSingleLabelHostName(host))
         }
         object["connections"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(kept))
-        return try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: object))
+        return try JSONDecoder().decode(AccountServer.self, from: JSONSerialization.data(withJSONObject: object))
     }
 }

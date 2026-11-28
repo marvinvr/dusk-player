@@ -99,12 +99,12 @@ extension MediaService {
 
     /// The section's raw `/filters` rows, for the genre menu
     /// (`LibraryGenreSupport`).
-    func getLibraryFilters(sectionId: String, serverID: String? = nil) async throws -> [PlexLibraryFilter] {
+    func getLibraryFilters(sectionId: String, serverID: String? = nil) async throws -> [LibraryFilterEntry] {
         try await plexCatalog(on: resolveServerID(serverID)).rawFilters(libraryID: sectionId)
     }
 
     /// The values of one raw `/filters` row, for the genre menu.
-    func getLibraryFilterValues(path: String, serverID: String? = nil) async throws -> [PlexLibraryFilterValue] {
+    func getLibraryFilterValues(path: String, serverID: String? = nil) async throws -> [LibraryFilterValue] {
         try await plexCatalog(on: resolveServerID(serverID)).rawFilterValues(path: path)
     }
 

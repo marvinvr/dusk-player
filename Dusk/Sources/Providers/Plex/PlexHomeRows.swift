@@ -91,7 +91,7 @@ struct PlexHomeRows: HomeProviding {
 
     // MARK: - Hiding rows
 
-    @MainActor func managedRows(libraryID: String) async throws -> [PlexManagedHub] {
+    @MainActor func managedRows(libraryID: String) async throws -> [ManagedHub] {
         let transport = try routed()
         let data = try await transport.rawServerRequest(
             method: "GET",
@@ -106,7 +106,7 @@ struct PlexHomeRows: HomeProviding {
 
     /// Plex Web sends all three flags on every change, so the other two are
     /// sent back as they were.
-    @MainActor func setManagedRow(_ row: PlexManagedHub, libraryID: String) async throws {
+    @MainActor func setManagedRow(_ row: ManagedHub, libraryID: String) async throws {
         func flag(_ value: Bool) -> String { value ? "1" : "0" }
         _ = try await routed().rawServerRequest(
             method: "PUT",
@@ -128,9 +128,9 @@ struct PlexHomeRows: HomeProviding {
     /// identifier and library, so the other servers' come from `source`.
     @MainActor func managedRow(
         for row: HomeRow,
-        source: PlexHubSource,
+        source: HomeRowSource,
         libraryIDs: [String]
-    ) async -> PlexManagedHomeRow? {
+    ) async -> ManagedHomeRow? {
         let representative = source.serverID == row.sources.first?.serverID
         guard let identifier = (source.hubIdentifier ?? (representative ? row.hubIdentifier : nil))?.nilIfEmpty,
               !identifier.hasPrefix("home.") else { return nil }
@@ -145,7 +145,7 @@ struct PlexHomeRows: HomeProviding {
             guard let managed = try? await managedRows(libraryID: sectionID),
                   let match = managed.first(where: { $0.matches(hubIdentifier: identifier, sectionID: sectionID) })
             else { continue }
-            return PlexManagedHomeRow(serverID: source.serverID, sectionID: sectionID, hub: match)
+            return ManagedHomeRow(serverID: source.serverID, sectionID: sectionID, hub: match)
         }
         return nil
     }
@@ -171,7 +171,7 @@ struct PlexHomeRows: HomeProviding {
     }
 
     @MainActor private func routed() throws -> any PlexServerTransport {
-        guard let transport else { throw PlexServiceError.noServerConnected }
+        guard let transport else { throw MediaServiceError.noServerConnected }
         return transport
     }
 }

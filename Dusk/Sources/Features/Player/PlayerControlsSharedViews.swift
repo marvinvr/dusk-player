@@ -158,7 +158,7 @@ struct PlayerTimeStatusView: View {
 struct PlayerSeekBar: View {
     let viewModel: PlayerViewModel
     let isInteractive: Bool
-    let scrubPreviewSource: PlexScrubPreviewSource?
+    let scrubPreviewSource: ScrubPreviewFrameSet?
     let progressPosition: TimeInterval?
 
     private let trackHeight: CGFloat = 8
@@ -166,7 +166,7 @@ struct PlayerSeekBar: View {
     init(
         viewModel: PlayerViewModel,
         isInteractive: Bool,
-        scrubPreviewSource: PlexScrubPreviewSource? = nil,
+        scrubPreviewSource: ScrubPreviewFrameSet? = nil,
         progressPosition: TimeInterval? = nil
     ) {
         self.viewModel = viewModel
@@ -343,7 +343,7 @@ struct PlayerLiveClockBubble: View {
 }
 
 struct PlayerScrubPreviewPopup: View {
-    let source: PlexScrubPreviewSource
+    let source: ScrubPreviewFrameSet
     let position: TimeInterval
 
     #if os(tvOS)
@@ -355,7 +355,7 @@ struct PlayerScrubPreviewPopup: View {
     static let height: CGFloat = width / aspectRatio
     static let verticalPosition: CGFloat = -(height / 2 + 12)
 
-    private var frame: PlexScrubPreviewFrame? {
+    private var frame: ScrubPreviewFrame? {
         source.frame(at: position)
     }
 

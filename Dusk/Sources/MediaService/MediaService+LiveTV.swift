@@ -20,7 +20,7 @@ extension MediaService {
     /// "no Live TV" hid the tab for the whole session (1.7.2).
     func discoverLiveTVProvider() async -> LiveTVDiscovery {
         let serverIDs = pool.connections.map(\.serverID)
-        guard !serverIDs.isEmpty else { return .inconclusive(PlexServiceError.noServerConnected) }
+        guard !serverIDs.isEmpty else { return .inconclusive(MediaServiceError.noServerConnected) }
 
         return await withTaskGroup(of: LiveTVDiscoveryEvent.self) { group in
             for serverID in serverIDs {
@@ -192,7 +192,7 @@ extension MediaService {
     /// `liveTV(for:)`, throwing for a source no server serves.
     private func liveTVFacet(for source: LiveTVProvider, serverID: String? = nil) throws -> any LiveTVProviding {
         guard let liveTV = liveTV(for: source, serverID: serverID) else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         return liveTV
     }
@@ -201,7 +201,7 @@ extension MediaService {
     /// discovery, before there is a source.
     private func liveTVFacet(serverID: String?) throws -> any LiveTVProviding {
         guard let liveTV = serverProvider(for: serverID).liveTV else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
         return liveTV
     }
@@ -237,7 +237,7 @@ enum LiveTVDiscovery {
             case .failure:
                 break
             case nil:
-                failure = failure ?? PlexServiceError.noServerConnected
+                failure = failure ?? MediaServiceError.noServerConnected
             }
         }
         self = failure.map { .inconclusive($0) } ?? .none
@@ -248,7 +248,7 @@ enum LiveTVDiscovery {
     /// cannot read. Everything else (timeouts, 5xx, a dropped connection,
     /// cancellation) says nothing about the DVR.
     private static func meansNoLiveTV(_ error: Error) -> Bool {
-        switch error as? PlexServiceError {
+        switch error as? MediaServiceError {
         case .unauthorized, .decodingError:
             true
         case .httpError(let statusCode):

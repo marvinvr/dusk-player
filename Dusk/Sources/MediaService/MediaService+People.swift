@@ -4,7 +4,7 @@ import Foundation
 extension MediaService {
     /// - Parameter serverID: Person ids are per-server tag ids, exactly like
     ///   rating keys, so a person route has to carry the server it came from.
-    func getPerson(personID: String, serverID: String? = nil) async throws -> PlexPerson {
+    func getPerson(personID: String, serverID: String? = nil) async throws -> PersonDetails {
         try await catalog(on: resolveServerID(serverID)).person(id: personID)
     }
 

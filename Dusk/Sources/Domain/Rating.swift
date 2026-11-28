@@ -77,7 +77,7 @@ struct Rating: Hashable, Sendable {
 }
 
 /// A title's age rating as a detail page shows it.
-enum PlexContentRating {
+enum ContentRatingLabel {
     /// Plex prefixes certifications outside the US with a lowercase country
     /// code (`de/12`, `gb/15`); people only need the rating. US ratings and
     /// values such as `TV-MA` or `N/A` pass through. Nil when there is none.

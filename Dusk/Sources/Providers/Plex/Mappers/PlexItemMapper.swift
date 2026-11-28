@@ -193,8 +193,8 @@ enum PlexItemMapper {
 
     /// The person id is the numeric `id`, or the value of `filter`
     /// (`actor=12345`) when a server leaves the id out.
-    static func map(_ dto: PlexPersonDTO) -> PlexPerson {
-        PlexPerson(
+    static func map(_ dto: PlexPersonDTO) -> PersonDetails {
+        PersonDetails(
             personID: dto.id.map(String.init) ?? personID(fromFilter: dto.filter),
             filter: dto.filter,
             tag: dto.tag,

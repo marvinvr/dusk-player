@@ -26,7 +26,7 @@ extension MediaService {
     }
 
     /// The account's servers from plex.tv, through its provider.
-    func discoverServers() async throws -> [PlexServer] {
+    func discoverServers() async throws -> [AccountServer] {
         try await plexAccount.discoverServers()
     }
 
@@ -40,7 +40,7 @@ extension MediaService {
     @discardableResult
     func connectAllServers(trigger: String = "Connect") async throws -> [ServerSession] {
         guard !needsHomeUserSelection, activeAccountToken != nil else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
 
         let session = serverSessionToken
@@ -48,10 +48,10 @@ extension MediaService {
         // recovery cooldowns instead of letting them fail requests fast.
         serverRecoveryCooldowns = [:]
 
-        let discovered: [PlexServer]
+        let discovered: [AccountServer]
         do {
             discovered = try await discoverServers()
-        } catch let error as PlexServiceError where Self.isTransportFailure(error) {
+        } catch let error as MediaServiceError where Self.isTransportFailure(error) {
             // plex.tv is unreachable, which says nothing about the servers
             // themselves (a LAN-only network). Validate and select from the
             // stored snapshots instead of leaving restored sessions unchecked;
@@ -97,25 +97,25 @@ extension MediaService {
     /// plus the endpoint that worked last, are usually all a LAN needs.
     @discardableResult
     func reconnectServer(serverID: String, reason: String = "Reconnect") async throws -> ServerSession {
-        guard activeAccountToken != nil else { throw PlexServiceError.notAuthenticated }
+        guard activeAccountToken != nil else { throw MediaServiceError.notAuthenticated }
 
         let session = serverSessionToken
 
         return try await retryAfterFreshAuthentication {
-            let server: PlexServer
+            let server: AccountServer
             do {
                 let refreshedServers = try await discoverServers()
                 // Same rule as a full pass: a session that has since been replaced
                 // must not get this server (and its token) grafted onto it.
                 guard session == serverSessionToken else {
-                    throw PlexServiceError.noServerConnected
+                    throw MediaServiceError.noServerConnected
                 }
                 guard let found = refreshedServers.first(where: { $0.clientIdentifier == serverID }) else {
                     pool.markOffline(serverID: serverID, reason: "This server is no longer shared with your account.")
-                    throw PlexServiceError.noServerConnected
+                    throw MediaServiceError.noServerConnected
                 }
                 server = found
-            } catch let error as PlexServiceError where Self.isTransportFailure(error) {
+            } catch let error as MediaServiceError where Self.isTransportFailure(error) {
                 guard session == serverSessionToken, let snapshot = pool.server(for: serverID) else { throw error }
                 plexConnectionLogger.notice("plex.tv unreachable (\(error.localizedDescription, privacy: .public)); selecting from the stored snapshot")
                 server = snapshot
@@ -131,7 +131,7 @@ extension MediaService {
         }
     }
 
-    private static func isTransportFailure(_ error: PlexServiceError) -> Bool {
+    private static func isTransportFailure(_ error: MediaServiceError) -> Bool {
         switch error {
         case .networkError, .httpError: true
         default: false
@@ -159,7 +159,7 @@ extension MediaService {
         }
 
         let task = Task { @MainActor [weak self] () throws -> ServerSession in
-            guard let self else { throw PlexServiceError.noServerConnected }
+            guard let self else { throw MediaServiceError.noServerConnected }
             return try await self.reconnectServer(serverID: serverID, reason: reason)
         }
         serverRecoveryTasks[serverID] = task
@@ -181,11 +181,11 @@ extension MediaService {
     private func recentRecoveryFailure(for serverID: String) -> Error {
         switch pool.state(for: serverID) {
         case .unauthorized:
-            return PlexServiceError.unauthorized
+            return MediaServiceError.unauthorized
         case let .offline(reason):
-            return PlexServiceError.networkError(reason)
+            return MediaServiceError.networkError(reason)
         default:
-            return PlexServiceError.networkError(
+            return MediaServiceError.networkError(
                 "Could not connect to \(pool.displayName(for: serverID))"
             )
         }
@@ -195,23 +195,23 @@ extension MediaService {
     /// the others, so this never touches the rest of the pool.
     func refreshServerAuthorization(serverID: String) async throws {
         guard !needsHomeUserSelection, activeAccountToken != nil else {
-            throw PlexServiceError.unauthorized
+            throw MediaServiceError.unauthorized
         }
         try await recoverServer(serverID: serverID, reason: "Not connected / token refresh")
     }
 
     /// Turns a pool failure state into the error the call site expects.
-    private func connectionFailure(for server: PlexServer) -> Error {
+    private func connectionFailure(for server: AccountServer) -> Error {
         switch pool.state(for: server.clientIdentifier) {
         case .unauthorized:
             plexAuthLogger.notice("Server connect received 401 for \(server.name, privacy: .public) during bootstrap=\(self.isAuthenticationFresh, privacy: .public)")
             return isAuthenticationFresh
                 ? AuthenticationBootstrapError.waitingForPropagation
-                : PlexServiceError.unauthorized
+                : MediaServiceError.unauthorized
         case let .offline(reason):
-            return PlexServiceError.networkError(reason)
+            return MediaServiceError.networkError(reason)
         default:
-            return PlexServiceError.networkError("Could not connect to \(server.name)")
+            return MediaServiceError.networkError("Could not connect to \(server.name)")
         }
     }
 }

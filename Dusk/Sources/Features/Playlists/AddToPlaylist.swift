@@ -203,7 +203,7 @@ final class AddToPlaylistViewModel {
     }
 
     /// Plex leaves out what the playlist already holds, so say what happened.
-    static func confirmation(for result: PlexPlaylistAddResult, playlistTitle: String) -> String {
+    static func confirmation(for result: PlaylistAddResult, playlistTitle: String) -> String {
         if result.added == 0 {
             return "Already in “\(playlistTitle)”"
         }

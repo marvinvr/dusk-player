@@ -43,7 +43,7 @@ struct PlexAccountPreferences: AccountPreferencesProviding {
     ) async throws -> AccountLibraryLayout {
         let transport = try requireTransport()
         guard let token = transport.activeAccountToken?.nilIfEmpty else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
 
         // `serverIDs` holds only servers that answered `/library/sections` with
@@ -51,13 +51,13 @@ struct PlexAccountPreferences: AccountPreferencesProviding {
         // longer connected drops out here too. Never widen it: writing pins for
         // a server whose sections could not be read would unpin its libraries
         // in every Plex client the account uses.
-        var servers: [String: PlexServer] = [:]
+        var servers: [String: AccountServer] = [:]
         for serverID in serverIDs {
             guard let server = transport.accountServer(for: serverID) else { continue }
             servers[serverID] = server
         }
         guard !servers.isEmpty else {
-            throw PlexServiceError.noServerConnected
+            throw MediaServiceError.noServerConnected
         }
 
         // Never write from cache: plex.tv is last-writer-wins and other clients
@@ -180,7 +180,7 @@ struct PlexAccountPreferences: AccountPreferencesProviding {
     @MainActor private func fetchExperienceSettings() async throws -> PlexExperienceSettings {
         let transport = try requireTransport()
         guard let token = transport.activeAccountToken?.nilIfEmpty else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
 
         let data: Data
@@ -201,7 +201,7 @@ struct PlexAccountPreferences: AccountPreferencesProviding {
                 retriesFreshAuthentication: true,
                 bootstrap: false
             )
-        } catch PlexServiceError.httpError(statusCode: 404) {
+        } catch MediaServiceError.httpError(statusCode: 404) {
             // No settings record yet: a brand-new account that never ran the
             // Plex first-run wizard.
             plexAuthLogger.notice("Library order: plex.tv has no settings record (404)")
@@ -241,7 +241,7 @@ struct PlexAccountPreferences: AccountPreferencesProviding {
     }
 
     @MainActor private func requireTransport() throws -> any PlexAccountTransport {
-        guard let transport else { throw PlexServiceError.notAuthenticated }
+        guard let transport else { throw MediaServiceError.notAuthenticated }
         return transport
     }
 }

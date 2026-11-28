@@ -12,7 +12,7 @@ struct LiveTVDiscoveryTests {
     @Test func dvrOnAnyServerWinsOverServersThatFailed() {
         let result = LiveTVDiscovery(
             serverIDs: ["a", "b"],
-            results: ["a": .failure(PlexServiceError.requestTimedOut), "b": .success(provider(on: "b"))]
+            results: ["a": .failure(MediaServiceError.requestTimedOut), "b": .success(provider(on: "b"))]
         )
         guard case .found(let found) = result else {
             Issue.record("Expected the DVR on b, got \(result)")
@@ -35,7 +35,7 @@ struct LiveTVDiscoveryTests {
 
     @Test func aFailedServerIsNotAServerWithoutLiveTV() {
         for error in [
-            PlexServiceError.requestTimedOut,
+            MediaServiceError.requestTimedOut,
             .httpError(statusCode: 500),
             .httpError(statusCode: 503),
             .noServerConnected,
@@ -60,7 +60,7 @@ struct LiveTVDiscoveryTests {
 
     @Test func definitiveAnswersEndDiscovery() {
         for error in [
-            PlexServiceError.unauthorized,
+            MediaServiceError.unauthorized,
             .httpError(statusCode: 401),
             .httpError(statusCode: 403),
             .httpError(statusCode: 404),
@@ -271,11 +271,11 @@ private final class StubServers {
         let id: String
         let baseURL: URL
 
-        var plexServer: PlexServer {
+        var plexServer: AccountServer {
             let json = """
             {"name":"\(id)","clientIdentifier":"\(id)","provides":"server","owned":true,"presence":true,"connections":[]}
             """
-            return try! JSONDecoder().decode(PlexServer.self, from: Data(json.utf8))
+            return try! JSONDecoder().decode(AccountServer.self, from: Data(json.utf8))
         }
     }
 

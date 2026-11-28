@@ -74,7 +74,7 @@ struct MediaDetailDestinationView: View {
         #endif
         case .person:
             ActorDetailView(
-                person: PlexPersonReference(personID: id.itemID, name: "Actor", thumb: nil),
+                person: PersonReference(personID: id.itemID, name: "Actor", thumb: nil),
                 serverID: id.serverID,
                 media: media
             )

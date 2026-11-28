@@ -33,7 +33,7 @@ extension MediaService {
         serverID: String? = nil
     ) async throws -> ServerStream {
         guard !preset.isOriginal else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
 
         return try await openServerStream(

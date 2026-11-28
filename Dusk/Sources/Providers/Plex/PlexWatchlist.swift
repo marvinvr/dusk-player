@@ -118,7 +118,7 @@ struct PlexWatchlist: WatchlistProviding {
     /// `experience` setting per `X-Plex-Product` (verified: Dusk's own copy
     /// holds only the sidebar), and Plex Web's is the one where "Manage Home"
     /// lands. nil when it is the default layout or cannot be read.
-    @MainActor func homeLayout() async -> [PlexHomeHubSetting]? {
+    @MainActor func homeLayout() async -> [HomeLayoutHub]? {
         guard let transport,
               let token = transport.activeAccountToken?.nilIfEmpty,
               let url = client.buildURL(
@@ -139,7 +139,7 @@ struct PlexWatchlist: WatchlistProviding {
               let home = blob["homeSettings"],
               home["hasCustomizations"]?.boolValue == true,
               let hubs = home["hubs"]?.arrayValue, !hubs.isEmpty else { return nil }
-        return hubs.compactMap(PlexHomeHubSetting.init(raw:))
+        return hubs.compactMap(HomeLayoutHub.init(raw:))
     }
 
     // MARK: - Transport
@@ -153,10 +153,10 @@ struct PlexWatchlist: WatchlistProviding {
     ) async throws -> Data {
         let transport = try requireTransport()
         guard let token = transport.activeAccountToken?.nilIfEmpty else {
-            throw PlexServiceError.notAuthenticated
+            throw MediaServiceError.notAuthenticated
         }
         guard let url = client.buildURL(base: Self.discoverBase, path: path, queryItems: queryItems) else {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -167,7 +167,7 @@ struct PlexWatchlist: WatchlistProviding {
     }
 
     @MainActor private func requireTransport() throws -> any PlexAccountTransport {
-        guard let transport else { throw PlexServiceError.notAuthenticated }
+        guard let transport else { throw MediaServiceError.notAuthenticated }
         return transport
     }
 }

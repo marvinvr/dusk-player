@@ -321,12 +321,12 @@ struct EpisodeDetailView: View {
         // One ·-joined line, durations formatted like the movie page.
         let parts = [
             MediaTextFormatter.localizedAirDate(details.originallyAvailableAt),
-            PlexContentRating.display(details.contentRating),
+            ContentRatingLabel.display(details.contentRating),
             MediaTextFormatter.playbackDuration(milliseconds: details.duration),
         ].compactMap { $0 }
         #else
         let parts = [
-            PlexContentRating.display(details.contentRating),
+            ContentRatingLabel.display(details.contentRating),
             viewModel.formattedDuration,
         ].compactMap { $0 }
         #endif

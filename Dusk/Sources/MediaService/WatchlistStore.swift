@@ -28,7 +28,7 @@ final class WatchlistStore {
     private(set) var state: State = .idle
     /// Plex Web's own Home layout, when the account customized it; nil means
     /// Plex's default layout (or that it could not be read).
-    private(set) var homeHubs: [PlexHomeHubSetting]?
+    private(set) var homeHubs: [HomeLayoutHub]?
 
     @ObservationIgnored private(set) var loadedAt: Date?
     @ObservationIgnored private(set) var profileID: String?
@@ -85,7 +85,7 @@ final class WatchlistStore {
     func commit(
         entries: [WatchlistEntry],
         matches: [String: MediaItem],
-        homeHubs: [PlexHomeHubSetting]?,
+        homeHubs: [HomeLayoutHub]?,
         serverIDs: [String],
         generation expected: Int
     ) {

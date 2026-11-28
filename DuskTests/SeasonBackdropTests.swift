@@ -21,7 +21,7 @@ struct SeasonBackdropTests {
         let serverData = try JSONSerialization.data(withJSONObject: [
             "name": "Artwork fixture", "clientIdentifier": serverID,
         ])
-        let server = try JSONDecoder().decode(PlexServer.self, from: serverData)
+        let server = try JSONDecoder().decode(AccountServer.self, from: serverData)
         service.pool.adopt(server: server, baseURL: baseURL, token: "fixture", connection: nil)
         defer {
             service.session.invalidateAndCancel()

@@ -11,7 +11,7 @@ struct ProviderRegistryTests {
         // Every request is intercepted; adopting a session sends none.
         let serverID = "provider-registry-\(UUID().uuidString)"
         let service = MediaService(urlProtocolClasses: [SelectionStub.self])
-        let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: [
+        let server = try JSONDecoder().decode(AccountServer.self, from: JSONSerialization.data(withJSONObject: [
             "name": "Shared", "clientIdentifier": serverID, "owned": false,
             "sourceTitle": "Alex", "productVersion": "1.40.0", "connections": [],
         ]))

@@ -12,8 +12,8 @@ import Foundation
 /// live.
 ///
 /// Dismiss from Continue Watching belongs here too (§11) but still lives in
-/// `MediaService+WatchState`. The managed-row types (`PlexManagedHub`,
-/// `PlexManagedHomeRow`) and `PlexHubSource` keep their Plex names until the
+/// `MediaService+WatchState`. The managed-row types (`ManagedHub`,
+/// `ManagedHomeRow`) and `HomeRowSource` keep their Plex names until the
 /// boundary pass (05-plan P0-19).
 protocol HomeProviding: Sendable {
     /// The server's Home rows, in its own order.
@@ -35,17 +35,17 @@ protocol HomeProviding: Sendable {
     @MainActor func rowItems(rowKey: String, start: Int, size: Int?) async throws -> [MediaItem]
 
     /// The Home switches of one library's rows.
-    @MainActor func managedRows(libraryID: String) async throws -> [PlexManagedHub]
+    @MainActor func managedRows(libraryID: String) async throws -> [ManagedHub]
 
     /// Writes one library row's switches back.
-    @MainActor func setManagedRow(_ row: PlexManagedHub, libraryID: String) async throws
+    @MainActor func setManagedRow(_ row: ManagedHub, libraryID: String) async throws
 
     /// The switch behind this server's part of `row` (`source`), or nil when
     /// the row has none here. `libraryIDs` is every library on this server,
     /// asked in turn when the row does not say which one it belongs to.
     @MainActor func managedRow(
         for row: HomeRow,
-        source: PlexHubSource,
+        source: HomeRowSource,
         libraryIDs: [String]
-    ) async -> PlexManagedHomeRow?
+    ) async -> ManagedHomeRow?
 }

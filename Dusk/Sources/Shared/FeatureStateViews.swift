@@ -220,8 +220,8 @@ struct FeaturePrimaryButton: View {
 /// feature-layer signal; typed errors use `requiresReauthentication` directly.
 enum AuthenticationFailure {
     static func requiresReauthentication(message: String) -> Bool {
-        message == PlexServiceError.unauthorized.errorDescription
-            || message == PlexServiceError.notAuthenticated.errorDescription
+        message == MediaServiceError.unauthorized.errorDescription
+            || message == MediaServiceError.notAuthenticated.errorDescription
             || message == PlaybackError.unauthorized.errorDescription
     }
 

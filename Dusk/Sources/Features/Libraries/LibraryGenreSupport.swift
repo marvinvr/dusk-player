@@ -118,7 +118,7 @@ enum LibraryGenreSupport {
     }
 
     static func genreOption(
-        from filterValue: PlexLibraryFilterValue,
+        from filterValue: LibraryFilterValue,
         parameterName: String
     ) -> LibraryGenreOption? {
         guard let value = extractFilterValue(from: filterValue.key, parameterName: parameterName),

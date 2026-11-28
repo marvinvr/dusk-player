@@ -58,7 +58,7 @@ extension MediaService {
 
     /// Every address this server is known to answer at: the endpoints plex.tv
     /// reported and the ones that actually worked on this device.
-    private static func connectionURIs(forServerID serverID: String, server: PlexServer?) -> Set<String> {
+    private static func connectionURIs(forServerID serverID: String, server: AccountServer?) -> Set<String> {
         var uris: Set<String> = []
         for connection in server?.connections ?? [] {
             if let uri = normalizedConnectionURI(connection.uri) {

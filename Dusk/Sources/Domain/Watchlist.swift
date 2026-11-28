@@ -21,7 +21,7 @@ struct WatchlistEntry: Hashable, Sendable, Identifiable {
     /// Milliseconds.
     let duration: Int?
     let childCount: Int?
-    let guids: [PlexGuid]
+    let guids: [ItemGuid]
 
     var id: String { guid }
 
@@ -37,7 +37,7 @@ struct WatchlistEntry: Hashable, Sendable, Identifiable {
         contentRating: String? = nil,
         duration: Int? = nil,
         childCount: Int? = nil,
-        guids: [PlexGuid] = []
+        guids: [ItemGuid] = []
     ) {
         self.itemID = itemID
         self.guid = guid
@@ -137,7 +137,7 @@ struct WatchlistAvailability: Hashable, Sendable {
 
 /// One row of Plex's own Home layout (`experience.homeSettings.hubs` in Plex
 /// Web's per-product settings). Only what placing the Watchlist needs.
-struct PlexHomeHubSetting: Hashable, Sendable {
+struct HomeLayoutHub: Hashable, Sendable {
     let hubIdentifier: String
     let machineIdentifier: String?
     let isHidden: Bool

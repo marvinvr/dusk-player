@@ -475,7 +475,7 @@ struct SignInPlexFlowView: View {
             linkPinCode = linkPin?.code
 
             guard let url = flow.authURL(for: browserPin) else {
-                throw PlexServiceError.invalidURL
+                throw MediaServiceError.invalidURL
             }
 
             #if os(macOS)
@@ -487,7 +487,7 @@ struct SignInPlexFlowView: View {
                 // Only the link code can be approved, so it is polled first.
                 startPolling(primaryPinID: linkPin.id)
             } else {
-                throw PlexServiceError.invalidURL
+                throw MediaServiceError.invalidURL
             }
             #else
             startPolling(primaryPinID: browserPin.id, fallbackPinID: linkPin?.id)

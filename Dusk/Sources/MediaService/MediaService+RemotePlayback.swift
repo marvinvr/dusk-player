@@ -28,7 +28,7 @@ extension MediaService {
     /// Plex's remote-streaming rule takes that the client can observe. Any
     /// other failure is reported as itself, never as a missing pass.
     func isRemotePlaybackRefusal(_ error: Error, serverID: String?) -> Bool {
-        guard case .httpError(statusCode: 403)? = error as? PlexServiceError,
+        guard case .httpError(statusCode: 403)? = error as? MediaServiceError,
               let connection = pool.connection(for: serverID) else {
             return false
         }
@@ -43,7 +43,7 @@ extension MediaService {
     /// anything else is left to the engine.
     func checkRemoteDirectPlayAccess(_ url: URL, serverID: String?) async throws {
         guard await playback(for: serverID).checkAccess(to: url) == .refusedRemotely else { return }
-        throw PlexServiceError.httpError(statusCode: 403)
+        throw MediaServiceError.httpError(statusCode: 403)
     }
 
     /// After a remote refusal, races the server's connections again: a LAN

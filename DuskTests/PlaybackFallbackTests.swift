@@ -168,7 +168,7 @@ struct PlaybackFallbackTests {
         videoFields: String = #""bitDepth":10,"colorTrc":"smpte2084""#
     ) throws -> (PlaybackCoordinator, FailedPlaybackEngine) {
         let service = MediaService(urlProtocolClasses: [protocolClass])
-        let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"hdr-server","connections":[]}"#.utf8))
+        let server = try JSONDecoder().decode(AccountServer.self, from: Data(#"{"name":"Test","clientIdentifier":"hdr-server","connections":[]}"#.utf8))
         service.pool.adopt(server: server, baseURL: URL(string: "https://\(host)")!, token: "test", connection: nil)
         let playback = PlaybackCoordinator(media: service)
         let details = try JSONDecoder().decode(MediaDetails.self, from: Data("""
@@ -311,7 +311,7 @@ struct PlaybackFallbackTests {
 struct PlexServerSubtitleTests {
     private func playback(refuses: Bool = false) throws -> PlaybackCoordinator {
         let service = MediaService(urlProtocolClasses: [SubtitleDecisionProtocol.self])
-        let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"subtitle-server","connections":[]}"#.utf8))
+        let server = try JSONDecoder().decode(AccountServer.self, from: Data(#"{"name":"Test","clientIdentifier":"subtitle-server","connections":[]}"#.utf8))
         service.pool.adopt(server: server, baseURL: URL(string: refuses ? "https://refuse.plex.invalid" : "https://plex.invalid")!, token: "test", connection: nil)
         let playback = PlaybackCoordinator(media: service)
         let details = try JSONDecoder().decode(MediaDetails.self, from: Data(#"""

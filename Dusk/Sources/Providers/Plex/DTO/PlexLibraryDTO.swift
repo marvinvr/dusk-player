@@ -18,7 +18,7 @@ struct PlexLibraryDTO: Codable, Sendable {
     let art: String?
     let composite: String?
     /// The section's server-side Visibility, read leniently.
-    let hidden: PlexLibraryVisibility
+    let hidden: LibraryVisibility
 
     enum CodingKeys: String, CodingKey {
         case key, title, type, subtype, agent, scanner, language, uuid
@@ -43,11 +43,11 @@ struct PlexLibraryDTO: Codable, Sendable {
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         art = try container.decodeIfPresent(String.self, forKey: .art)
         composite = try container.decodeIfPresent(String.self, forKey: .composite)
-        hidden = PlexLibraryVisibility(container, forKey: .hidden)
+        hidden = LibraryVisibility(container, forKey: .hidden)
     }
 }
 
-extension PlexLibraryVisibility {
+extension LibraryVisibility {
     /// Lenient: PMS sends an integer, but a string or bool must not fail the
     /// whole section list, and an unknown value counts as included.
     init<Key: CodingKey>(_ container: KeyedDecodingContainer<Key>, forKey key: Key) {

@@ -535,7 +535,7 @@ private struct PlayerSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: PlayerViewModel
-    @State private var scrubPreviewSource: PlexScrubPreviewSource?
+    @State private var scrubPreviewSource: ScrubPreviewFrameSet?
     @Environment(\.displayScale) private var displayScale
     @State private var playerContainerSize: CGSize = .zero
     @State private var upNextPosterCoveredHeight: CGFloat?
@@ -1331,7 +1331,7 @@ private struct PlayerSessionView: View {
         )
         guard !Task.isCancelled else { return }
         // The controls still take Plex's BIF frame set, read synchronously.
-        scrubPreviewSource = source as? PlexScrubPreviewSource
+        scrubPreviewSource = source as? ScrubPreviewFrameSet
     }
 
     @MainActor

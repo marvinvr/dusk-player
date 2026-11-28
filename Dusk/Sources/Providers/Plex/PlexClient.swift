@@ -114,11 +114,11 @@ final class PlexClient {
         do {
             try PlexTransportSecurity.validate(request)
         } catch {
-            throw PlexServiceError.invalidURL
+            throw MediaServiceError.invalidURL
         }
     }
 
-    /// Sends `request` once and maps the outcome onto `PlexServiceError`.
+    /// Sends `request` once and maps the outcome onto `MediaServiceError`.
     /// `session` nil means the shared one.
     func send(_ request: URLRequest, using session: URLSession? = nil) async throws -> Data {
         let data: Data
@@ -127,33 +127,33 @@ final class PlexClient {
         do {
             (data, response) = try await (session ?? self.session).data(for: request)
         } catch let error as URLError where error.code == .timedOut {
-            throw PlexServiceError.requestTimedOut
+            throw MediaServiceError.requestTimedOut
         } catch {
-            throw PlexServiceError.networkError(error.localizedDescription)
+            throw MediaServiceError.networkError(error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw PlexServiceError.networkError("Invalid response")
+            throw MediaServiceError.networkError("Invalid response")
         }
 
         switch http.statusCode {
         case 200...299:
             return data
         case 401:
-            throw PlexServiceError.unauthorized
+            throw MediaServiceError.unauthorized
         default:
-            throw PlexServiceError.httpError(statusCode: http.statusCode)
+            throw MediaServiceError.httpError(statusCode: http.statusCode)
         }
     }
 
     // MARK: - Helpers
 
-    /// Decodes a payload with `decoder`, mapping a failure onto `PlexServiceError`.
+    /// Decodes a payload with `decoder`, mapping a failure onto `MediaServiceError`.
     func decode<T: Decodable>(_ type: T.Type, from data: Data, using decoder: JSONDecoder) throws -> T {
         do {
             return try decoder.decode(type, from: data)
         } catch {
-            throw PlexServiceError.decodingError(String(describing: error))
+            throw MediaServiceError.decodingError(String(describing: error))
         }
     }
 

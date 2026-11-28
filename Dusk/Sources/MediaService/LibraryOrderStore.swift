@@ -251,7 +251,7 @@ extension LibraryOrderStore {
     /// reach the log.
     nonisolated static func logFailure(_ stage: String, error: Error) {
         let outcome: String
-        if let serviceError = error as? PlexServiceError {
+        if let serviceError = error as? MediaServiceError {
             switch serviceError {
             case .httpError(let statusCode):
                 outcome = "HTTP \(statusCode)"

@@ -58,7 +58,7 @@ extension MediaService {
         async let homeHubs = provider?.homeLayout()
         let entries: [WatchlistEntry]
         do {
-            guard let provider else { throw PlexServiceError.notAuthenticated }
+            guard let provider else { throw MediaServiceError.notAuthenticated }
             entries = try await provider.entries()
         } catch {
             logWatchlistFailure("list", error: error)
@@ -178,7 +178,7 @@ extension MediaService {
     func setWatchlisted(_ watchlisted: Bool, entry: WatchlistEntry, match: MediaItem? = nil) async throws {
         let snapshot = watchlist.apply(watchlisted: watchlisted, entry: entry, match: match)
         do {
-            guard let provider = watchlistProvider else { throw PlexServiceError.notAuthenticated }
+            guard let provider = watchlistProvider else { throw MediaServiceError.notAuthenticated }
             try await provider.setWatchlisted(watchlisted, entry: entry)
         } catch {
             logWatchlistFailure(watchlisted ? "add" : "remove", error: error)
@@ -195,19 +195,19 @@ extension MediaService {
     // MARK: - Details (titles not on a server)
 
     func getWatchlistMetadata(itemID: String) async throws -> WatchlistEntry? {
-        guard let provider = watchlistProvider else { throw PlexServiceError.notAuthenticated }
+        guard let provider = watchlistProvider else { throw MediaServiceError.notAuthenticated }
         return try await provider.details(itemID: itemID)
     }
 
     func getWatchlistAvailabilities(itemID: String) async throws -> [WatchlistAvailability] {
-        guard let provider = watchlistProvider else { throw PlexServiceError.notAuthenticated }
+        guard let provider = watchlistProvider else { throw MediaServiceError.notAuthenticated }
         return try await provider.availabilities(itemID: itemID)
     }
 
     /// Outcomes only: requests carry the account token.
     private func logWatchlistFailure(_ stage: String, error: any Error) {
         let outcome: String
-        switch error as? PlexServiceError {
+        switch error as? MediaServiceError {
         case .httpError(let statusCode)?: outcome = "HTTP \(statusCode)"
         case .unauthorized?: outcome = "unauthorized"
         case .requestTimedOut?: outcome = "timed out"

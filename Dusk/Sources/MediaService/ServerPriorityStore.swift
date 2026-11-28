@@ -54,7 +54,7 @@ final class ServerPriorityStore {
 
     /// The enabled subset of `servers`, in priority order. Servers missing from
     /// the stored order keep their discovery order at the end.
-    func enabledServers(from servers: [PlexServer]) -> [PlexServer] {
+    func enabledServers(from servers: [AccountServer]) -> [AccountServer] {
         servers
             .filter { isEnabled($0.clientIdentifier) }
             .enumerated()
@@ -68,7 +68,7 @@ final class ServerPriorityStore {
     }
 
     /// Every known server in priority order, enabled or not.
-    func ordered(_ servers: [PlexServer]) -> [PlexServer] {
+    func ordered(_ servers: [AccountServer]) -> [AccountServer] {
         servers
             .enumerated()
             .sorted { lhs, rhs in
@@ -85,7 +85,7 @@ final class ServerPriorityStore {
     /// Folds a fresh discovery result into the stored order: unknown servers are
     /// appended enabled, known ones keep their slot and flag, and nothing is
     /// removed just because it did not answer this time.
-    func reconcile(discovered: [PlexServer]) {
+    func reconcile(discovered: [AccountServer]) {
         let known = Set(entries.map(\.machineIdentifier))
         let appended = discovered
             .map(\.clientIdentifier)

@@ -2,7 +2,7 @@ import Foundation
 import Network
 
 /// A Plex Media Server returned from `GET https://plex.tv/api/v2/resources`.
-struct PlexServer: Codable, Sendable, Identifiable {
+struct AccountServer: Codable, Sendable, Identifiable {
     var id: String { clientIdentifier }
 
     let name: String
@@ -16,7 +16,7 @@ struct PlexServer: Codable, Sendable, Identifiable {
     let presence: Bool
     let accessToken: String?
     let sourceTitle: String?
-    let connections: [PlexConnection]
+    let connections: [ServerEndpoint]
 
     private init(
         name: String,
@@ -30,7 +30,7 @@ struct PlexServer: Codable, Sendable, Identifiable {
         presence: Bool,
         accessToken: String?,
         sourceTitle: String?,
-        connections: [PlexConnection]
+        connections: [ServerEndpoint]
     ) {
         self.name = name
         self.clientIdentifier = clientIdentifier
@@ -59,12 +59,12 @@ struct PlexServer: Codable, Sendable, Identifiable {
         presence = try container.decodeIfPresent(Bool.self, forKey: .presence) ?? false
         accessToken = try container.decodeIfPresent(String.self, forKey: .accessToken)
         sourceTitle = try container.decodeIfPresent(String.self, forKey: .sourceTitle)
-        connections = try container.decodeIfPresent([PlexConnection].self, forKey: .connections) ?? []
+        connections = try container.decodeIfPresent([ServerEndpoint].self, forKey: .connections) ?? []
     }
 
     /// Returns connections sorted by preference: local first, then remote, then
     /// relay. Within the local tier, Docker-style bridge addresses go last.
-    var sortedConnections: [PlexConnection] {
+    var sortedConnections: [ServerEndpoint] {
         connections.sorted { lhs, rhs in
             if lhs.sortPriority != rhs.sortPriority {
                 return lhs.sortPriority < rhs.sortPriority
@@ -89,8 +89,8 @@ struct PlexServer: Codable, Sendable, Identifiable {
     /// Server snapshots live in UserDefaults, while credentials belong only in
     /// Keychain. Older Dusk versions persisted `accessToken` as part of this
     /// model; bootstrap migrates that token once and rewrites a tokenless copy.
-    var withoutAccessToken: PlexServer {
-        PlexServer(
+    var withoutAccessToken: AccountServer {
+        AccountServer(
             name: name,
             clientIdentifier: clientIdentifier,
             product: product,
@@ -108,7 +108,7 @@ struct PlexServer: Codable, Sendable, Identifiable {
 }
 
 /// A single connection endpoint for a Plex server (local, remote, or relay).
-struct PlexConnection: Codable, Sendable, Hashable {
+struct ServerEndpoint: Codable, Sendable, Hashable {
     let `protocol`: String
     let address: String
     let port: Int
@@ -155,9 +155,9 @@ struct PlexConnection: Codable, Sendable, Hashable {
 
     /// A connection for an endpoint plex.tv no longer lists (the remembered
     /// last-good URL). Locality is then derived from the address alone.
-    static func synthesized(for url: URL) -> PlexConnection {
+    static func synthesized(for url: URL) -> ServerEndpoint {
         let scheme = url.scheme?.lowercased() ?? "https"
-        return PlexConnection(
+        return ServerEndpoint(
             protocol: scheme, address: url.host ?? "", port: url.port ?? (scheme == "https" ? 443 : 80),
             uri: url.absoluteString, local: false, relay: false, iPv6: url.host?.contains(":")
         )

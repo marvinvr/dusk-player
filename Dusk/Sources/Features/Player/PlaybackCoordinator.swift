@@ -231,7 +231,7 @@ final class PlaybackCoordinator {
     /// How the queue lookahead (and a failed queue start) reads an item's
     /// metadata. A seam for tests; always the item's own server.
     @ObservationIgnored var queueItemLookup: @MainActor (PlaybackQueueItem) async throws -> MediaDetails = { _ in
-        throw PlexServiceError.noServerConnected
+        throw MediaServiceError.noServerConnected
     }
     /// One-shot per attempt: observes the engine after an online direct-play
     /// start and swaps the session to the server-stream ladder rung when the

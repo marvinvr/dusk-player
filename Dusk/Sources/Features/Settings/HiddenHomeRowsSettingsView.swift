@@ -134,7 +134,7 @@ struct HiddenHomeRowsSettingsView: View {
 
     private func onHomeBinding(
         _ viewModel: HiddenHomeRowsSettingsViewModel,
-        row: PlexManagedHub,
+        row: ManagedHub,
         in group: HiddenHomeRowsSettingsViewModel.LibraryGroup
     ) -> Binding<Bool> {
         Binding(
@@ -152,7 +152,7 @@ final class HiddenHomeRowsSettingsViewModel {
     struct LibraryGroup: Identifiable {
         let library: Library
         let title: String
-        var rows: [PlexManagedHub]
+        var rows: [ManagedHub]
 
         var id: String { library.id }
     }
@@ -192,9 +192,9 @@ final class HiddenHomeRowsSettingsViewModel {
         let labels = ServerLabeling.serverLabels(for: libraries, pool: media.pool)
         let service = media
 
-        var loaded: [String: [PlexManagedHub]] = [:]
+        var loaded: [String: [ManagedHub]] = [:]
         var failed = false
-        await withTaskGroup(of: (String, [PlexManagedHub]?).self) { group in
+        await withTaskGroup(of: (String, [ManagedHub]?).self) { group in
             for library in libraries {
                 group.addTask {
                     let rows = try? await service.getManagedHubs(
@@ -222,12 +222,12 @@ final class HiddenHomeRowsSettingsViewModel {
         }
     }
 
-    func isOnHome(_ row: PlexManagedHub, in group: LibraryGroup) -> Bool {
+    func isOnHome(_ row: ManagedHub, in group: LibraryGroup) -> Bool {
         current(row, in: group)?.promotedToOwnHome ?? row.promotedToOwnHome
     }
 
     /// Flips the switch at once and puts it back if the server says no.
-    func setOnHome(_ onHome: Bool, row: PlexManagedHub, in group: LibraryGroup) async {
+    func setOnHome(_ onHome: Bool, row: ManagedHub, in group: LibraryGroup) async {
         guard let previous = current(row, in: group), previous.promotedToOwnHome != onHome,
               let serverID = group.library.serverID else { return }
         saveError = nil
@@ -244,11 +244,11 @@ final class HiddenHomeRowsSettingsViewModel {
         }
     }
 
-    private func current(_ row: PlexManagedHub, in group: LibraryGroup) -> PlexManagedHub? {
+    private func current(_ row: ManagedHub, in group: LibraryGroup) -> ManagedHub? {
         groups.first { $0.id == group.id }?.rows.first { $0.id == row.id }
     }
 
-    private func replace(_ row: PlexManagedHub, in group: LibraryGroup) {
+    private func replace(_ row: ManagedHub, in group: LibraryGroup) {
         guard let groupIndex = groups.firstIndex(where: { $0.id == group.id }),
               let rowIndex = groups[groupIndex].rows.firstIndex(where: { $0.id == row.id }) else { return }
         groups[groupIndex].rows[rowIndex] = row

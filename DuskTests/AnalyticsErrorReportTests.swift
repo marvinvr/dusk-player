@@ -11,6 +11,14 @@ struct AnalyticsErrorSanitizingTests {
         #expect(AnalyticsErrorSanitizer.domain("Dusk.PlexServiceError") == "Dusk.PlexServiceError")
     }
 
+    /// Error reports send the service error's NSError domain; it keeps the
+    /// name it had before the type became `MediaServiceError` (P0-19).
+    @Test func serviceErrorKeepsItsReportedDomain() {
+        #expect((MediaServiceError.unauthorized as NSError).domain == "Dusk.PlexServiceError")
+        #expect((MediaServiceError.networkError("x") as NSError).domain == "Dusk.PlexServiceError")
+        #expect(AnalyticsErrorReport(error: MediaServiceError.noServerConnected).domain == "Dusk.PlexServiceError")
+    }
+
     @Test(arguments: [
         "plex.example.com",
         "192.168.1.20",

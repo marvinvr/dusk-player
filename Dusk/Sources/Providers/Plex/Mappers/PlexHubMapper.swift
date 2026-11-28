@@ -1,7 +1,7 @@
 import Foundation
 
 /// Plex hub rows → `HomeRow`, and Manage Recommendations entries →
-/// `PlexManagedHub`.
+/// `ManagedHub`.
 ///
 /// This is where Plex's row strings are read. Home, `HubMerge` and
 /// `HomeHubArrangement` used to parse `hubIdentifier`, `key` and titles
@@ -15,9 +15,9 @@ enum PlexHubMapper {
     /// `sources` entry for it; an unstamped row has none.
     static func map(_ dto: PlexHubDTO, serverID: String?) -> HomeRow {
         let serverID = serverID?.nilIfEmpty
-        let sources: [PlexHubSource]
+        let sources: [HomeRowSource]
         if let serverID {
-            sources = [PlexHubSource(
+            sources = [HomeRowSource(
                 serverID: serverID,
                 key: dto.key,
                 size: dto.size,
@@ -165,8 +165,8 @@ enum PlexHubMapper {
 
     // MARK: - Managed Home rows
 
-    static func managedHub(_ dto: PlexManagedHubDTO) -> PlexManagedHub {
-        PlexManagedHub(
+    static func managedHub(_ dto: PlexManagedHubDTO) -> ManagedHub {
+        ManagedHub(
             identifier: dto.identifier,
             title: dto.title,
             promotedToRecommended: dto.promotedToRecommended,

@@ -87,7 +87,7 @@ protocol CatalogProviding: Sendable {
 
     // MARK: People, extras, search
 
-    func person(id: String) async throws -> PlexPerson
+    func person(id: String) async throws -> PersonDetails
 
     /// The titles a person appears in, unfiltered and unmerged.
     func personMedia(id: String) async throws -> [MediaItem]

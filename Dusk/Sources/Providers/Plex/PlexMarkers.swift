@@ -50,7 +50,7 @@ struct PlexMarkers: MarkerProviding {
             }.value
 
             guard !frames.isEmpty else { return nil }
-            return PlexScrubPreviewSource(frames: frames)
+            return ScrubPreviewFrameSet(frames: frames)
         } catch {
             return nil
         }
@@ -67,11 +67,11 @@ extension PlexServerProvider {
 // MARK: - BIF
 
 /// Plex's BIF frame set as a `ScrubPreviewSource`. The player controls read
-/// its frames synchronously (`frame(at:) -> PlexScrubPreviewFrame?`); this is
+/// its frames synchronously (`frame(at:) -> ScrubPreviewFrame?`); this is
 /// the same lookup decoded to an image.
-extension PlexScrubPreviewSource: ScrubPreviewSource {
+extension ScrubPreviewFrameSet: ScrubPreviewSource {
     func frame(at time: TimeInterval) async -> CGImage? {
-        let frame: PlexScrubPreviewFrame? = frame(at: time)
+        let frame: ScrubPreviewFrame? = frame(at: time)
         guard let frame,
               let source = CGImageSourceCreateWithData(frame.imageData as CFData, nil) else {
             return nil
@@ -89,7 +89,7 @@ private enum PlexBIFIndex {
 
     private static let magic: [UInt8] = [0x89, 0x42, 0x49, 0x46, 0x0D, 0x0A, 0x1A, 0x0A]
 
-    static func parse(_ data: Data) -> [PlexScrubPreviewFrame] {
+    static func parse(_ data: Data) -> [ScrubPreviewFrame] {
         guard data.count >= 72, data.count <= maxFileSize else { return [] }
 
         let bytes = [UInt8](data)
@@ -110,7 +110,7 @@ private enum PlexBIFIndex {
         let rawMultiplier = uint32(at: 16, in: bytes)
         let timestampMultiplier = Int64(rawMultiplier == 0 ? 1000 : rawMultiplier)
 
-        var frames: [PlexScrubPreviewFrame] = []
+        var frames: [ScrubPreviewFrame] = []
         frames.reserveCapacity(imageCount)
 
         for index in 0..<imageCount {
@@ -125,7 +125,7 @@ private enum PlexBIFIndex {
             }
 
             frames.append(
-                PlexScrubPreviewFrame(
+                ScrubPreviewFrame(
                     timestampMs: Int64(timestamp) * timestampMultiplier,
                     imageData: data.subdata(in: imageOffset..<nextImageOffset)
                 )

@@ -17,18 +17,18 @@ extension MediaService {
         return serverProvider(for: serverID).permissions.canManageHomeRows
     }
 
-    func getManagedHubs(sectionId: String, serverID: String) async throws -> [PlexManagedHub] {
+    func getManagedHubs(sectionId: String, serverID: String) async throws -> [ManagedHub] {
         try await home(on: resolveServerID(serverID)).managedRows(libraryID: sectionId)
     }
 
-    func setManagedHub(_ hub: PlexManagedHub, sectionId: String, serverID: String) async throws {
+    func setManagedHub(_ hub: ManagedHub, sectionId: String, serverID: String) async throws {
         try await home(on: resolveServerID(serverID)).setManagedRow(hub, libraryID: sectionId)
     }
 
     /// The Manage Recommendations entries behind one Home row: one per owned
     /// server and library the (possibly merged) row draws from.
-    func managedHomeRows(for hub: HomeRow) async -> [PlexManagedHomeRow] {
-        var rows: [PlexManagedHomeRow] = []
+    func managedHomeRows(for hub: HomeRow) async -> [ManagedHomeRow] {
+        var rows: [ManagedHomeRow] = []
         for source in hub.sources where canManageHomeRows(serverID: source.serverID) {
             let libraryIDs = libraryOrder.sections.filter { $0.serverID == source.serverID }.map(\.key)
             if let row = await home(on: source.serverID).managedRow(for: hub, source: source, libraryIDs: libraryIDs) {

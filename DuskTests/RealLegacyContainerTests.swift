@@ -256,7 +256,7 @@ struct RealLegacyContainerTests {
         #expect(servers[0].productVersion == "1.42.1.10060")
         #expect(servers[0].owned == true)
         #expect(servers[0].accessToken == nil)
-        #expect(servers[0].connections == [PlexConnection(
+        #expect(servers[0].connections == [ServerEndpoint(
             protocol: "http", address: "127.0.0.1", port: 47721, uri: "http://127.0.0.1:47721",
             local: true, relay: false, iPv6: false
         )])
