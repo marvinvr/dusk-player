@@ -482,14 +482,16 @@ picks the servers whose pins may be rewritten; the provider may only drop more.
   `com.plexapp.plugins.library` for real PMS libraries.
 - `sourceType` maps from the section type: movie->movies, show->tv, artist->music,
   photo->photos, clip->videos.
-- Effective order (`LibraryOrderArrangement.effectiveOrder`): take the entries for
-  **every enabled server's** machine id that are PMS libraries and not hidden, in
-  array order, map (`machineIdentifier`, `directoryID`) to the section, then
+- Effective order (`LibraryOrderArrangement.effectiveOrder`, over the
+  `AccountLibraryLayout` that `PlexExperienceSettings.layout` makes of the PMS-library
+  entries): take the entries for **every enabled server's** machine id that are not
+  hidden, in array order, map (`machineIdentifier`, `directoryID`) to the section, then
   append every section the array does not mention (server priority first, then
   the server's own order). No entries at all means plain `/library/sections`
   order per server. The pairing must include the machine id: `directoryID` is a
   per-server counter, so keying on it alone aliases two servers' sections.
-- Merge on write (`LibraryOrderArrangement.merged(existing:reordered:machineIdentifiers:)`):
+- Merge on write (`PlexPinnedSourceArrangement.merged(existing:reordered:machineIdentifiers:)`,
+  in `Providers/Plex/PlexPinnedSource.swift`):
   the participating servers' entries collapse into **one** contiguous block placed
   where the first of them was — the user's order is one cross-server list, not one
   block per server. Entries for cloud providers, disabled servers, servers that are
@@ -503,7 +505,8 @@ picks the servers whose pins may be rewritten; the provider may only drop more.
   write would unpin that server's libraries in every Plex client.
   `LibraryOrderStore.machineIdentifiers` is the set that answered **with at least
   one section** and `failedServerIDs` the set that failed; the write path
-  intersects them. A server that answered with *nothing* is in neither: it has no
+  intersects them (the facade does this and hands the provider the set, which may
+  only narrow it to servers still in the pool). A server that answered with *nothing* is in neither: it has no
   pins to write, and an empty answer is also what a still-scanning or half-started
   server returns, so it must not be able to delete what the account has pinned
   for it.

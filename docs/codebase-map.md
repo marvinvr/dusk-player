@@ -282,7 +282,8 @@ Settings:
   same write.
 - `MediaService/LibraryOrderStore` is the single source of that order, and of which
   libraries are hidden, for the whole app; `MediaService+LibraryOrder.swift` owns the
-  plex.tv read/write. `MediaService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
+  load and write queue, routed to `AccountPreferencesProviding`
+  (`Providers/Plex/PlexAccountPreferences`, the plex.tv read/write). `MediaService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
   or `loadedHiddenLibraryFilter()` to wait for the load) drops hidden libraries' items
   wherever libraries mix: Home merge, `search`, `getHubItems`, `getPersonMedia`,
   `HomeRecommendationEngine` (visible sections), `SiriTitleCatalog`. Its `.home` /
