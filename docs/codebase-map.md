@@ -12,13 +12,17 @@ Dusk/Sources
   Domain/              App-facing media models; Plex payloads decode in Providers/Plex/DTO/
   Providers/
     Core/              Provider and facet protocols (one file per facet), ProviderRegistry,
-                       server registry, StoredAccount, Profile, SignInFlow, request types
-    Plex/              PlexClient (sessions, headers, sending), PlexAccountProvider (account
-                       credentials + Home state, plex.tv requests, discovery), PlexProfiles,
-                       PlexSignInFlow, one facet per file, transport security, DTO/, Mappers/
+                       server registry, SessionRecovering, StoredAccount, Profile, SignInFlow,
+                       request types
+    Plex/              PlexClient (sessions, headers, sending), PlexServerRouter (routing and
+                       self-healing), PlexAccountProvider (account credentials + Home state,
+                       plex.tv requests, discovery), PlexProfiles, PlexSignInFlow, one facet
+                       per file, transport security, DTO/, Mappers/, Models/ (plex.tv account
+                       shapes), Facade/ (facade extensions that are Plex-only so far)
+    ProviderSetup, TransportSecurity  the build's providers, wired for MediaService
     Jellyfin/          Client, DTOs and mappers (not wired in yet)
   MediaService/        The facade: AccountStore + session state, sign-in/Home orchestration,
-                       the multi-server session pool, request routing and self-healing,
+                       the multi-server session pool and its per-server recovery,
                        API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        same-server library copies, the alternates index, and library server labelling
@@ -372,8 +376,12 @@ Supporter:
   in step instead of reintroducing a user-editable row layout.
 - New account-level Plex setting: `MediaService+LibraryOrder.swift` for the
   read/write and `LibraryOrderStore` for the shared state, not `UserPreferences`.
-- New Seerr endpoint: `SeerrService/`, without widening `MediaService` or adding
-  a generic provider protocol.
+- New Seerr endpoint: `SeerrService/`, without widening `MediaService`; Seerr is
+  a request companion, not a media provider.
+- New server call: a member on the facet protocol in `Providers/Core/`, the
+  Plex request in `Providers/Plex/Plex<Facet>.swift`, and a short route in the
+  facade (`serverProvider(for:)`). Never a provider type outside `Providers/`
+  (G7, `scripts/parity/check_provider_boundary.sh --enforce`).
 - New Plex response shape: a DTO in `Providers/Plex/DTO/`, with optional fields
   where Plex varies by media type, mapped in `Providers/Plex/Mappers/`.
 - New playback format decision: `StreamResolver`.
@@ -407,8 +415,11 @@ piece has a clear name and owner.
 
 - Views do not call Plex directly unless they are small account/setup views;
   feature views should go through `@Observable` view models.
-- `MediaService` is intentionally Plex-specific. Seerr is an optional request
-  companion, not a playback provider; do not add a generic provider protocol.
+- `MediaService` is the neutral facade: it routes every facet call to the
+  item's server's provider and keeps routing-free cross-server work (merging,
+  hidden libraries, alternates). Plex-only facade glue that has no facet member
+  yet lives in `Providers/Plex/Facade/`. Seerr is an optional request
+  companion, not a media provider.
 - Every enabled server is connected at once and their content is merged. There is
   no "selected server": anything that reaches a server resolves that server's
   `ServerSession` from `MediaService.pool` by the item's `serverID`. One

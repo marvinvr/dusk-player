@@ -13,8 +13,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `Features/Player/` owns session orchestration and UI. It should depend on
   `PlaybackEngine`, not on AVPlayer or VLCKit types.
 - `Features/Settings/` owns persisted playback preferences in `UserPreferences`.
-- Plex remains the source of truth. Do not introduce a generic media-provider
-  abstraction for playback unless another backend actually exists.
+- The server is the source of truth. Playback requests go through the item's
+  server's `PlaybackProviding` facet (`MediaService.playback(for:)`); the
+  engines and `RemuxHLSLoader` check URLs against the `PlaybackSource`'s
+  `CredentialTransportPolicy` and read its `PlaybackTraits`, never a provider
+  type.
 
 ## End-to-End Play Flow
 1. Detail/list UI asks `PlaybackCoordinator` to play a `MediaItemID` (server +

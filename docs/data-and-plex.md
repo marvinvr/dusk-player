@@ -1,21 +1,64 @@
 # Dusk Plex Data Layer
 
-Agent-facing map for Dusk's Plex data layer. Plex is the only media/playback
-backend; views call view models, view models call `MediaService`, and
-`MediaService` is the Plex network boundary. The optional Seerr request companion
-has a separate boundary documented in `docs/seerr-integration.md`.
+Agent-facing map for Dusk's data layer and its Plex provider. Views call view
+models, view models call `MediaService`, and `MediaService` routes each call to
+the item's server's provider (see Provider Layering). Plex is the only provider
+wired in so far. The optional Seerr request companion has a separate boundary
+documented in `docs/seerr-integration.md`.
+
+## Provider Layering
+docs/jellyfin/04-architecture.md §2–§8 is the design; this is how it is built.
+- `Providers/Core/`: the protocols. `MediaServerProvider` (one per server: a
+  `descriptor`, live `permissions`, one facet per area) and
+  `MediaAccountProvider` (one per account: profiles, preferences, watchlist,
+  Seerr sign-in, discovery), `ProviderFactory` / `ProviderRegistry`,
+  `ServerRegistry` (server id → kind; no record is Plex), `SessionRecovering`,
+  `CredentialTransportPolicy`, `PlaybackTraits` and the request types.
+- `MediaService.serverProvider(for:)` (`+Networking`) is where every facet
+  route starts: the server's session's provider, else one built for the id,
+  so a server without a session still heals on its first request. A nil id is
+  the primary-tracking provider, whose facets resolve the highest-priority
+  server per request, exactly as `serverID: nil` always has.
+- Routing and self-healing are the provider's routed send
+  (`Providers/Plex/PlexServerRouter.swift`, one per Plex account): it picks the
+  server, re-authorizes a missing session, validates a restored endpoint,
+  refreshes the token on a 401 and re-selects a failing connection, asking the
+  pool for each step through `SessionRecovering` (`MediaService` implements
+  it over `ServerPool` and `+Servers`' per-server recovery). Every facet of a
+  `PlexServerProvider` sends through it (`PlexServerTransport` and the facet
+  transports refine it). The facade's `rawServerRequest` / `executeRequest`
+  forward to it for the facade's own remaining calls.
+- plex.tv requests have one path, `PlexAccountProvider.plexTVData`; the
+  facade's `plexTVRequest` / `rawPlexTVRequest` forward to it.
+- `ProviderSetup` (`Providers/`) builds the account and the registry;
+  `MediaService` holds the account as `any MediaAccountProvider`.
+- `TransportSecurity` (`Providers/`) is the credential rules for code that
+  handles a URL without knowing its server (downloads, artwork, Seerr, the
+  relays, the pool); it forwards to the provider policy.
+- `Providers/Plex/Facade/`: facade extensions that are Plex-only so far: the
+  account state forwarders and persisted names (`+PlexAccount`), PIN sign-in,
+  Plex Home (`+Home`), history, subtitle search, and the routes without a
+  neutral facet member yet (`+PlexFacets`: live-stream consumers, raw catalog
+  routes, image URL forwarders). Each moves behind a facet member when a
+  second provider needs it.
+- G7 (`scripts/parity/check_provider_boundary.sh --enforce`) fails on a
+  provider type name, `ProviderKind` or `X-Plex` outside `Providers/` and the
+  sign-in flow; the few frozen names it allows are listed with their reasons in
+  `scripts/parity/provider_boundary_allowlist.txt`.
+- Tests reach a fake provider through `FakeMediaServerProvider` (test target).
 
 ## Responsibilities
-- `MediaService/` owns auth, discovery, request helpers, endpoints, playback
-  reporting, direct-play/transcode URLs, and image helpers.
+- `MediaService/` is the facade: routes to each server's provider facets,
+  the session pool and its recovery, merging, and the shared stores. The
+  provider side (requests, routing, DTOs, mappers) is `Providers/`.
 - `Domain/` owns the app's models plus app-level playback models. Plex response
   shapes are DTOs in `Providers/Plex/DTO/`, turned into domain values by
   `Providers/Plex/Mappers/`.
 - `MediaService` is `@MainActor @Observable` and is injected from `DuskApp`.
 - Plex is the source of truth. Do not persist metadata except for explicit
   offline/download support.
-- No generic provider abstraction. Seerr is not a media provider. Add focused
-  Plex methods in the existing same-type extension files.
+- A new server call is a facet member (`Providers/Core/`), its Plex request
+  (`Providers/Plex/`) and a facade route. Seerr is not a media provider.
 
 ## Multi-Server Model
 Dusk is connected to **every enabled server at once**. There is no "current
@@ -35,11 +78,9 @@ enabled flags), `ServerSession.swift` (one session), `ServerProbe.swift`
   never land on a different server than the item it belongs to.
 - The pool also stores the server's `provider` on each session it records,
   built by the provider's factory from `MediaService.providers`
-  (`ProviderRegistry`, `Providers/Core/`). Nothing routes through it yet; the
-  provider is not part of the session's `==`/`hash`. Facets whose requests
-  must keep the facade's routing and self-healing are built by the facade
-  for now (`MediaService.home(on:)` → `PlexHomeRows`, sending through
-  `rawServerRequest`).
+  (`ProviderRegistry`, `Providers/Core/`); the facade routes through it
+  (Provider Layering). The provider is not part of the session's
+  `==`/`hash`.
 - `ServerPool` (`media.pool`) holds `states: [String: ServerConnectionState]`
   (`idle`/`connecting`/`connected`/`unauthorized`/`offline(reason)`/`disabled`),
   the discovered `servers`, `connections` (connected, in priority order),
@@ -108,8 +149,8 @@ the signed-in accounts as `StoredAccount`s read in place from the Keychain
 token (nothing new is stored); `sessionState`
 (`signedOut | bootstrapping | needsProfile | ready`) is what `ContentView`
 routes on, and the picker shows neutral `Profile`s (`id` = `stableProfileID`).
-`MediaService+Networking.rawPlexTVRequest` is still a second copy of the plex.tv
-request core for the account features not yet extracted; keep both identical.
+Every plex.tv request goes through `PlexAccountProvider.plexTVData`
+(`MediaService.rawPlexTVRequest` forwards to it).
 
 Tokens and persisted state:
 - `primaryAccountToken`: the full Plex account token established by device-link
@@ -337,11 +378,10 @@ runs and Plex decides:
   home.
 
 ## Request And Decode Helpers
-Files: `MediaService+Networking.swift` (routing and self-healing) and
+Files: `Providers/Plex/PlexServerRouter.swift` (routing and self-healing),
 `Providers/Plex/PlexClient.swift` (the four `URLSession`s, `X-Plex-*` headers,
-sending one attempt and mapping its status, URL and decode helpers). The
-facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
-`executeRequest` forward to the client; the routing below stays in the facade.
+sending one attempt and mapping its status, URL and decode helpers) and the
+facade's entry points in `MediaService+Networking.swift`, which forward to them.
 - Use `plexTVRequest<T>` for `plex.tv` JSON.
 - Use `rawServerRequest` for server calls. It takes an optional `serverID:`,
   resolves that server's `ServerSession` from the pool (nil = the
@@ -359,7 +399,8 @@ facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
   produces unattributable items — always go through the pool.
 - Use `decodeJSON(_:from:)` so decode failures become `MediaServiceError`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
-- `PlexTransportSecurity` is the credential transport boundary. Plain HTTP is
+- `PlexTransportSecurity` is the credential transport boundary (code outside
+  `Providers/` reaches it through `TransportSecurity`). Plain HTTP is
   a normal transport like in Plex's own apps (owner's decision 2026-11-10,
   replacing #36's HTTPS-only rule and 93b2243's identity-gated last resort):
   a token goes to any `http`/`https` URL with a host; HTTPS wins through the
@@ -396,9 +437,11 @@ Pitfalls:
 Files: the facade routes in `MediaService+Library.swift`, `+Collections`,
 `+People`, `+Extras`, `+Photos`, `+Ratings`; the Plex requests in
 `Providers/Plex/PlexCatalog.swift` (`CatalogProviding`, docs/jellyfin/04 §9) and
-`PlexUserRating.swift` (`UserRatingProviding`). The facade builds both facets
-with itself as transport (`catalog(on:)`, `plexCatalog(on:)`, `userRating(on:)`;
-`PlexServerTransport`) until the routing leaves the facade. Hidden
+`PlexUserRating.swift` (`UserRatingProviding`), reached through the server's
+provider (`catalog(on:)`, `userRating(on:)`). The raw routes whose callers still
+pass Plex sort strings and `/filters` parameters (`getLibraryItems`,
+`getLibraryItemCount`, `getLibraryFilters`, `getLibraryFilterValues`) are in
+`Providers/Plex/Facade/MediaService+PlexFacets.swift`. Hidden
 libraries, merging, alternates and the next/previous episode walk stay in the
 facade.
 
