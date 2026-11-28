@@ -18,7 +18,7 @@ struct MediaIDCodingTests {
 
     @Test func numericIDsDecodeAndStayNumbers() throws {
         let text = #"{"id":41,"Part":[{"id":17,"key":"/library/parts/17/file.mkv","Stream":[{"id":104,"streamType":3,"codec":"srt"}]}]}"#
-        let media = try JSONDecoder().decode(MediaVersion.self, from: Data(text.utf8))
+        let media = MediaVersion(plex: try JSONDecoder().decode(PlexMediaVersionDTO.self, from: Data(text.utf8)))
         #expect(media.id == "41")
         #expect(media.parts[0].id == "17")
         #expect(media.parts[0].streams[0].id == "104")
@@ -27,7 +27,7 @@ struct MediaIDCodingTests {
 
     @Test func stringIDsDecodeAndStayStrings() throws {
         let text = #"{"id":"a1b2","Part":[{"id":"a1b2","key":"/Videos/a1b2/stream","Stream":[{"id":"3","streamType":2,"codec":"aac"},{"id":"x","streamType":3,"codec":"srt"}]}]}"#
-        let media = try JSONDecoder().decode(MediaVersion.self, from: Data(text.utf8))
+        let media = MediaVersion(plex: try JSONDecoder().decode(PlexMediaVersionDTO.self, from: Data(text.utf8)))
         #expect(media.id == "a1b2")
         #expect(media.parts[0].streams.map(\.id) == ["3", "x"])
         // A canonical integer is written as a number, anything else as a string.
@@ -42,11 +42,14 @@ struct MediaIDCodingTests {
     }
 
     @Test func markersDecodeEitherForm() throws {
-        let number = try JSONDecoder().decode(Marker.self, from: Data(#"{"id":7,"type":"credits","startTimeOffset":1,"endTimeOffset":2}"#.utf8))
-        let string = try JSONDecoder().decode(Marker.self, from: Data(#"{"id":"7","type":"credits","startTimeOffset":1,"endTimeOffset":2}"#.utf8))
+        let number = Marker(plex: try JSONDecoder().decode(PlexMarkerDTO.self, from: Data(#"{"id":7,"type":"credits","startTimeOffset":1,"endTimeOffset":2}"#.utf8)))
+        let string = Marker(plex: try JSONDecoder().decode(PlexMarkerDTO.self, from: Data(#"{"id":"7","type":"credits","startTimeOffset":1,"endTimeOffset":2}"#.utf8)))
         #expect(number.id == "7")
         #expect(string.id == "7")
         #expect(try json(number)["id"] as? Int == 7)
+        #expect(string.isEstimated == false)
+        // The persisted path (offline metadata cache) decodes the same shape.
+        #expect(try JSONDecoder().decode(Marker.self, from: try JSONEncoder().encode(number)) == number)
         #expect(Marker.estimatedCreditsID == "-1")
         #expect(try json(Marker(id: Marker.estimatedCreditsID, type: "credits", startTimeOffset: 0, endTimeOffset: 1))["id"] as? Int == -1)
     }
