@@ -251,7 +251,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     func load(source: PlaybackSource) {
         liftedCueOverlay = nil
         latestLegibleCueText = nil
-        guard (try? PlexTransportSecurity.validate(URLRequest(url: source.url))) != nil else {
+        guard (try? source.credentialPolicy.validate(URLRequest(url: source.url))) != nil else {
             stop()
             error = .networkError("A secure connection is required to send the Plex token.")
             state = .error
@@ -870,6 +870,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             item = AVPlayerItem(url: playlistURL ?? dolbyVision7ProxyURL)
         } else if source.usesRemuxHLSLoader {
             let loader = RemuxHLSLoader(
+                credentialPolicy: source.credentialPolicy,
+                traits: source.traits,
                 restoresDolbyAtmos: source.restoresDolbyAtmos,
                 dolbyVision: source.dolbyVisionRemux,
                 retagsHEV1: source.retagsHEV1SampleEntry,

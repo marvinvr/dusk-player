@@ -1,7 +1,7 @@
 import Foundation
 
 /// Plex's answer to `/video/:/transcode/universal/decision`. Mapped to
-/// `MediaService.TranscodeDecisionOutcome` / `TranscodeStreamDecisions` by
+/// `ServerStreamOutcome` / `StreamDecisions` by
 /// `PlexTranscodeDecisionMapper`.
 struct PlexTranscodeDecisionDTO: Decodable {
     let MediaContainer: Container

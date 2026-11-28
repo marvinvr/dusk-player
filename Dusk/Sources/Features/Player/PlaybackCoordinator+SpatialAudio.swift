@@ -215,29 +215,29 @@ extension PlaybackCoordinator {
             )
             let acceptsStreams: Bool
             if isAV1Remux {
-                acceptsStreams = result.streams.container?.lowercased() == "mp4" &&
-                    StreamResolver.isAV1Codec(result.streams.videoCodec) &&
-                    result.streams.videoDecision == "copy" &&
+                acceptsStreams = result.decisions.container?.lowercased() == "mp4" &&
+                    StreamResolver.isAV1Codec(result.decisions.videoCodec) &&
+                    result.decisions.video == .copy &&
                     (audioStream == nil || (convertsAudio
-                        ? result.streams.isConvertedAudioRemux(sourceChannels: audioStream?.channels)
-                        : result.streams.audioDecision == "copy"))
+                        ? result.decisions.isConvertedAudioRemux(sourceChannels: audioStream?.channels)
+                        : result.decisions.audio == .copy))
             } else {
                 acceptsStreams = convertsAudio
-                    ? result.streams.isConvertedAudioRemux(sourceChannels: audioStream?.channels)
-                    : result.streams.isLosslessRemux
+                    ? result.decisions.isConvertedAudioRemux(sourceChannels: audioStream?.channels)
+                    : result.decisions.isLosslessRemux
             }
             guard case .transcodeAvailable = result.outcome,
                   acceptsStreams,
-                  subtitleStreamID == nil || result.streams.subtitleLocation == "segments-subs" else {
+                  subtitleStreamID == nil || result.decisions.subtitle == .textSegments else {
                 stopTranscodeSessionInBackground(transcodeSessionID, serverID: serverID)
                 spatialAudioLogger.notice(
-                    "Plex declined a compatible spatial-audio remux for ratingKey \(itemID, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public), \(result.streams.logDescription, privacy: .public)); trying HDR server recovery where eligible"
+                    "Plex declined a compatible spatial-audio remux for ratingKey \(itemID, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public), \(result.decisions.logDescription, privacy: .public)); trying HDR server recovery where eligible"
                 )
                 return await hdrFallback()
             }
 
             spatialAudioLogger.notice(
-                "Spatial-audio remux accepted for ratingKey \(itemID, privacy: .public): \(result.streams.logDescription, privacy: .public)"
+                "Spatial-audio remux accepted for ratingKey \(itemID, privacy: .public): \(result.decisions.logDescription, privacy: .public)"
             )
             let reason: String
             if isAV1Remux {
@@ -245,17 +245,17 @@ extension PlaybackCoordinator {
                 reason = "AV1 hardware decode via Plex fMP4 remux (video copied\(audioNote))"
             } else if isHEV1Remux {
                 let audioNote = convertsAudio
-                    ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.streams.audioCodec?.uppercased() ?? "a supported codec")"
+                    ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.decisions.audioCodec?.uppercased() ?? "a supported codec")"
                     : ""
                 reason = "HEVC hev1 retagged hvc1 via lossless Plex remux\(audioNote)"
             } else if isDolbyVisionRemux {
                 let audioNote = convertsAudio
-                    ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.streams.audioCodec?.uppercased() ?? "a supported codec")"
+                    ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.decisions.audioCodec?.uppercased() ?? "a supported codec")"
                     : ""
                 reason = "Dolby Vision profile 5 via lossless Plex remux\(audioNote)"
             } else if convertsAudio {
                 let source = audioStream?.codec?.uppercased() ?? "audio"
-                let target = result.streams.audioCodec?.uppercased() ?? "a supported codec"
+                let target = result.decisions.audioCodec?.uppercased() ?? "a supported codec"
                 let videoNote = remuxDolbyVision7Conversion(for: media, decision: .spatialAudio) != nil
                     ? ", Dolby Vision 7 → 8.1 on device"
                     : StreamResolver.containsHDRVideo(inPart: part) ? ", \(StreamResolver.hdrVideoLabel(for: media)) kept" : ""
@@ -272,12 +272,13 @@ extension PlaybackCoordinator {
                 }
                 reason = "\(labels.joined(separator: " + ")) via lossless Plex remux (\(resolverDecision.reason))"
             }
+            confirmServerStreamOnFirstFrame(result, serverID: serverID)
             return SpatialAudioRemux(
                 url: result.url,
                 transcodeSessionID: transcodeSessionID,
                 reason: reason,
                 convertsAudio: convertsAudio,
-                restoresDolbyAtmos: result.streams.hasDolbyAtmosAudio
+                restoresDolbyAtmos: result.decisions.hasDolbyAtmosAudio
             )
         } catch {
             stopTranscodeSessionInBackground(transcodeSessionID, serverID: serverID)
@@ -390,9 +391,9 @@ extension PlaybackCoordinator {
                     audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
                     convertsAudio: convertsAudio, serverID: serverID
                 )
-                let streams = result.streams
+                let streams = result.decisions
                 let copiesHDRVideo = streams.container?.lowercased() == "mp4"
-                    && streams.videoCodec?.lowercased() == "hevc" && streams.videoDecision == "copy"
+                    && streams.videoCodec?.lowercased() == "hevc" && streams.video == .copy
                 let compatible = copiesHDRVideo && (convertsAudio
                     ? streams.isConvertedAudioRemux(sourceChannels: audio?.channels)
                     : streams.isLosslessRemux
@@ -401,6 +402,7 @@ extension PlaybackCoordinator {
                     stopTranscodeSessionInBackground(sessionID, serverID: serverID)
                     continue
                 }
+                confirmServerStreamOnFirstFrame(result, serverID: serverID)
                 return SpatialAudioRemux(
                     url: result.url, transcodeSessionID: sessionID,
                     reason: "Plex server remux (video copied, audio \(convertsAudio ? "converted to E-AC-3" : "copied"))",

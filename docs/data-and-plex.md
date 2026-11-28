@@ -570,8 +570,9 @@ Where to edit:
 - Browse/library/detail endpoints: `MediaService+Library.swift`.
 - Cast/person endpoints: `MediaService+People.swift`; account/history endpoints:
   `MediaService+History.swift`.
-- Direct play/transcode/remux URLs and stream selection:
-  `MediaService+Streams.swift`; playback progress and watch state:
+- Direct play/transcode/remux URLs and stream selection: routes in
+  `MediaService+Streams.swift`, Plex requests in
+  `Providers/Plex/PlexPlayback.swift`; playback progress and watch state:
   `MediaService+WatchState.swift`.
 - Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`.
 - Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
@@ -701,7 +702,8 @@ id/time fallbacks, tune media and the server id on `LiveTVProvider`).
   that an arbitrary past guide item is playable.
 
 ## Playback URL Handling
-File: `MediaService+Streams.swift`.
+Files: `Providers/Plex/PlexPlayback.swift` (requests), routed by
+`MediaService+Streams.swift`.
 - Direct play uses `{connection.baseURL}{part.key}` — the connection of the
   server the item came from — plus `X-Plex-Token` in the URL
   query because AVPlayer/VLCKit load the URL directly.

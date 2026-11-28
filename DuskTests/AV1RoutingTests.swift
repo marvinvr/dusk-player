@@ -73,7 +73,7 @@ struct AV1RoutingTests {
 
     @Test func av1CopyProfileOnlyAdvertisesHardwareCapability() {
         for capability in [hardware, software] {
-            let query = query(mode: .spatialAudioRemux(convertsAudio: false), capabilities: capability)
+            let query = query(intent: .losslessRemux, capabilities: capability)
             let profile = query["X-Plex-Client-Profile-Extra"] ?? ""
             #expect(profile.contains("videoCodec=hevc,h264,av1") == capability.hardwareDecode)
             #expect(query["directStream"] == "1")
@@ -87,7 +87,7 @@ struct AV1RoutingTests {
 
     @Test func decoderFallbackAlwaysReencodesWithoutQualityCap() {
         for capability in [hardware, software] {
-            let query = query(mode: .av1Transcode, capabilities: capability)
+            let query = query(intent: .av1Fallback, capabilities: capability)
             let profile = query["X-Plex-Client-Profile-Extra"] ?? ""
             #expect(!profile.contains("av1"))
             #expect(profile.contains("container=mp4&videoCodec=hevc,h264"))
@@ -114,9 +114,9 @@ struct AV1RoutingTests {
         #expect(!StreamResolver.canCopyAV1Audio(source.parts[0].streams[1]))
     }
 
-    private func query(mode: MediaService.TranscodeDeliveryMode, capabilities: AV1PlaybackCapabilities) -> [String: String] {
+    private func query(intent: StreamIntent, capabilities: AV1PlaybackCapabilities) -> [String: String] {
         Dictionary(uniqueKeysWithValues: MediaService().transcodeQueryItems(
-            itemID: "1", mediaIndex: 0, sourcePath: nil, mode: mode,
+            itemID: "1", mediaIndex: 0, sourcePath: nil, intent: intent,
             sessionIdentifier: "session", transcodeSessionID: "transcode",
             audioStreamID: "2", subtitleStreamID: "3", token: nil, av1Capabilities: capabilities
         ).map { ($0.name, $0.value ?? "") })

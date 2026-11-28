@@ -35,23 +35,14 @@ extension MediaService {
         return !connection.isLocal
     }
 
-    /// Remote sessions only: asks for the first byte of the direct-play file,
-    /// because an engine handed a refused URL never reports it — AVPlayer
-    /// just keeps loading — so the refusal would surface as an endless
-    /// spinner. Throws only for a 403; anything else is left to the engine.
+    /// Remote sessions only: asks the server whether it serves the
+    /// direct-play file from here (`PlaybackProviding.checkAccess`), because
+    /// an engine handed a refused URL never reports it — AVPlayer just keeps
+    /// loading — so the refusal would surface as an endless spinner. Throws
+    /// only for a refusal (as the 403 `isRemotePlaybackRefusal` recognises);
+    /// anything else is left to the engine.
     func checkRemoteDirectPlayAccess(_ url: URL, serverID: String?) async throws {
-        guard let connection = pool.connection(for: serverID), !connection.isLocal else { return }
-        var request = URLRequest(url: url)
-        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        request.timeoutInterval = 10
-        for (key, value) in plexRequestHeaders {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        try PlexTransportSecurity.validate(request)
-        guard let response = try? await session.data(for: request).1 as? HTTPURLResponse,
-              response.statusCode == 403 else {
-            return
-        }
+        guard await playback(for: serverID).checkAccess(to: url) == .refusedRemotely else { return }
         throw PlexServiceError.httpError(statusCode: 403)
     }
 

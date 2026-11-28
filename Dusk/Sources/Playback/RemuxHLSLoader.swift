@@ -737,6 +737,8 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     private let session: URLSession
     private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
 
+    private let credentialPolicy: any CredentialTransportPolicy
+    private let traits: PlaybackTraits
     private let restoresDolbyAtmos: Bool
     private let dolbyVision: DolbyVisionConfiguration?
     private let retagsHEV1: Bool
@@ -747,15 +749,25 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     /// Created with the first fMP4 media playlist; guarded by `relayLock`.
     private var segmentRelay: RemuxSegmentRelay?
 
+    /// - Parameters:
+    ///   - session: nil fetches through `credentialPolicy.session`.
+    ///   - credentialPolicy: the playing server's (`PlaybackSource.credentialPolicy`).
+    ///   - traits: which init-segment patches the server's remux needs. The
+    ///     `#EXT-X-STREAM-INF` line is rewritten from `dolbyVision` whatever
+    ///     they say; the `dvcC`/`dvvC` and `dec3` patches run only when asked.
     init(
-        session: URLSession = PlexTransportSecurity.session,
+        session: URLSession? = nil,
+        credentialPolicy: any CredentialTransportPolicy = PlexCredentialPolicy.shared,
+        traits: PlaybackTraits = .plex,
         restoresDolbyAtmos: Bool,
         dolbyVision: DolbyVisionConfiguration?,
         retagsHEV1: Bool = false,
         fallbackCodecs: String? = nil,
         repairsKeyframeTimestamps: Bool = false
     ) {
-        self.session = session
+        self.session = session ?? credentialPolicy.session
+        self.credentialPolicy = credentialPolicy
+        self.traits = traits
         self.restoresDolbyAtmos = restoresDolbyAtmos
         self.dolbyVision = dolbyVision
         self.retagsHEV1 = retagsHEV1
@@ -830,7 +842,7 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
         var request = loadingRequest.request
         request.url = serverURL
         do {
-            try PlexTransportSecurity.validate(request)
+            try credentialPolicy.validate(request)
             let (data, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw URLError(.badServerResponse)
@@ -884,11 +896,12 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
         }
 
         var segment = data
-        if restoresDolbyAtmos, let patched = EAC3JOCSignaling.patchedInitSegment(segment) {
+        if restoresDolbyAtmos, traits.remuxNeedsAtmosSignalingPatch,
+           let patched = EAC3JOCSignaling.patchedInitSegment(segment) {
             atmosSignalingLogger.notice("Restored Dolby Atmos (E-AC-3 JOC) signaling in the HLS init segment")
             segment = patched
         }
-        if let dolbyVision,
+        if let dolbyVision, traits.remuxNeedsDolbyVisionBoxes,
            let patched = DolbyVisionSignaling.patchedInitSegment(segment, configuration: dolbyVision) {
             atmosSignalingLogger.notice(
                 "Restored Dolby Vision signaling (\(dolbyVision.supplementalCodecString ?? dolbyVision.codecString, privacy: .public)) in the HLS init segment"

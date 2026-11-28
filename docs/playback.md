@@ -2,8 +2,13 @@
 Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## Boundaries
-- `MediaService/` owns Plex endpoints, direct-play/transcode URL construction,
-  timeline, scrobble, and watch-state calls.
+- `MediaService/` owns Plex endpoints, timeline, scrobble, and watch-state
+  calls. Playback streams go through the server's `PlaybackProviding` facet
+  (`Providers/Core/PlaybackProviding.swift`): `MediaService+Streams.swift`
+  routes, `Providers/Plex/PlexPlayback.swift` builds the Plex requests
+  (direct-play/sidecar URLs, decision + `start.m3u8`, ping/stop, the part
+  selection PUT, pre-rolls). The ladder and its acceptance rules
+  (`StreamDecisions.isLosslessRemux` & co.) stay Dusk's.
 - `Playback/` owns engine selection and concrete AVPlayer/VLCKit engines.
 - `Features/Player/` owns session orchestration and UI. It should depend on
   `PlaybackEngine`, not on AVPlayer or VLCKit types.
@@ -255,9 +260,9 @@ so the whole live HUD is derived from one instant.
   actual direct-play failure. The ladder stays **within one server**; moving to
   another server is the candidate walk above, not a rung.
 - `MediaService.serverStreamURL` drives the fallback rung via
-  `TranscodeDeliveryMode.directStreamFallback` (no bitrate caps, `directPlay=0`,
+  `StreamIntent.videoCopyFallback` (no bitrate caps, `directPlay=0`,
   `directStream=1`, `directStreamAudio=1`); manual Quality keeps
-  `.manualTranscode` semantics (forced re-encode at the chosen bitrate).
+  `.quality(preset)` semantics (forced re-encode at the chosen bitrate).
 - The coordinator's failure watch (`directPlayFallbackWatchTask`, ~500 ms
   cadence, one-shot per session) detects `engine.state == .error`, snapshots
   the position, and swaps engine/source through the same helper `switchQuality`
@@ -429,7 +434,8 @@ so the whole live HUD is derived from one instant.
   refuses it on an SDR display (`AVErrorNoCompatibleAlternatesForExternalDisplay`,
   e.g. every simulator) and rejects it with CoreMedia -12927 if the attribute
   is removed. VLCKit keeps those files.
-- Delivery (`MediaService.spatialAudioRemuxURL`, mode `.spatialAudioRemux`):
+- Delivery (`MediaService.spatialAudioRemuxURL`, intent `.losslessRemux` /
+  `.convertedAudioRemux`):
   HLS with an fMP4 target first (`container=mp4&videoCodec=hevc,h264&audioCodec=eac3,ac3,aac`;
   AAC is last so audio Plex has to convert still lands on E-AC-3)
   — HEVC in MPEG-TS HLS plays audio-only on AVPlayer — plus a WebVTT subtitle
@@ -442,7 +448,7 @@ so the whole live HUD is derived from one instant.
   The session is accepted only when the decision's streams say video `copy`,
   audio `copy`, and any active subtitle `segments-subs`. A subtitle explicitly
   marked `ignore` is also safe, even with `location=embedded`
-  (`TranscodeStreamDecisions.isLosslessRemux`); anything else stops the Plex
+  (`StreamDecisions.isLosslessRemux`); anything else stops the Plex
   session and keeps plain direct play. It never lowers quality.
 - Atmos signaling (`Playback/RemuxHLSLoader.swift`): Plex's fMP4 muxer writes a
   13-byte `dec3` box without `flag_ec3_extension_type_a`/complexity index, so
@@ -456,6 +462,13 @@ so the whole live HUD is derived from one instant.
   MPEG-TS remuxes do not need this (AVFoundation reads the bitstream there).
   `AVPlayerEngine` logs `AVPlayer audio format …, Dolby Atmos: yes/no` from
   the item's format list once ready.
+- Provider traits: the loader takes the source's `PlaybackTraits` and
+  `CredentialTransportPolicy` (`PlaybackSource.traits` / `.credentialPolicy`,
+  set from the playing server's `PlaybackProviding`). The `dec3` and
+  `dvcC`/`dvvC` init-segment patches run only when the traits ask for them
+  (Plex: both); the `#EXT-X-STREAM-INF` line is always written from Dusk's
+  own Dolby Vision decision. Requests are validated against the policy, not a
+  named provider.
 - Session behavior: `PlaybackDecision.spatialAudio`, AVPlayer, Video
   Enhancement off, and server track selection (`usesServerTrackSelection`):
   the pickers list Plex streams. A pick rebuilds the remux around the new
@@ -1122,7 +1135,7 @@ known-unplayable direct file. Bitmap/styled subtitle selections may require
 video conversion. Playback Info identifies AV1 and distinguishes remux from
 video conversion.
 
-`TranscodeDeliveryMode.av1Transcode` disables direct stream, advertises only
+`StreamIntent.av1Fallback` disables direct stream, advertises only
 HEVC/H.264 output and imposes no app bitrate/resolution cap. Plex picks the
 codec its transcoder supports (including SDR tone mapping when required).
 Decision validation rejects copied AV1 and incompatible containers. Track
@@ -2980,12 +2993,13 @@ Plex clients do. There is no app setting: the server decides.
   `Playback/DuskVLCRawVideoOutput.*`.
 - Concrete playback: `AVPlayerEngine.swift`, `VLCKitEngine.swift`, and the
   platform `VLCKitRenderer*.swift` files.
-- Plex playback calls: `MediaService+Streams.swift` (URLs, decisions) and
+- Plex playback calls: `MediaService+Streams.swift` (routes) over
+  `Providers/Plex/PlexPlayback.swift` (URLs, decisions, query items) and
   `MediaService+WatchState.swift` (timeline, watched); metadata shape/fetching:
   `MediaService+Library.swift` and `MediaDetails.swift`.
 - Dolby Atmos / spatial audio, HDR and Dolby Vision remux: eligibility in
   `StreamResolver` (`spatialAudioRemuxBlocker`, `hdrVideoRemuxBlocker`,
-  `dolbyVisionRemuxBlocker`), Plex request in `MediaService+Streams.swift`,
+  `dolbyVisionRemuxBlocker`), Plex request in `PlexPlayback.swift`,
   session logic in `PlaybackCoordinator+SpatialAudio.swift`, Atmos and Dolby
   Vision init-segment/playlist fixes in `Playback/RemuxHLSLoader.swift`
   (tests: `DuskTests/HDRVideoRemuxTests.swift`); segment keyframe repair in

@@ -105,7 +105,7 @@ struct PlexLiveTVTranscodeRequestTests {
 
     private func query(sourcePath: String?) -> [String: String] {
         Dictionary(uniqueKeysWithValues: MediaService().transcodeQueryItems(
-            itemID: "1", mediaIndex: 0, sourcePath: sourcePath, mode: .directStreamFallback,
+            itemID: "1", mediaIndex: 0, sourcePath: sourcePath, intent: .videoCopyFallback,
             sessionIdentifier: "session", transcodeSessionID: "transcode",
             audioStreamID: nil, subtitleStreamID: nil, token: nil
         ).map { ($0.name, $0.value ?? "") })

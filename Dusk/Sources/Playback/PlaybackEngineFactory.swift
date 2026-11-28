@@ -37,7 +37,7 @@ enum PlaybackEngineFactory {
     /// Build a playback engine for the given media.
     ///
     /// - Parameters:
-    ///   - media: The Plex media version to play.
+    ///   - media: The media version to play.
     ///   - forceAVPlayer: User preference override to always use AVPlayer.
     ///   - forceVLCKit: User preference override to always use VLCKit.
     /// - Returns: A configured `PlaybackEngine` ready for `load(url:startPosition:)`.

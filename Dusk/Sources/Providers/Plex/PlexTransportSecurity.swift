@@ -72,6 +72,30 @@ enum PlexTransportSecurity {
     }
 }
 
+/// `PlexTransportSecurity` as the `CredentialTransportPolicy` a Plex stream
+/// carries to the engines and `RemuxHLSLoader`.
+struct PlexCredentialPolicy: CredentialTransportPolicy {
+    static let shared = PlexCredentialPolicy()
+
+    func allowsCredential(in url: URL) -> Bool {
+        PlexTransportSecurity.allowsToken(in: url)
+    }
+
+    func carriesCredential(_ request: URLRequest) -> Bool {
+        PlexTransportSecurity.carriesToken(request)
+    }
+
+    func validate(_ request: URLRequest) throws {
+        try PlexTransportSecurity.validate(request)
+    }
+
+    func allowsRedirect(_ request: URLRequest, original: URLRequest?) -> Bool {
+        PlexTransportSecurity.allowsRedirect(request, original: original)
+    }
+
+    var session: URLSession { PlexTransportSecurity.session }
+}
+
 final class PlexTransportSessionDelegate: NSObject, URLSessionTaskDelegate {
     func urlSession(
         _ session: URLSession,
