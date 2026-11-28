@@ -374,6 +374,10 @@ struct SettingsTVView: View {
 
             tvRowDivider
 
+            TVSettingsToggleRow(title: "Up Next During Credits", isOn: $preferences.upNextDuringCreditsEnabled)
+
+            tvRowDivider
+
             TVSettingsToggleRow(title: "Continuous Play", isOn: $preferences.continuousPlayEnabled)
 
             if preferences.continuousPlayEnabled {

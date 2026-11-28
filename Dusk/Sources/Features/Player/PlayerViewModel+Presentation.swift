@@ -88,7 +88,8 @@ extension PlayerViewModel {
     /// The marker at the current position that gets a skip chip. Always the
     /// intro. Credits only when the Up Next poster does not cover them: an
     /// earlier credits marker (a post-credits scene follows it), or the last one
-    /// when nothing comes next (a film, a show's last episode, a queue's end).
+    /// when nothing comes next (a film, a show's last episode, a queue's end)
+    /// or the card is off and Auto-Skip Credits needs the chip's countdown.
     var activeSkipMarker: PlexMarker? {
         let positionMs = Int(displayPosition * 1000)
         let upNextCreditsMarkerID = upNextCreditsMarker?.id

@@ -119,8 +119,9 @@ final class PlayerViewModel {
     /// bottom-right Up Next poster.
     var upNextPosterHandler: (@MainActor (PlexMarker?) -> Void)?
     @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
-    /// The reached credits marker when the coordinator found nothing to play
-    /// after this item, so it gets a Skip Credits chip instead of the poster.
+    /// The reached credits marker when it gets a Skip Credits chip instead of
+    /// the poster: nothing plays after this item, or Up Next During Credits is
+    /// off while Auto-Skip Credits would have advanced through the card.
     var creditsMarkerWithoutUpNextID: Int?
     /// Ends the session for a skip that runs off the end of the item, so it
     /// does not depend on how each engine treats a seek to the very end.

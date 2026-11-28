@@ -155,8 +155,10 @@ extension PlaybackCoordinator {
     /// the reached credits marker changes; safe to call repeatedly for the same
     /// marker (it no-ops once a poster for that marker is up).
     ///
-    /// - Returns: true when nothing follows this item (a film, a show's last
-    ///   episode, the end of a queue), so no poster can ever appear for it.
+    /// - Returns: true when these credits get the Skip Credits chip instead:
+    ///   nothing follows this item (a film, a show's last episode, the end of
+    ///   a queue), or Up Next During Credits is off and the card would have
+    ///   counted down (Auto-Skip Credits), so the chip carries that skip.
     @discardableResult
     func presentUpNextPosterIfPossible(
         creditsMarkerID: Int,
@@ -176,6 +178,12 @@ extension PlaybackCoordinator {
         guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return false }
         guard let candidate = resolved else { return true }
         guard upNextPresentation == nil else { return false }
+        // Up Next During Credits off (#84): no card, as if the viewer had
+        // dismissed it. Only an auto-skip keeps a visible countdown (the chip);
+        // otherwise the credits play out with nothing on screen.
+        guard preferences.upNextDuringCreditsEnabled else {
+            return upNextPosterMode(creditsMarkerID: creditsMarkerID, estimated: isEstimated).isTimed
+        }
         // A poster for a newer credits marker was raised while we resolved.
         if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return false }
 

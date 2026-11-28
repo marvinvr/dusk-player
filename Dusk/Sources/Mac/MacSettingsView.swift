@@ -261,6 +261,10 @@ private struct MacPlaybackSettingsPane: View {
                     Text("Auto-Skip Credits")
                     Text("Skips credits after a brief countdown.")
                 }
+                Toggle(isOn: $preferences.upNextDuringCreditsEnabled) {
+                    Text("Up Next During Credits")
+                    Text("Shows the next episode while the credits roll.")
+                }
                 Toggle(isOn: $preferences.continuousPlayEnabled) {
                     Text("Continuous Play")
                     Text("Shows Up Next when an episode ends and plays the next one.")

@@ -1355,14 +1355,14 @@ private struct PlayerSessionView: View {
         let presentationID = playback.playerPresentationID
         let ratingKey = playback.ratingKey
         Task {
-            let nothingFollows = await playback.presentUpNextPosterIfPossible(
+            let offersSkipCredits = await playback.presentUpNextPosterIfPossible(
                 creditsMarkerID: marker.id,
                 isEstimated: marker.isEstimated,
                 presentationID: presentationID,
                 ratingKey: ratingKey
             )
             // Still in these credits: offer Skip Credits instead of the poster.
-            if nothingFollows, viewModel.reachedCreditsMarker?.id == marker.id {
+            if offersSkipCredits, viewModel.reachedCreditsMarker?.id == marker.id {
                 viewModel.creditsMarkerWithoutUpNextID = marker.id
             }
         }
