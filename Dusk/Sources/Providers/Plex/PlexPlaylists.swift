@@ -49,11 +49,10 @@ struct PlexPlaylists: PlaylistProviding {
                     URLQueryItem(name: "X-Plex-Container-Size", value: String(pageSize)),
                 ]
             )
-            // Stamped decoder: each entry's nested `MediaItem` reads the server from it.
             let container = try transport.decodeJSON(
                 MetadataResponse<PlexPlaylistEntryDTO>.self, from: data, serverID: serverID
             ).MediaContainer
-            let page = (container.Metadata ?? []).map(PlexUserContentMapper.playlistEntry)
+            let page = (container.Metadata ?? []).map { PlexUserContentMapper.playlistEntry($0, serverID: serverID) }
             entries += page
             let total = container.totalSize ?? container.size ?? entries.count
             if page.isEmpty || page.count < pageSize || entries.count >= total { break }
