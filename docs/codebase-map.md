@@ -292,7 +292,8 @@ Settings:
 Playlists:
 
 - `MediaService.playlists` (`PlaylistStore`) is the one copy of the account's
-  video playlists; `MediaService+Playlists` loads and edits them.
+  video playlists; `MediaService+Playlists` loads and edits them through the
+  server's `PlaylistProviding` (`Providers/Plex/PlexPlaylists.swift`).
 - `MediaService.pinnedPlaylists` (`PinnedPlaylistStore`) holds the per-profile
   playlists pinned to Home; Home renders them with `HomePinnedPlaylistShelf`.
 - `PlaylistsView`, `PlaylistDetailView`/`PlaylistDetailViewModel`,

@@ -757,12 +757,15 @@ state `MediaService/WatchlistStore.swift` (`media.watchlist`).
   (`PlexManagedHub.matches`). Owner-only. See `MediaService+HomeRows.swift`.
 
 ## Playlists
-File: `MediaService+Playlists.swift`, models `Domain/Playlist.swift`
+File: `MediaService+Playlists.swift` (routes, store loading), Plex requests in
+`Providers/Plex/PlexPlaylists.swift` behind `PlaylistProviding`
+(`MediaService.playlistFacet(on:)`), models `Domain/Playlist.swift`
 (`Playlist`, `PlaylistEntry`, `PlexPlaylistAddResult`), shared state
 `MediaService/PlaylistStore.swift` (`media.playlists`).
 - A playlist belongs to one server and to the signed-in (Home) user. Every call
   routes to the playlist's server; an item can only be added to a playlist on
-  its own server (`server://{machineID}/com.plexapp.plugins.library/library/metadata/{rk,rk}`).
+  its own server (`server://{machineID}/com.plexapp.plugins.library/library/metadata/{rk,rk}`,
+  built privately in `PlexPlaylists`).
 - `GET /playlists?playlistType=video` per connected server (`streamPlaylists`,
   merged A–Z by the store); `GET /playlists/{id}/items` is paged (200 per page).
 - Create `POST /playlists?type=video&title=&smart=0&uri=` (never empty); add
