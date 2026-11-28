@@ -566,8 +566,6 @@ keys, person and chapter images. **Accept:** matrix rows "posters",
   - Open:
     - Library Recommended tabs and Home are empty until J-04.
     - Collections chip, grid and page are J-07.
-    - The Photos library is listed (its count includes photos) but stays
-      empty until J-10.
     - Hidden libraries are J-11: Jellyfin list items carry no library id,
       so search results are not filtered by them yet.
 
@@ -712,6 +710,40 @@ live stream on the server.
 Albums incl. plain folders, album contents, timeline with the shared client
 grouping, viewer, tvOS slideshow. **Accept:** matrix rows for the six shared
 albums.
+- **As built (2026-11-28).**
+  - `JellyfinCatalog.photoPage` forwards to `JellyfinPhotos` (one line). The
+    queries and their order are in `docs/data-and-plex.md` → Photo Libraries.
+    No shared code changed: the grid, viewer and slideshow work unchanged on
+    `PhotoItem`.
+  - Order against plex-demo: the root albums, the `2026` folder (Birthday,
+    Ski Weekend) and Metadata Test (EXIF days, the clip in place) match
+    exactly. In Loose (no EXIF) Plex puts `photo_7` last, because it sorts by
+    the file time to the second; Jellyfin lists those photos by name. On the
+    timeline the date order matches Plex (items with the same date can come in
+    another order), except `Clip_2025-10-05`: Jellyfin's `DateCreated` for a
+    clip is the file's import time, so it sorts first instead of among the
+    2025 photos. That is why the timeline uses
+    `DateCreated` rather than the `PremiereDate, DateCreated` of 02 §13:
+    `PremiereDate` put every undated photo after the dated ones.
+  - The photo day is the device-zone day of `PremiereDate`. The server converts
+    the zone-less EXIF time from its own zone to UTC, so a UTC day would show
+    the day before for photos taken after midnight.
+  - Verified against jellyfin-demo on iPhone and Apple TV simulators
+    (`~/dusk-qa/jellyfin/J-10/`) and in `JellyfinPhotosLiveTests`: albums,
+    folder, album, Orientation 6 photo upright in the viewer with date and
+    camera, timeline paged to its last item, tvOS slideshow, a clip playing
+    from the grid.
+  - Open:
+    - HEIC cannot be checked, because neither demo server imports the T-0
+      HEIC.
+    - The viewer image covers the screen box (`fill*`) rather than fitting
+      inside it, so panoramas come back much larger than needed. The cost is
+      not measured, because the test photos are at most 1600 px. A
+      `photoDisplay` provider verb (01 §16) would need changes in Core, Plex
+      and the fake provider, so it was not added.
+    - The photo day assumes the device and the server share a time zone. A
+      server running in UTC (common in containers) shifts photos taken near
+      midnight by a day; jellyfin-demo cannot show it.
 
 ### J-11 Account preferences, subtitle search, pre-rolls — M
 

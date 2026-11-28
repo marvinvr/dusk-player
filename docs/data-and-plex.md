@@ -540,7 +540,7 @@ Jellyfin's catalog (`Providers/Jellyfin/Facets/JellyfinCatalog.swift`, J-02):
   whose `ProviderIds` match; `playbackHistory` is `DatePlayed`-sorted items
   until one predates `since` (one entry per title, not per play).
 - No Rate button: `MediaService.canRate` is false while a server's provider has
-  no `rating` facet. Collections listings and pages are J-07, photos J-10.
+  no `rating` facet. Collections listings and pages are J-07.
 
 Library:
 - `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
@@ -1018,6 +1018,28 @@ File: `MediaService+Photos.swift`, model `Domain/PhotoItem.swift`.
 - Sources: python-plexapi `photo.py`/`library.py`, the LukeHagar plex-api-spec, and
   JSON fixtures from another Swift client measured on PMS 1.43. Not yet checked
   against a real PMS from Dusk.
+- Jellyfin (`Providers/Jellyfin/Facets/JellyfinPhotos.swift`, mapper
+  `JellyfinItemMapper+Photos.swift`): one `/Items` page per query. Albums are
+  `PhotoAlbum` and plain `Folder` children of the album or library, by
+  `SortName`; an album's media is its `Photo` and `Video` children by
+  `PremiereDate, SortName` (Plex's order for EXIF-dated photos; undated ones go by name, where Plex uses the file time); the timeline is the
+  library's `Photo` and `Video` items, recursive, by `DateCreated, SortName`
+  descending. Albums and media send `recursive=false` explicitly: with a library
+  as parent, `includeItemTypes` alone walks the whole tree.
+  - The timeline sorts by `DateCreated` because the server sets it from the EXIF
+    date when a photo has one and from the file otherwise, the date Plex orders
+    by. `PremiereDate` is absent without EXIF, so it would put every undated
+    photo last. A clip's `DateCreated` is its file date, so a clip with an older
+    recording date sits by its file date.
+  - The server reads the zone-less EXIF time in its own zone and stores it as
+    UTC (EXIF 09:15 in Zurich is `07:15Z`). `originallyAvailableAt` is that
+    instant's day in the device's zone, usually the server's.
+  - No `partKey`: `photoDisplayURL` falls back to the Primary image, which the
+    server already rotates by EXIF orientation. It is fetched with `fill*`, so
+    the image covers the screen box instead of fitting inside it, larger than
+    Plex's for photos whose shape differs from the screen.
+  - No place names (Jellyfin has only latitude and longitude) and no album
+    composite.
 
 ## Image URL And Data Handling
 Files: `MediaService+Images.swift` (routing, fetching), `Providers/Plex/PlexImages.swift`

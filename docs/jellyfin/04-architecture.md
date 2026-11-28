@@ -485,7 +485,7 @@ arguments.
 | `person(id)`, `personMedia(id)` | `/library/people` | `/Items/{personId}`, `/Items?personIds=` | |
 | `extras(item)`, `trailer(item)` | `/extras`, `primaryExtraKey` | `/SpecialFeatures`, `/LocalTrailers`, `RemoteTrailers` | `Trailer` is `.playable(MediaItemID)` or `.external(URL)`; §21 row 7 |
 | `search(query)` | `/hubs/search` | one `/Items?searchTerm` request per kind in parallel, plus `/Persons` | both return `[SearchSection(kind, items)]`; `SearchMerge` unchanged |
-| `photoPage(library, mode, parent, page)`, `photoDisplay(item, size)` | `type=14 / 13,12`, clustering | `PhotoAlbum`/`Folder`/`Photo` | the timeline is one flat newest-first list on both, no grouping (see below); `DateCreated` is the fallback date |
+| `photoPage(library, mode, parent, page)`, `photoDisplay(item, size)` | `type=14 / 13,12`, clustering | `PhotoAlbum`/`Folder`/`Photo` | the timeline is one flat newest-first list on both, no grouping (see below). Jellyfin sorts it by `DateCreated`, which is the EXIF date when there is one (J-10). The display image is the Primary image, so there is no provider verb |
 | `items(matching: ExternalIDs, kind)` | `/library/all?guid=` | search + `ProviderIds` check | §6.2 |
 | `playbackHistory(limit)` | `/status/sessions/history/all` | `/Items?sortBy=DatePlayed&isPlayed=true` | feeds the recommendation engines unchanged |
 

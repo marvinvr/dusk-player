@@ -534,9 +534,13 @@ server-relative path strings `PS+Images.imageURL` takes today; offline artwork
 | --- | --- | --- |
 | Albums (`type=14`) | `GET /Items?userId=&parentId={viewId}` → `PhotoAlbum` and plain `Folder` (a directory that only contains sub-albums: `2026` → 2 children / 60 recursive); `fields=ChildCount,RecursiveItemCount`; album cover in `ImageTags.Primary` | live (same six albums as Plex) |
 | Photos in an album (`type=13,12&parent=`) | `GET /Items?parentId={albumId}&sortBy=PremiereDate,SortName&fields=Width,Height,DateCreated` → `Photo` (`MediaType: Photo`) and `Video` | live |
-| Timeline (`clusterZoomLevel=1`, date desc) | `GET /Items?parentId={viewId}&recursive=true&includeItemTypes=Photo,Video&sortBy=PremiereDate,DateCreated&sortOrder=Descending` (192 items) | live |
+| Timeline (`clusterZoomLevel=1`, date desc) | `GET /Items?parentId={viewId}&recursive=true&includeItemTypes=Photo,Video&sortBy=DateCreated,SortName&sortOrder=Descending,Ascending` (200 items). `DateCreated` is the EXIF date when a photo has one, otherwise the file date (J-10) | live |
 | Display image (`/photo/:/transcode … quality=90`) | `/Items/{id}/Images/Primary?maxWidth=&quality=90` (313 KB at 2000 px) ; original: `GET /Items/{id}/Download` (auth) | live |
 | EXIF | `Width, Height, ImageOrientation, CameraMake, CameraModel, ExposureTime, FocalLength, Aperture, IsoSpeedRating, Latitude, Longitude` (null for the synthetic test photos) | fields live |
+
+Traps (J-10): with a library as `parentId`, `includeItemTypes` makes the query
+recursive unless `recursive=false` is sent. `PremiereDate` is the zone-less
+EXIF time read in the server's zone and stored as UTC.
 
 Gaps: no server-side date clustering (group client-side by day/month from the
 date); the test photos have **no `PremiereDate`** (no EXIF date) so the

@@ -6,8 +6,8 @@ import Foundation
 /// `/Items/{id}`, `/Shows/{id}/Seasons`, person pages, `/LocalTrailers` +
 /// `/SpecialFeatures` and one search request per result kind.
 ///
-/// Collections listings and pages (J-07) and photos (J-10) still answer
-/// empty; the collection *filter* works here, by BoxSet membership.
+/// Collections listings and pages (J-07) still answer empty; the collection
+/// *filter* works here, by BoxSet membership. Photo pages are `JellyfinPhotos`.
 @MainActor
 struct JellyfinCatalog: CatalogProviding {
     let serverID: String
@@ -341,7 +341,7 @@ struct JellyfinCatalog: CatalogProviding {
     // MARK: - Photos (J-10)
 
     func photoPage(libraryID: String, query: PhotoQuery, start: Int, size: Int) async throws -> PhotoPage {
-        PhotoPage(items: [], totalSize: 0)
+        try await JellyfinPhotos.page(libraryID: libraryID, query: query, start: start, size: size, serverID: serverID, client: makeClient())
     }
 
     // MARK: - Requests
