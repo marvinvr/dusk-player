@@ -39,7 +39,7 @@ extension PlaybackCoordinator {
                 partID: debugInfo.part.id, audioStreamID: activeAudioStreamID,
                 subtitleStreamID: activeSubtitleStreamID ?? "0", serverID: serverID
             )
-            let result: (url: URL, outcome: MediaService.TranscodeDecisionOutcome)
+            let result: ServerStream
             if case let .transcode(preset) = debugInfo.decision {
                 result = try await media.transcodeURL(
                     itemID: itemID, mediaIndex: mediaIndex, preset: preset,
@@ -74,6 +74,7 @@ extension PlaybackCoordinator {
                 stopTranscodeSessionInBackground(previous, serverID: serverID)
             }
             activeTranscodeSessionID = sessionID
+            confirmServerStreamOnFirstFrame(result, serverID: serverID)
             remuxAudioConversion = nil
             activateReplacementAttempt(
                 transitionLabel: reason, attemptID: UUID(), details: details, itemID: itemID,

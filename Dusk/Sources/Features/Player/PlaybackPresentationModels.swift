@@ -184,6 +184,14 @@ struct PlaybackSource: Sendable {
     /// `.spatialAudio` (video copy) session. The Dolby Vision 7 proxy repairs
     /// its segments itself.
     var repairsKeyframeTimestamps = false
+    /// Where the server's credential may travel: the engines and
+    /// `RemuxHLSLoader` refuse a request it does not allow. The default is the
+    /// Plex policy every source carried before providers; the coordinator
+    /// sets the playing server's own.
+    var credentialPolicy: any CredentialTransportPolicy = PlexCredentialPolicy.shared
+    /// What the server's HLS output needs from `RemuxHLSLoader` (which
+    /// init-segment patches run). Defaults like `credentialPolicy`.
+    var traits: PlaybackTraits = .plex
 
     /// Route the HLS playlists and init segment through `RemuxHLSLoader`.
     var usesRemuxHLSLoader: Bool {
@@ -417,7 +425,7 @@ enum PlaybackDecision: Sendable, Equatable {
     /// Dolby Atmos / spatial-audio delivery: Plex remuxes (copies) a file only
     /// VLCKit could direct play into fMP4 HLS for AVPlayer, which is what
     /// renders Atmos over HDMI and spatial audio on AirPods. Original quality;
-    /// see `MediaService.TranscodeDeliveryMode.spatialAudioRemux`.
+    /// see `StreamIntent.losslessRemux` and `.convertedAudioRemux`.
     case spatialAudio
 }
 

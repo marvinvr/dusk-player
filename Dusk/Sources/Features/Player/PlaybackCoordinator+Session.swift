@@ -529,6 +529,7 @@ extension PlaybackCoordinator {
                                 serverID: itemServerID
                             )
                             if case .transcodeAvailable = result.outcome {
+                                confirmServerStreamOnFirstFrame(result, serverID: itemServerID)
                                 playbackURL = result.url
                                 sanitizedURL = self.media.sanitizedPlaybackURLString(for: result.url)
                                 playbackDecision = .serverStream
@@ -819,7 +820,9 @@ extension PlaybackCoordinator {
                 hdrRemuxFallback: hdrRemuxFallback,
                 retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
                     && StreamResolver.containsHEV1Video(media),
-                repairsKeyframeTimestamps: playbackDecision.isSpatialAudio
+                repairsKeyframeTimestamps: playbackDecision.isSpatialAudio,
+                credentialPolicy: self.media.playback(for: serverID).credentialPolicy,
+                traits: self.media.playback(for: serverID).traits
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -1326,7 +1329,7 @@ extension PlaybackCoordinator {
         }
     }
 
-    func airPlayUnavailableMessage(for outcome: MediaService.TranscodeDecisionOutcome) -> String {
+    func airPlayUnavailableMessage(for outcome: ServerStreamOutcome) -> String {
         switch outcome {
         case .transcodeAvailable:
             "AirPlay is available."
@@ -1471,7 +1474,9 @@ extension PlaybackCoordinator {
             hdrRemuxFallback: hdrRemuxFallback,
             retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
                 && StreamResolver.containsHEV1Video(media),
-            repairsKeyframeTimestamps: playbackDecision.isSpatialAudio
+            repairsKeyframeTimestamps: playbackDecision.isSpatialAudio,
+            credentialPolicy: self.media.playback(for: activePlaybackServerID).credentialPolicy,
+            traits: self.media.playback(for: activePlaybackServerID).traits
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,
@@ -2090,6 +2095,7 @@ extension PlaybackCoordinator {
                 stopTranscodeSessionInBackground(failedRemuxSessionID, serverID: activePlaybackServerID)
             }
             activeTranscodeSessionID = transcodeSessionID
+            confirmServerStreamOnFirstFrame(result, serverID: activePlaybackServerID)
             reportFallback(.directPlayToServerStream)
             activateReplacementAttempt(
                 transitionLabel: "falling back to server stream after direct-play failure",
@@ -2172,6 +2178,33 @@ extension PlaybackCoordinator {
         engine?.stop()
         engine = nil
         loadError = RemotePlaybackRefusal.message
+    }
+
+    /// The post-start proof of a server stream whose copy was only predicted
+    /// (docs/jellyfin/04-architecture.md §12.2): once the engine plays the
+    /// stream, ask the server once what it really does and log a mismatch.
+    /// Plex streams open `.proven` (the decision lists every track), so for
+    /// them this returns before doing anything.
+    func confirmServerStreamOnFirstFrame(_ stream: ServerStream, serverID: String?) {
+        guard stream.proof == .predicted else { return }
+        Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, !self.didFinalizeCurrentSession,
+                      self.playbackSource?.url == stream.url,
+                      let engine = self.engine,
+                      engine.state != .error else { return }
+                guard engine.state == .playing else { continue }
+                guard let confirmed = await self.media.confirmServerStream(stream, serverID: serverID),
+                      confirmed.video != stream.decisions.video || confirmed.audio != stream.decisions.audio else {
+                    return
+                }
+                playbackSessionLogger.error(
+                    "Server stream \(stream.sessionID, privacy: .public) differs from its prediction: predicted \(stream.decisions.logDescription, privacy: .public), confirmed \(confirmed.logDescription, privacy: .public)"
+                )
+                return
+            }
+        }
     }
 
     /// Fire-and-forget `/video/:/transcode/universal/stop` for Plex session

@@ -518,7 +518,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func load(source: PlaybackSource) {
-        guard (try? PlexTransportSecurity.validate(URLRequest(url: source.url))) != nil else {
+        guard (try? source.credentialPolicy.validate(URLRequest(url: source.url))) != nil else {
             stop()
             error = .networkError("A secure connection is required to send the Plex token.")
             state = .error

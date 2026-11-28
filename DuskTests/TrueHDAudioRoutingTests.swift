@@ -175,7 +175,7 @@ struct TrueHDAudioRoutingTests {
         let service = MediaService()
         let items = service.transcodeQueryItems(
             itemID: "1", mediaIndex: 0, sourcePath: nil,
-            mode: .spatialAudioRemux(convertsAudio: true),
+            intent: .convertedAudioRemux(target: .surroundEAC3),
             sessionIdentifier: "session", transcodeSessionID: "transcode",
             audioStreamID: "2", subtitleStreamID: "9", token: nil
         )
@@ -196,9 +196,11 @@ struct TrueHDAudioRoutingTests {
 
     @Test(arguments: [6, 8])
     func convertedDecisionRequiresCompatibleSurround(channels: Int) {
-        var decision = MediaService.TranscodeStreamDecisions(
-            container: "mp4", videoDecision: "copy", videoCodec: "hevc",
-            audioDecision: "transcode", audioCodec: "eac3", audioChannels: channels
+        // The Plex mapper's reading of each per-track decision string.
+        let track = PlexTranscodeDecisionDTO.track
+        var decision = StreamDecisions(
+            container: "mp4", video: track("copy"), videoCodec: "hevc",
+            audio: track("transcode"), audioCodec: "eac3", audioChannels: channels
         )
         #expect(decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.audioCodec = "truehd"
@@ -206,43 +208,46 @@ struct TrueHDAudioRoutingTests {
         decision.audioCodec = "aac"
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.audioCodec = "eac3"
-        decision.audioDecision = "copy"
+        decision.audio = track("copy")
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
-        decision.audioDecision = "transcode"
+        decision.audio = track("transcode")
         decision.container = "mpegts"
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.container = "mp4"
         decision.audioChannels = 2
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
         decision.audioChannels = channels
-        decision.videoDecision = "transcode"
+        decision.video = track("transcode")
         #expect(!decision.isConvertedAudioRemux(sourceChannels: 8))
     }
 
     @Test func ignoredSubtitleDoesNotInvalidateVideoCopyRemux() {
         // PMS can retain the previously selected embedded SRT in its Off
         // decision as ignore/embedded. It is not being burned into the video.
-        var decision = MediaService.TranscodeStreamDecisions(
-            container: "mp4", videoDecision: "copy", videoCodec: "hevc",
-            audioDecision: "copy", audioCodec: "eac3",
-            subtitleDecision: "ignore", subtitleLocation: "embedded"
+        // The Plex mapper's reading of each decision/location pair.
+        let track = PlexTranscodeDecisionDTO.track
+        let subtitle = PlexTranscodeDecisionDTO.subtitle(decision:location:)
+        var decision = StreamDecisions(
+            container: "mp4", video: track("copy"), videoCodec: "hevc",
+            audio: track("copy"), audioCodec: "eac3",
+            subtitle: subtitle("ignore", "embedded")
         )
         #expect(decision.isLosslessRemux)
-        decision.audioDecision = "transcode"
+        decision.audio = track("transcode")
         decision.audioChannels = 6
         #expect(decision.isConvertedAudioRemux(sourceChannels: 6))
-        decision.subtitleDecision = "burn"
+        decision.subtitle = subtitle("burn", "embedded")
         #expect(!decision.isVideoCopyRemux)
-        decision.subtitleDecision = "transcode"
+        decision.subtitle = subtitle("transcode", "embedded")
         #expect(!decision.isVideoCopyRemux)
-        decision.subtitleLocation = "segments-subs"
+        decision.subtitle = subtitle("transcode", "segments-subs")
         #expect(decision.isVideoCopyRemux)
     }
 
     @Test func convertedAudioRestoresOnlyConfirmedJOC() throws {
-        var decision = MediaService.TranscodeStreamDecisions(
-            container: "mp4", videoDecision: "copy", videoCodec: "hevc",
-            audioDecision: "transcode", audioCodec: "eac3", audioChannels: 6
+        var decision = StreamDecisions(
+            container: "mp4", video: .copy, videoCodec: "hevc",
+            audio: .convert, audioCodec: "eac3", audioChannels: 6
         )
         let media = try makeMedia(video: dv7Video, audio: trueHDOnlyAudio)
         let playback = PlaybackCoordinator(media: MediaService())

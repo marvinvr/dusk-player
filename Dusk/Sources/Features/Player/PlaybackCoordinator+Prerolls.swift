@@ -154,7 +154,8 @@ extension PlaybackCoordinator {
                 partID: item.part.id,
                 sanitizedPlaybackURL: self.media.sanitizedPlaybackURLString(for: item.url)
             ),
-            locality: sourceLocality(for: item.url, serverID: preroll.serverID)
+            locality: sourceLocality(for: item.url, serverID: preroll.serverID),
+            credentialPolicy: self.media.playback(for: preroll.serverID).credentialPolicy
         )
         playerPresentationID = presentationID
         nowPlayingController.beginSession(

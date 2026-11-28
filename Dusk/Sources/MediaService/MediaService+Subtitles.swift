@@ -121,43 +121,7 @@ extension MediaService {
     /// streams carry a `key`, and embedded tracks are selected in the engine
     /// instead of fetched.
     func externalSubtitleURL(for stream: MediaStream, serverID: String? = nil) -> URL? {
-        guard stream.kind == .subtitle, let key = stream.key?.nilIfEmpty else { return nil }
-        guard let connection = pool.connection(for: serverID) else {
-            plexSubtitlesLogger.error(
-                "Failed to build external subtitle URL for stream \(stream.id, privacy: .public): missing server base URL"
-            )
-            return nil
-        }
-
-        let baseURL = connection.baseURL
-        let base = baseURL.absoluteString.hasSuffix("/")
-            ? String(baseURL.absoluteString.dropLast())
-            : baseURL.absoluteString
-        let path = key.hasPrefix("/") ? key : "/\(key)"
-        guard var components = URLComponents(string: base + path) else {
-            plexSubtitlesLogger.error(
-                "Failed to build external subtitle URL for stream \(stream.id, privacy: .public): invalid URL string"
-            )
-            return nil
-        }
-
-        // Same token choice as direct play and image requests: the server token,
-        // never the account token.
-        var items = components.queryItems ?? []
-        items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
-        components.queryItems = items
-
-        guard let url = PlexTransportSecurity.authenticatedURL(components.url) else {
-            plexSubtitlesLogger.error(
-                "Failed to finalize external subtitle URL for stream \(stream.id, privacy: .public)"
-            )
-            return nil
-        }
-
-        plexSubtitlesLogger.debug(
-            "Constructed external subtitle URL for stream \(stream.id, privacy: .public): \(self.sanitizedPlaybackURLString(for: url), privacy: .public)"
-        )
-        return url
+        playback(for: serverID).sidecarSubtitleURL(for: stream)
     }
 
     /// Whether this session may search for and install subtitles on one server.
