@@ -707,6 +707,7 @@ extension PlaybackCoordinator {
             // the credits poster.
             upNextPresentation = nil
             upNextPoster = nil
+            hiddenUpNextAdvance = nil
             // A new item gets its own one-shot auto-skips.
             spentAutoSkipMarkerIDs = []
             manuallySelectedAudioStreamID = nil
@@ -2210,6 +2211,14 @@ extension PlaybackCoordinator {
             return
         }
 
+        // Up Next During Credits off: the hidden card's direct advance.
+        if let candidate = hiddenUpNextAdvance {
+            hiddenUpNextAdvance = nil
+            finalizeCurrentPlaybackSession(markCompleted: true)
+            await startHiddenUpNextAdvance(candidate)
+            return
+        }
+
         if let activeItemDetails,
            let candidate = await resolveUpNext(after: activeItemDetails, prefersDownloadCache: false) {
             finalizeCurrentPlaybackSession(markCompleted: true)
@@ -2336,6 +2345,7 @@ extension PlaybackCoordinator {
         isPreparingAirPlay = false
         upNextPresentation = nil
         upNextPoster = nil
+        hiddenUpNextAdvance = nil
         prerollPlayback = nil
         clearAdjacentEpisodes()
         playbackQueue = nil
