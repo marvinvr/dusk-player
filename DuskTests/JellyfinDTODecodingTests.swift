@@ -372,7 +372,7 @@ struct JellyfinDTODecodingTests {
         let auth = try JellyfinFixtures.decode(JellyfinAuthenticationResultDTO.self, "authenticate-by-name")
         #expect(auth.accessToken == "REDACTED_TOKEN")
         #expect(auth.user.name == "duskcompare")
-        #expect(auth.serverID == "99d23e4060434e129f9ae072bf97d30d")
+        #expect(auth.serverID == "feedfacefeedfacefeedfacefeedface", "scrubbed by the recorder")
         #expect(auth.sessionInfo?.deviceID == "dusk-fixture-recorder")
         let policy = try #require(auth.user.policy)
         #expect(policy.isAdministrator == false)

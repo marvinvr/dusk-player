@@ -16,10 +16,11 @@
 # - Read-only calls and PlaybackInfo (no stream is ever fetched, no playback
 #   is reported). Nothing is created: a non-admin user cannot delete what it
 #   creates (no EnableContentDeletion), so it would stay on the shared server.
-# - Tokens, ApiKey query values, play-session ids, Quick Connect secrets and
-#   client IP addresses are scrubbed before anything is written. The script
-#   fails and deletes its output when the live token or the password still
-#   appears in a fixture.
+# - Tokens, ApiKey query values, play-session ids, Quick Connect secrets,
+#   client IP addresses and the server's identity (Id/ServerId in both the
+#   plain and the dashed form, ServerName, LocalAddress) are scrubbed before
+#   anything is written. The script fails and deletes its output when the live
+#   token, the password or the server id still appears in a fixture.
 # - The session is logged out on exit, whatever happens.
 set -euo pipefail
 
@@ -37,6 +38,9 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
 TOKEN=""
 USER_ID=""
+SERVER_ID=""
+# Stand-in for the real server id: 32 hex digits, so id validators still pass.
+SERVER_PLACEHOLDER=feedfacefeedfacefeedfacefeedface
 WORK=$(mktemp -d)
 
 cleanup() {
@@ -53,6 +57,10 @@ jq -n --arg u "$USER_NAME" --rawfile p "$PASSWORD_FILE" '{Username: $u, Pw: ($p 
         --data-binary @- "$JF/Users/AuthenticateByName" > "$WORK/auth.json"
 TOKEN=$(jq -r .AccessToken "$WORK/auth.json")
 USER_ID=$(jq -r .User.Id "$WORK/auth.json")
+SERVER_ID=$(jq -r .ServerId "$WORK/auth.json" | tr -d '-' | tr '[:upper:]' '[:lower:]')
+[[ "$SERVER_ID" =~ ^[0-9a-f]{32}$ ]] || { echo "Sign-in returned no server id" >&2; exit 1; }
+# Matches the id with or without dashes (the server emits both, 03 §10.3).
+SERVER_ID_RE="${SERVER_ID:0:8}-?${SERVER_ID:8:4}-?${SERVER_ID:12:4}-?${SERVER_ID:16:4}-?${SERVER_ID:20:12}"
 [[ -n "$TOKEN" && "$TOKEN" != null ]] || { echo "Sign-in returned no token" >&2; exit 1; }
 AUTH="$IDENTITY, Token=\"$TOKEN\""
 
@@ -63,6 +71,7 @@ rm -f -- "${OUT:?}"/jellyfin-*.json
 SCRUB='
 def scrub_string:
     gsub($token; "REDACTED_TOKEN")
+    | gsub($server; $placeholder; "i")
     | gsub("(?<k>[Aa][Pp][Ii][Kk][Ee][Yy]|api_key)=[^&\"]*"; "\(.k)=REDACTED_TOKEN")
     | gsub("(?<k>PlaySessionId|playSessionId)=[^&\"]*"; "\(.k)=REDACTED_PLAY_SESSION");
 walk(
@@ -73,6 +82,8 @@ walk(
             elif .key == "Secret" then .value = "REDACTED_SECRET"
             elif .key == "Code" and (.value | type) == "string" then .value = "000000"
             elif .key == "RemoteEndPoint" then .value = "0.0.0.0"
+            elif .key == "ServerName" and (.value | type) == "string" then .value = "jellyfin-demo"
+            elif .key == "LocalAddress" and (.value | type) == "string" then .value = "http://192.0.2.1:8096"
             elif (.key | IN("LastActivityDate", "LastLoginDate", "LastPlaybackCheckIn", "DateAdded"))
                 and (.value | type) == "string" then .value = "2026-01-01T00:00:00.0000000Z"
             else . end)
@@ -80,7 +91,8 @@ walk(
     else . end)'
 
 save() { # name < json
-    jq -S --arg token "$TOKEN" "$SCRUB" > "$OUT/jellyfin-$1.json"
+    jq -S --arg token "$TOKEN" --arg server "$SERVER_ID_RE" --arg placeholder "$SERVER_PLACEHOLDER" \
+        "$SCRUB" > "$OUT/jellyfin-$1.json"
 }
 call() { # method path [body]
     if [[ $# -ge 3 ]]; then
@@ -225,7 +237,8 @@ get livetv-channels "/LiveTv/Channels?$U&addCurrentProgram=true&limit=10"
 
 # --- Leak check -------------------------------------------------------------
 PASSWORD=$(tr -d '\n' < "$PASSWORD_FILE")
-if grep -rlF -e "$TOKEN" "$OUT" >/dev/null || { [[ -n "$PASSWORD" ]] && grep -rlF -e "$PASSWORD" "$OUT" >/dev/null; }; then
+if grep -rlF -e "$TOKEN" "$OUT" >/dev/null || grep -rliE -e "$SERVER_ID_RE" "$OUT" >/dev/null \
+    || { [[ -n "$PASSWORD" ]] && grep -rlF -e "$PASSWORD" "$OUT" >/dev/null; }; then
     rm -f -- "${OUT:?}"/jellyfin-*.json
     echo "A secret survived scrubbing; fixtures deleted." >&2
     exit 1

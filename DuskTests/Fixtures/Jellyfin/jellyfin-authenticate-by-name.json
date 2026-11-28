@@ -1,6 +1,6 @@
 {
   "AccessToken": "REDACTED_TOKEN",
-  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "ServerId": "feedfacefeedfacefeedfacefeedface",
   "SessionInfo": {
     "AdditionalUsers": [],
     "ApplicationVersion": "1.0",
@@ -28,7 +28,7 @@
     },
     "PlayableMediaTypes": [],
     "RemoteEndPoint": "0.0.0.0",
-    "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+    "ServerId": "feedfacefeedfacefeedfacefeedface",
     "SupportedCommands": [],
     "SupportsMediaControl": false,
     "SupportsRemoteControl": false,
@@ -105,6 +105,6 @@
       "RemoteClientBitrateLimit": 0,
       "SyncPlayAccess": "CreateAndJoinGroups"
     },
-    "ServerId": "99d23e4060434e129f9ae072bf97d30d"
+    "ServerId": "feedfacefeedfacefeedfacefeedface"
   }
 }

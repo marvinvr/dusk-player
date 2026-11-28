@@ -1,9 +1,9 @@
 {
-  "Id": "99d23e4060434e129f9ae072bf97d30d",
-  "LocalAddress": "http://172.19.0.31:8096",
+  "Id": "feedfacefeedfacefeedfacefeedface",
+  "LocalAddress": "http://192.0.2.1:8096",
   "OperatingSystem": "",
   "ProductName": "Jellyfin Server",
-  "ServerName": "1f26e18d6a2a",
+  "ServerName": "jellyfin-demo",
   "StartupWizardCompleted": true,
   "Version": "12.4.0"
 }
