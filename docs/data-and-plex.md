@@ -1000,8 +1000,15 @@ order. This also governs movie Continue Watching representatives.
   unmodeled fields round-trip intact.
 - `DuskJSONValue` is the loss-free JSON tree used for the plex.tv blob. Ints stay
   ints, so `schemaVersion` is never rewritten as `12.0`.
-- `MediaStream` decodes selected/default/forced/hearing-impaired as bool-ish
-  values because Plex sends both ints and bools.
+- `Media` / `Part` / `Stream` / `Marker` / `Rating` decode as DTOs in
+  `Providers/Plex/DTO/` (`PlexMediaVersionDTO.swift`, `PlexMarkerDTO.swift`,
+  `PlexRatingDTO.swift`) and map onto the domain types in
+  `Providers/Plex/Mappers/PlexMediaVersionMapper.swift`. That file also holds
+  the domain types' `Codable`, because `downloads.json`, `convertedMediaData`
+  and the offline metadata cache store the Plex wire shape: never rename a key.
+  The stream DTO reads selected/default/forced/hearing-impaired as bool-ish
+  values because Plex sends both ints and bools. The transcode decision
+  response is `PlexTranscodeDecisionDTO` + `PlexTranscodeDecisionMapper`.
 - `SubtitleSearchResult` models one provider hit from the subtitle search.
   Only `key` (the provider download handle) is required; `id` falls back to `key`
   because search hits are not library streams and usually arrive as `id: 0`.

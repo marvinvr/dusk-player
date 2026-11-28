@@ -3,8 +3,9 @@ import Foundation
 /// One entry of a title's `Rating` array: a score from one source.
 /// `image` names the source (`imdb://image.rating`,
 /// `rottentomatoes://image.rating.ripe`, `themoviedb://image.rating`), `type`
-/// is `critic` or `audience`, `value` is on Plex's 0–10 scale.
-struct Rating: Decodable, Hashable, Sendable {
+/// is `critic` or `audience`, `value` is on Plex's 0–10 scale. Decoded through
+/// `PlexRatingDTO` (`PlexMediaVersionMapper`).
+struct Rating: Hashable, Sendable {
     /// A source's official mark, in `Assets.xcassets/RatingLogos`.
     enum Logo: String, Sendable {
         case imdb = "RatingIMDb"

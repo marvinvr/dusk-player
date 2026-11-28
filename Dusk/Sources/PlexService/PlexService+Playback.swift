@@ -472,7 +472,7 @@ extension PlexService {
                 queryItems: queryItems,
                 serverID: serverID
             )
-            let decision = try decodeJSON(PlexTranscodeDecisionResponse.self, from: data)
+            let decision = try decodeJSON(PlexTranscodeDecisionDTO.self, from: data)
             guard let key = decision.directPlayPartKey,
                   key.hasPrefix("\(sessionPath)/"),
                   let url = Self.liveTVDirectPlayURL(
@@ -620,7 +620,7 @@ private extension PlexService {
             queryItems: queryItems,
             serverID: targetID
         )
-        let decision = try decodeJSON(PlexTranscodeDecisionResponse.self, from: decisionData)
+        let decision = try decodeJSON(PlexTranscodeDecisionDTO.self, from: decisionData)
         let outcome = decision.outcome
         let streams = decision.streamDecisions
         if case .av1Transcode = mode {
@@ -903,131 +903,5 @@ private extension PlexService {
         }
 
         return components.string ?? url.absoluteString
-    }
-}
-
-private struct PlexTranscodeDecisionResponse: Decodable {
-    let MediaContainer: Container
-
-    /// The session Plex planned: Metadata → Media → Part → Stream, where each
-    /// stream carries `decision` (copy / transcode / burn) and `location`.
-    struct PlannedMetadata: Decodable {
-        let Media: [PlannedMedia]?
-    }
-
-    struct PlannedMedia: Decodable {
-        let container: String?
-        let Part: [PlannedPart]?
-    }
-
-    struct PlannedPart: Decodable {
-        let container: String?
-        let key: String?
-        let decision: String?
-        let Stream: [PlannedStream]?
-    }
-
-    struct PlannedStream: Decodable {
-        let kind: Int?
-        let codec: String?
-        let decision: String?
-        let location: String?
-        let channels: Int?
-        let profile: String?
-
-        enum CodingKeys: String, CodingKey {
-            case kind = "streamType", codec, decision, location, channels, profile
-        }
-    }
-
-    struct Container: Decodable {
-        let generalDecisionCode: Int?
-        let generalDecisionText: String?
-        let transcodeDecisionCode: Int?
-        let transcodeDecisionText: String?
-        let mdeDecisionCode: Int?
-        let mdeDecisionText: String?
-        let metadata: [PlannedMetadata]?
-
-        enum CodingKeys: String, CodingKey {
-            case generalDecisionCode
-            case generalDecisionText
-            case transcodeDecisionCode
-            case transcodeDecisionText
-            case mdeDecisionCode
-            case mdeDecisionText
-            case metadata = "Metadata"
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            generalDecisionCode = Self.decodeFlexibleInt(container, key: .generalDecisionCode)
-            generalDecisionText = try container.decodeIfPresent(String.self, forKey: .generalDecisionText)
-            transcodeDecisionCode = Self.decodeFlexibleInt(container, key: .transcodeDecisionCode)
-            transcodeDecisionText = try container.decodeIfPresent(String.self, forKey: .transcodeDecisionText)
-            mdeDecisionCode = Self.decodeFlexibleInt(container, key: .mdeDecisionCode)
-            mdeDecisionText = try container.decodeIfPresent(String.self, forKey: .mdeDecisionText)
-            // Diagnostic only: an unexpected shape must never fail the decision.
-            metadata = try? container.decodeIfPresent([PlannedMetadata].self, forKey: .metadata)
-        }
-
-        private static func decodeFlexibleInt(
-            _ container: KeyedDecodingContainer<CodingKeys>,
-            key: CodingKeys
-        ) -> Int? {
-            if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-                return value
-            }
-            if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-                return Int(value)
-            }
-            return nil
-        }
-    }
-
-    var streamDecisions: PlexService.TranscodeStreamDecisions {
-        let media = MediaContainer.metadata?.first?.Media?.first
-        let part = media?.Part?.first
-        let streams = part?.Stream ?? []
-        let video = streams.first { $0.kind == 1 }
-        let audio = streams.first { $0.kind == 2 }
-        let subtitle = streams.first { $0.kind == 3 }
-        return PlexService.TranscodeStreamDecisions(
-            container: part?.container ?? media?.container,
-            videoDecision: video?.decision,
-            videoCodec: video?.codec,
-            audioDecision: audio?.decision,
-            audioCodec: audio?.codec,
-            audioChannels: audio?.channels,
-            audioProfile: audio?.profile,
-            subtitleDecision: subtitle?.decision,
-            subtitleLocation: subtitle?.location
-        )
-    }
-
-    /// The part Plex plans to direct play (a Live TV session's consumer
-    /// playlist), nil for any other decision.
-    var directPlayPartKey: String? {
-        guard let part = MediaContainer.metadata?.first?.Media?.first?.Part?.first,
-              part.decision?.lowercased() == "directplay" else { return nil }
-        return part.key?.nilIfEmpty
-    }
-
-        var outcome: PlexService.TranscodeDecisionOutcome {
-        let general = MediaContainer.generalDecisionCode
-        let transcode = MediaContainer.transcodeDecisionCode
-        let mde = MediaContainer.mdeDecisionCode
-
-        if [general, transcode, mde].contains(where: { ($0 ?? 0) >= 2000 }) {
-            return .failed(MediaContainer.transcodeDecisionText ?? MediaContainer.generalDecisionText)
-        }
-        if transcode == 1000 || general == 1000 {
-            return .directPlayOnly
-        }
-        if transcode == 1001 || general == 1001 {
-            return .transcodeAvailable
-        }
-
-        return .transcodeAvailable
     }
 }
