@@ -50,7 +50,15 @@ diff images plus `.requests.diff`.
   lines). Those keep the recorded range (`1-2`) and only get a note outside
   it. So do the manifest's `count_free` patterns: session restore,
   connection probes, image loads and Home recommendation genre probes. Their
-  repeat count races even when three runs happened to agree. For those, presence stays strict. Every other count
+  repeat count races even when three runs happened to agree. The merged
+  screens' content loads are count-free too: recently added, library shelves
+  and their genre rows, watch history, filters, and metadata hydration. Home
+  and the library tabs load again about 0.8 s after launch, most likely on a
+  `serverContentRevision` change. When the first load is still running then,
+  the reload overlaps it and some requests go out once instead of twice. On Apple TV that failed about half
+  the runs, on the tree before J-01 as well (2026-11-28). The detail item
+  fetch has the hydration query shape, so its count is free as well. For
+  those, presence stays strict. Every other count
   must match exactly. Image requests (`/photo/:/transcode`) are compared by
   identity, the `url=` path. A new identity fails, and so does an identity
   whose sizes share nothing with the baseline. A missing identity (an

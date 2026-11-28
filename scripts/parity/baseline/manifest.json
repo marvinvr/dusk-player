@@ -22,9 +22,13 @@
     "\\[pms\\] GET /identity$",
     "\\[pms\\] GET /library/sections$",
     "\\[pms\\] GET /photo/:/transcode\\?",
-    "\\[pms\\] GET /library/sections/\\d+/all\\?X-Plex-Container-Size=(1|120)&X-Plex-Container-Start=0&genre="
+    "\\[pms\\] GET /library/sections/\\d+/all\\?X-Plex-Container-Size=(1|60|120)&X-Plex-Container-Start=0&genre=",
+    "\\[pms\\] GET /hubs/sections/\\d+(\\?|/recentlyAdded\\?)",
+    "\\[pms\\] GET /library/sections/\\d+/(filters|genre|collections\\?)",
+    "\\[pms\\] GET /status/sessions/history/all\\?",
+    "\\[pms\\] GET /library/metadata/\\d+\\?includeGuids=1&includeMarkers=1$"
   ],
-  "count_free_why": "session restore, server connection probes, image loads and Home recommendation genre probes (reloaded when the library list refreshes) race each other, so how often they repeat varies run to run; their presence stays strict, every other count must match exactly",
+  "count_free_why": "session restore, server connection probes, image loads, Home recommendation genre probes (reloaded when the library list refreshes) and the merged screens' content loads (recently added, library shelves, watch history, filters, recommendation hydration: they load again about 0.8 s after launch, and when that overlaps a first load still running a request goes out once instead of twice) race each other, so how often they repeat varies run to run; their presence stays strict, every other count must match exactly",
   "platform_masks": {"ipad": [[66, 0, 86, 22]]},
   "platform_masks_why": "the iPad status bar shows today's date next to the pinned 9:41",
   "launch_arguments": {
