@@ -31,13 +31,17 @@ struct ProviderContractTests {
         ]
     }
 
-    /// Codec spellings a provider's mapper still gets wrong. Plex passes its
-    /// server's `dca` through for DTS where the domain vocabulary says `dts`
-    /// (04 §4.2); the Plex mapper has no alias table yet. When it gains one,
-    /// the `withKnownIssue` in `canonicalCodecs` stops recording an issue and
-    /// fails, which is the signal to delete this entry.
+    /// Codec spellings a provider's mapper still gets wrong, and the titles
+    /// they show up in. Plex passes its server's `dca` through for DTS where
+    /// the domain vocabulary says `dts` (04 §4.2); the Plex mapper has no
+    /// alias table yet. Those titles run the codec check inside
+    /// `withKnownIssue`, so the day the Plex mapper says `dts` the known issue
+    /// stops being recorded and the test fails: delete the entry then.
     static let knownCodecDeviations: [Provider: [String: String]] = [
         .plex: ["dca": "dts"],
+    ]
+    static let knownCodecDeviationTitles: [Provider: Set<String>] = [
+        .plex: ["the-office-s01e01"],
     ]
 
     /// Every codec name the domain uses for these titles.
@@ -120,18 +124,17 @@ struct ProviderContractTests {
         #expect(!details.contentAliases.isEmpty)
     }
 
-    /// Codecs are in the domain vocabulary. A provider with a known deviation
-    /// records it as a known issue for the titles it affects.
+    /// Codecs are in the domain vocabulary. A known deviation is recorded as
+    /// a known issue for the titles listed in `knownCodecDeviationTitles`.
     @Test("canonical codec names", arguments: Provider.allCases, Title.all)
     func canonicalCodecs(_ provider: Provider, _ title: Title) throws {
         let codecs = try Self.streams(Self.details(provider, title)).compactMap(\.codec)
-        let deviating = codecs.filter { Self.knownCodecDeviations[provider]?[$0] != nil }
-        if deviating.isEmpty {
-            #expect(codecs.allSatisfy(Self.canonicalCodecs.contains), "\(codecs)")
-        } else {
-            withKnownIssue("\(provider) mapper spells \(Set(deviating).sorted()) (04 §4.2 says dts)") {
+        if Self.knownCodecDeviationTitles[provider]?.contains(title.name) == true {
+            withKnownIssue("\(provider) mapper spells DTS `dca` (04 §4.2 says dts)") {
                 #expect(codecs.allSatisfy(Self.canonicalCodecs.contains), "\(codecs)")
             }
+        } else {
+            #expect(codecs.allSatisfy(Self.canonicalCodecs.contains), "\(codecs)")
         }
     }
 
