@@ -47,7 +47,7 @@ struct PlexLiveTuneDecodingTests {
         #expect(session.sessionID == "c83fb5ad-5720-40a6-9731-6beb44e38db9")
 
         let tuneMedia = try #require(session.media)
-        let media = tuneMedia.makeMedia(sessionPath: session.sessionPath)
+        let media = PlexLiveTVMapper.media(tuneMedia, sessionPath: session.sessionPath)
         #expect(media.id == "222512")
         #expect(media.videoCodec == "h264")
         #expect(media.audioCodec == "aac")
@@ -59,7 +59,7 @@ struct PlexLiveTuneDecodingTests {
 
     @Test func tunedH264AACPlaysThroughAVPlayer() throws {
         let session = try #require(try decode(Self.tuned).MediaContainer.tunedSession)
-        let media = try #require(session.media).makeMedia(sessionPath: session.sessionPath)
+        let media = PlexLiveTVMapper.media(try #require(session.media), sessionPath: session.sessionPath)
         #expect(StreamResolver.evaluateLiveTV(media: media).engine == .avPlayer)
     }
 

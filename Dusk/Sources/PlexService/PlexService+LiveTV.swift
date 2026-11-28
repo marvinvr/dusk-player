@@ -93,9 +93,8 @@ extension PlexService {
         )
         let response = try decodeJSON(PlexMediaProvidersResponse.self, from: data, serverID: targetID)
         return response.MediaContainer.MediaProvider?
-            .compactMap(\.liveTVProvider)
-            .first?
-            .on(serverID: targetID)
+            .compactMap { PlexLiveTVMapper.provider($0, serverID: targetID) }
+            .first
     }
 
     func getLiveTVChannels(
@@ -105,7 +104,7 @@ extension PlexService {
         let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
         let data = try await rawServerRequest(path: provider.channelsKey, serverID: targetID)
         let response = try decodeJSON(PlexLiveChannelsResponse.self, from: data, serverID: targetID)
-        return (response.MediaContainer.Channel ?? []).sorted {
+        return (response.MediaContainer.Channel ?? []).map(PlexLiveTVMapper.channel).sorted {
             Self.channelSortKey($0).lexicographicallyPrecedes(Self.channelSortKey($1))
         }
     }
@@ -118,7 +117,7 @@ extension PlexService {
     ) async throws -> [PlexLiveTVDevice] {
         let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
         let data = try await rawServerRequest(path: "/livetv/dvrs/\(provider.dvrID)", serverID: targetID)
-        return try decodeJSON(PlexLiveTVDVRResponse.self, from: data, serverID: targetID).devices
+        return PlexLiveTVMapper.devices(try decodeJSON(PlexLiveTVDVRResponse.self, from: data, serverID: targetID))
     }
 
     func getLiveTVNowPlaying(
@@ -126,11 +125,11 @@ extension PlexService {
         channels: [LiveChannel],
         serverID: String? = nil
     ) async throws -> LiveTVLineup {
-        let programs: [LiveProgram] = try await fetchMetadata(
+        let programs: [PlexLiveProgramDTO] = try await fetchMetadata(
             path: provider.watchNowKey,
             serverID: serverID ?? provider.serverID ?? liveTVServerID
         )
-        return LiveTVLineup(provider: provider, channels: channels, programs: programs)
+        return LiveTVLineup(provider: provider, channels: channels, programs: programs.map(PlexLiveTVMapper.program))
     }
 
     func getLiveTVGuide(
@@ -208,7 +207,7 @@ extension PlexService {
         window: LiveTVGuideWindow,
         serverID: String? = nil
     ) async throws -> [LiveProgram] {
-        try await fetchMetadata(
+        let programs: [PlexLiveProgramDTO] = try await fetchMetadata(
             path: provider.gridKey,
             queryItems: [
                 // Strict: an airing that ends right at the start is not in it.
@@ -217,6 +216,7 @@ extension PlexService {
             ],
             serverID: serverID ?? provider.serverID ?? liveTVServerID
         )
+        return programs.map(PlexLiveTVMapper.program)
     }
 
     private func liveTVGridPrograms(
@@ -226,7 +226,7 @@ extension PlexService {
         serverID: String?
     ) async -> Result<[LiveProgram], Error> {
         do {
-            let programs: [LiveProgram] = try await fetchMetadata(
+            let programs: [PlexLiveProgramDTO] = try await fetchMetadata(
                 path: provider.gridKey,
                 queryItems: [
                     URLQueryItem(name: "channelGridKey", value: channel.gridKey),
@@ -234,7 +234,7 @@ extension PlexService {
                 ],
                 serverID: serverID
             )
-            return .success(programs)
+            return .success(programs.map(PlexLiveTVMapper.program))
         } catch {
             return .failure(error)
         }
@@ -288,7 +288,7 @@ extension PlexService {
         }
 
         let sessionPath = tuned.sessionPath
-        let media = tuned.media?.makeMedia(sessionPath: sessionPath)
+        let media = tuned.media.map { PlexLiveTVMapper.media($0, sessionPath: sessionPath) }
             ?? makeFallbackLiveTVMedia(sessionPath: sessionPath)
         guard let part = media.firstAvailablePart else {
             throw PlexServiceError.decodingError("Plex did not return a playable Live TV stream.")

@@ -26,7 +26,7 @@ struct LiveTVProvider: Sendable, Hashable, Identifiable {
     }
 }
 
-struct LiveChannel: Decodable, Sendable, Hashable, Identifiable {
+struct LiveChannel: Sendable, Hashable, Identifiable {
     let id: String
     let gridKey: String
     let vcn: String?
@@ -59,61 +59,32 @@ struct LiveChannel: Decodable, Sendable, Hashable, Identifiable {
         vcn?.nilIfEmpty
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case id, gridKey, vcn, isHD = "isHd", thumb, title, callSign, language
-        case identifier, key, channelVcn
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let decodedID = Self.decodeString(container, key: .id)
-        let decodedGridKey = Self.decodeString(container, key: .gridKey)
-        id = decodedID ?? decodedGridKey ?? UUID().uuidString
-        gridKey = decodedGridKey ?? decodedID ?? id
-        vcn = Self.decodeString(container, key: .vcn)
-            ?? Self.decodeString(container, key: .channelVcn)
-        alternateIdentifiers = [
-            Self.decodeString(container, key: .identifier),
-            Self.decodeString(container, key: .key),
-        ].compactMap { $0?.nilIfEmpty }
-        isHD = Self.decodeBool(container, key: .isHD) ?? false
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
-        callSign = try container.decodeIfPresent(String.self, forKey: .callSign)
-        language = try container.decodeIfPresent(String.self, forKey: .language)
-    }
-
-    private static func decodeString(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> String? {
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return String(value)
-        }
-        return nil
-    }
-
-    private static func decodeBool(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> Bool? {
-        if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return value != 0
-        }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return ["1", "true", "yes"].contains(value.lowercased())
-        }
-        return nil
+    init(
+        id: String,
+        gridKey: String,
+        vcn: String?,
+        isHD: Bool,
+        thumb: String?,
+        title: String,
+        callSign: String?,
+        language: String?,
+        alternateIdentifiers: [String] = [],
+        iptv: IPTVPlayableChannel? = nil
+    ) {
+        self.id = id
+        self.gridKey = gridKey
+        self.vcn = vcn
+        self.isHD = isHD
+        self.thumb = thumb
+        self.title = title
+        self.callSign = callSign
+        self.language = language
+        self.alternateIdentifiers = alternateIdentifiers
+        self.iptv = iptv
     }
 }
 
-struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
+struct LiveProgram: Sendable, Hashable, Identifiable {
     let itemID: String
     let key: String?
     /// The metadata guid (`plex://episode/…`) on Plex guides. A DVR recording
@@ -215,90 +186,36 @@ struct LiveProgram: Decodable, Sendable, Hashable, Identifiable {
         return min(max(elapsed / total, 0), 1)
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", key, guid, title, summary, thumb, art, grandparentTitle, parentTitle
-        case type, duration
-        case airings = "Media"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        key = try container.decodeIfPresent(String.self, forKey: .key)
-        guid = try? container.decodeIfPresent(String.self, forKey: .guid)
-        itemID = Self.decodeString(container, key: .itemID)
-            ?? key
-            ?? UUID().uuidString
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
-        summary = try container.decodeIfPresent(String.self, forKey: .summary)
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        art = try container.decodeIfPresent(String.self, forKey: .art)
-        grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
-        parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
-        type = try container.decodeIfPresent(MediaKind.self, forKey: .type) ?? .unknown
-        duration = Self.decodeInt(container, key: .duration)
-        airings = try container.decodeIfPresent([LiveAiring].self, forKey: .airings) ?? []
-    }
-
-    private static func decodeString(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> String? {
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return String(value)
-        }
-        return nil
-    }
-
-    private static func decodeInt(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> Int? {
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return Int(value)
-        }
-        return nil
+    init(
+        itemID: String,
+        key: String?,
+        guid: String?,
+        title: String,
+        summary: String?,
+        thumb: String?,
+        art: String?,
+        grandparentTitle: String?,
+        parentTitle: String?,
+        type: MediaKind,
+        duration: Int?,
+        airings: [LiveAiring]
+    ) {
+        self.itemID = itemID
+        self.key = key
+        self.guid = guid
+        self.title = title
+        self.summary = summary
+        self.thumb = thumb
+        self.art = art
+        self.grandparentTitle = grandparentTitle
+        self.parentTitle = parentTitle
+        self.type = type
+        self.duration = duration
+        self.airings = airings
     }
 }
 
-extension LiveProgram {
-    // Here rather than with the rest of the IPTV mapping
-    // (`IPTVLineupBuilder`) because `airings` has a private setter.
-    /// XMLTV `title` is the show and `sub-title` the episode, while Plex puts
-    /// the episode in `title` and the show in `grandparentTitle`; mapped so
-    /// the shared guide reads both the same way.
-    init(iptv programme: IPTVProgramme, channel: LiveChannel) {
-        let start = Int(programme.start.timeIntervalSince1970)
-        itemID = "iptv-\(channel.id)-\(start)"
-        key = nil
-        guid = nil
-        if let subtitle = programme.subtitle?.nilIfEmpty, subtitle != programme.title {
-            title = subtitle
-            grandparentTitle = programme.title.nilIfEmpty
-        } else {
-            title = programme.title
-            grandparentTitle = nil
-        }
-        summary = programme.summary
-        thumb = programme.iconURL?.absoluteString
-        art = nil
-        parentTitle = nil
-        type = .unknown
-        duration = Int(programme.stop.timeIntervalSince(programme.start) * 1000)
-        airings = [LiveAiring(
-            beginsAt: programme.start.timeIntervalSince1970,
-            endsAt: programme.stop.timeIntervalSince1970,
-            channel: channel
-        )]
-    }
-}
-
-struct LiveAiring: Decodable, Sendable, Hashable {
+struct LiveAiring: Sendable, Hashable {
     let id: Int?
     let beginsAt: TimeInterval
     let endsAt: TimeInterval
@@ -311,67 +228,30 @@ struct LiveAiring: Decodable, Sendable, Hashable {
     let gridKey: String?
     let videoResolution: String?
 
-    private enum CodingKeys: String, CodingKey {
-        case id, beginsAt, endsAt, channelID, channelIdentifier, channelThumb
-        case channelTitle, channelVCN = "channelVcn", channelCallSign, gridKey
-        case videoResolution
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = Self.decodeInt(container, key: .id)
-        beginsAt = Self.decodeTime(container, key: .beginsAt) ?? 0
-        endsAt = Self.decodeTime(container, key: .endsAt) ?? beginsAt
-        channelID = Self.decodeInt(container, key: .channelID)
-        channelIdentifier = Self.decodeString(container, key: .channelIdentifier)
-        channelThumb = try container.decodeIfPresent(String.self, forKey: .channelThumb)
-        channelTitle = try container.decodeIfPresent(String.self, forKey: .channelTitle)
-        channelVCN = Self.decodeString(container, key: .channelVCN)
-        channelCallSign = try container.decodeIfPresent(String.self, forKey: .channelCallSign)
-        gridKey = Self.decodeString(container, key: .gridKey)
-        videoResolution = try container.decodeIfPresent(String.self, forKey: .videoResolution)
-    }
-
-    private static func decodeTime(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> TimeInterval? {
-        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return TimeInterval(value)
-        }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return TimeInterval(value)
-        }
-        return nil
-    }
-
-    private static func decodeInt(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> Int? {
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return Int(value)
-        }
-        return nil
-    }
-
-    private static func decodeString(
-        _ container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
-    ) -> String? {
-        if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-            return value
-        }
-        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-            return String(value)
-        }
-        return nil
+    init(
+        id: Int?,
+        beginsAt: TimeInterval,
+        endsAt: TimeInterval,
+        channelID: Int?,
+        channelIdentifier: String?,
+        channelThumb: String?,
+        channelTitle: String?,
+        channelVCN: String?,
+        channelCallSign: String?,
+        gridKey: String?,
+        videoResolution: String?
+    ) {
+        self.id = id
+        self.beginsAt = beginsAt
+        self.endsAt = endsAt
+        self.channelID = channelID
+        self.channelIdentifier = channelIdentifier
+        self.channelThumb = channelThumb
+        self.channelTitle = channelTitle
+        self.channelVCN = channelVCN
+        self.channelCallSign = channelCallSign
+        self.gridKey = gridKey
+        self.videoResolution = videoResolution
     }
 }
 
@@ -627,535 +507,4 @@ struct PlexLiveTuneResult: Sendable {
     /// Playing the live session's own HLS (the tuner stream, copied), not a
     /// Plex transcode. See `PlexService.liveTVDirectPlayURL`.
     var isDirectPlay = false
-}
-
-// MARK: - Plex response envelopes
-
-struct PlexMediaProvidersResponse: Decodable {
-    let MediaContainer: Container
-
-    struct Container: Decodable {
-        let MediaProvider: [Provider]?
-    }
-
-    struct Provider: Decodable {
-        let id: Int?
-        let parentID: Int?
-        let identifier: String?
-        let providerIdentifier: String?
-        let title: String?
-        let protocols: String?
-        let Feature: [Feature]?
-
-        private enum CodingKeys: String, CodingKey {
-            case id, parentID, identifier, providerIdentifier, title, protocols, Feature
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = Self.decodeInt(container, key: .id)
-            parentID = Self.decodeInt(container, key: .parentID)
-            identifier = try container.decodeIfPresent(String.self, forKey: .identifier)
-            providerIdentifier = try container.decodeIfPresent(String.self, forKey: .providerIdentifier)
-            title = try container.decodeIfPresent(String.self, forKey: .title)
-            protocols = try container.decodeIfPresent(String.self, forKey: .protocols)
-            Feature = try container.decodeIfPresent(
-                [PlexMediaProvidersResponse.Feature].self,
-                forKey: .Feature
-            )
-        }
-
-        var liveTVProvider: LiveTVProvider? {
-            guard protocols?.lowercased().contains("livetv") == true,
-                  let identifier,
-                  let gridKey = Feature?.first(where: { $0.type == "grid" })?.key,
-                  let dvrID = parentID ?? Self.trailingIdentifier(in: identifier) ?? id else {
-                return nil
-            }
-
-            return LiveTVProvider(
-                identifier: identifier,
-                providerIdentifier: providerIdentifier ?? identifier.components(separatedBy: ":").first ?? identifier,
-                title: title ?? "Live TV",
-                dvrID: dvrID,
-                gridKey: gridKey
-            )
-        }
-
-        private static func trailingIdentifier(in identifier: String) -> Int? {
-            identifier.split(separator: ":").last.flatMap { Int($0) }
-        }
-
-        private static func decodeInt(
-            _ container: KeyedDecodingContainer<CodingKeys>,
-            key: CodingKeys
-        ) -> Int? {
-            if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
-                return value
-            }
-            if let value = try? container.decodeIfPresent(String.self, forKey: key) {
-                return Int(value)
-            }
-            return nil
-        }
-    }
-
-    struct Feature: Decodable {
-        // Optional so one odd feature can't fail the whole provider list, and
-        // with it Live TV discovery.
-        let type: String?
-        let key: String?
-    }
-}
-
-struct PlexLiveChannelsResponse: Decodable {
-    let MediaContainer: Container
-
-    struct Container: Decodable {
-        let Channel: [LiveChannel]?
-    }
-}
-
-struct PlexLiveTuneResponse: Decodable {
-    let MediaContainer: Container
-
-    struct Container: Decodable {
-        let Metadata: [PlayableMetadata]
-        let MediaSubscription: [MediaSubscription]
-        let Video: [PlayableMetadata]
-        let message: String?
-
-        private enum CodingKeys: String, CodingKey {
-            case Metadata, MediaSubscription, Video, message
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            Metadata = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Metadata)
-            MediaSubscription = container.decodeOneOrMany(
-                PlexLiveTuneResponse.MediaSubscription.self,
-                forKey: .MediaSubscription
-            )
-            Video = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Video)
-            message = try container.decodeIfPresent(String.self, forKey: .message)
-        }
-
-        var tunedSession: TunedSession? {
-            for subscription in MediaSubscription {
-                for operation in subscription.MediaGrabOperation {
-                    if let session = operation.Metadata.lazy.compactMap(\.tunedSession).first {
-                        return session
-                    }
-                    if let session = operation.Video.lazy.compactMap(\.tunedSession).first {
-                        return session
-                    }
-                }
-            }
-
-            return Metadata.lazy.compactMap(\.tunedSession).first
-                ?? Video.lazy.compactMap(\.tunedSession).first
-        }
-
-        /// Why Plex refused the tune, for a response without a session. A
-        /// tuner conflict (a one-tuner HDHomeRun/Threadfin device already on
-        /// another channel; Plex keeps a closed channel's tuner for a few
-        /// minutes) gets a message that says so instead of a parse error.
-        var tuneFailureMessage: String? {
-            let operations = MediaSubscription.flatMap(\.MediaGrabOperation)
-            if operations.contains(where: \.hasConflicts)
-                || operations.contains(where: { $0.error?.localizedCaseInsensitiveContains("conflict") == true }) {
-                return String(
-                    localized: "All tuners are in use. Stop another Live TV stream or recording, or try again in a few minutes."
-                )
-            }
-            return operations.lazy.compactMap { $0.error?.nilIfEmpty }.first
-                ?? message?.nilIfEmpty
-        }
-    }
-
-    struct PlayableMetadata: Decodable {
-        let key: String?
-        let Media: [TuneMedia]
-
-        private enum CodingKeys: String, CodingKey {
-            case key, Media
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            key = try container.decodeIfPresent(String.self, forKey: .key)
-            Media = container.decodeOneOrMany(TuneMedia.self, forKey: .Media)
-        }
-
-        var tunedSession: TunedSession? {
-            let media = Media.first
-            guard let sessionPath = Self.liveSessionPath(from: key)
-                    ?? media?.sessionPath else {
-                return nil
-            }
-            return TunedSession(
-                sessionPath: sessionPath,
-                playbackPath: media?.playbackPath,
-                media: media
-            )
-        }
-
-        static func liveSessionPath(from value: String?) -> String? {
-            guard let value,
-                  let range = value.range(of: "/livetv/sessions/") else {
-                return nil
-            }
-            let livePath = value[range.lowerBound...]
-            let components = livePath
-                .split(separator: "?", maxSplits: 1)
-                .first?
-                .split(separator: "/", omittingEmptySubsequences: true)
-            guard let components, components.count >= 3 else { return nil }
-            return "/" + components.prefix(3).joined(separator: "/")
-        }
-    }
-
-    struct MediaSubscription: Decodable {
-        let MediaGrabOperation: [MediaGrabOperation]
-
-        private enum CodingKeys: String, CodingKey {
-            case MediaGrabOperation
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            MediaGrabOperation = container.decodeOneOrMany(
-                PlexLiveTuneResponse.MediaGrabOperation.self,
-                forKey: .MediaGrabOperation
-            )
-        }
-    }
-
-    struct MediaGrabOperation: Decodable {
-        let Metadata: [PlayableMetadata]
-        let Video: [PlayableMetadata]
-        /// "inprogress" for a tuned channel, "error" when the grab was refused.
-        let status: String?
-        /// Why a refused grab failed, e.g. "The recording conflicts with other
-        /// recordings" when every tuner of the device is in use.
-        let error: String?
-        /// Present when the grab was refused for a tuner conflict.
-        let hasConflicts: Bool
-
-        private enum CodingKeys: String, CodingKey {
-            case Metadata, Video, status, error, Conflicts
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            Metadata = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Metadata)
-            Video = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Video)
-            status = container.lenientString(forKey: .status)
-            error = container.lenientString(forKey: .error)
-            hasConflicts = container.contains(.Conflicts)
-        }
-    }
-
-    struct TunedSession {
-        let sessionPath: String
-        let playbackPath: String?
-        let media: TuneMedia?
-
-        var sessionID: String? {
-            sessionPath
-                .split(separator: "/", omittingEmptySubsequences: true)
-                .last
-                .map(String.init)?
-                .nilIfEmpty
-        }
-    }
-
-    struct TuneMedia: Decodable {
-        let id: Int?
-        let uuid: String?
-        let container: String?
-        let videoCodec: String?
-        let audioCodec: String?
-        let videoResolution: String?
-        let audioChannels: Int?
-        let width: Int?
-        let height: Int?
-        let bitrate: Int?
-        let duration: Int?
-        let Part: [TunePart]?
-
-        private enum CodingKeys: String, CodingKey {
-            case id, uuid, container, videoCodec, audioCodec, videoResolution, audioChannels
-            case width, height, bitrate, duration, Part
-        }
-
-        // The tune answer is not typed like library metadata: PMS 1.43 sends
-        // `Media.id`, `Part.id` and `Stream.id` as strings ("222512"). One
-        // strict `Int` threw away the whole Media, so the session fell back to
-        // codec-less media, the resolver sent it to VLCKit as "unknown" video
-        // and Plex Live TV only ever played (if at all) through libvlc's HLS.
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = container.lenientInt(forKey: .id)
-            uuid = container.lenientString(forKey: .uuid)
-            self.container = container.lenientString(forKey: .container)
-            videoCodec = container.lenientString(forKey: .videoCodec)
-            audioCodec = container.lenientString(forKey: .audioCodec)
-            videoResolution = container.lenientString(forKey: .videoResolution)
-            audioChannels = container.lenientInt(forKey: .audioChannels)
-            width = container.lenientInt(forKey: .width)
-            height = container.lenientInt(forKey: .height)
-            bitrate = container.lenientInt(forKey: .bitrate)
-            duration = container.lenientInt(forKey: .duration)
-            let parts = container.decodeOneOrMany(TunePart.self, forKey: .Part)
-            Part = parts.isEmpty ? nil : parts
-        }
-
-        var sessionPath: String? {
-            if let uuid = uuid?.nilIfEmpty {
-                return "/livetv/sessions/\(uuid)"
-            }
-            return Part?.lazy
-                .compactMap(\.key)
-                .compactMap(PlayableMetadata.liveSessionPath)
-                .first
-        }
-
-        var playbackPath: String? {
-            Part?.lazy
-                .compactMap(\.key)
-                .first { $0.contains("/livetv/sessions/") }
-        }
-
-        /// Whether the live session's own HLS (the tuner stream as the
-        /// grabber copies it, no re-encode) plays in AVPlayer as it is:
-        /// MPEG-TS with progressive 8-bit H.264 and AAC/AC-3/E-AC-3/MP3
-        /// audio. Anything else (MPEG-2 broadcast video, interlaced or 10-bit
-        /// H.264, MP2 audio, unknown codecs) goes through the transcoder.
-        var supportsLiveDirectPlay: Bool {
-            let streams = (Part ?? []).flatMap { $0.Stream ?? [] }
-            let video = streams.filter { $0.kind == StreamKind.video.rawValue }
-            let audio = streams.filter { $0.kind == StreamKind.audio.rawValue }
-            guard (container ?? "mpegts").lowercased() == "mpegts",
-                  (videoCodec ?? video.first?.codec)?.lowercased() == "h264",
-                  !video.contains(where: { $0.scanType?.lowercased() == "interlaced" }),
-                  !video.contains(where: { ($0.bitDepth ?? 8) > 8 }) else {
-                return false
-            }
-            let audioCodecs = audio.isEmpty
-                ? [audioCodec].compactMap { $0?.lowercased() }
-                : audio.map { $0.codec?.lowercased() ?? "" }
-            return !audioCodecs.isEmpty
-                && audioCodecs.allSatisfy { ["aac", "ac3", "eac3", "mp3"].contains($0) }
-        }
-
-        func makeMedia(sessionPath: String) -> MediaVersion {
-            let convertedParts = (Part ?? []).enumerated().map { index, part in
-                part.makePart(id: index, sessionPath: sessionPath)
-            }
-            let fallbackPart = MediaPart(
-                id: "0",
-                key: sessionPath,
-                file: nil,
-                size: nil,
-                container: container ?? "mpegts",
-                duration: duration,
-                videoProfile: nil,
-                audioProfile: nil,
-                accessible: true,
-                exists: true,
-                streams: []
-            )
-
-            return MediaVersion(
-                id: String(id ?? 0),
-                container: container ?? "hls",
-                videoCodec: videoCodec,
-                audioCodec: audioCodec,
-                videoResolution: videoResolution,
-                videoProfile: nil,
-                audioProfile: nil,
-                audioChannels: audioChannels,
-                width: width,
-                height: height,
-                bitrate: bitrate,
-                duration: duration,
-                optimizedForStreaming: nil,
-                parts: convertedParts.isEmpty ? [fallbackPart] : convertedParts
-            )
-        }
-    }
-
-    struct TunePart: Decodable {
-        let id: Int?
-        let key: String?
-        let container: String?
-        let duration: Int?
-        let Stream: [TuneStream]?
-
-        private enum CodingKeys: String, CodingKey {
-            case id, key, container, duration, Stream
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = container.lenientInt(forKey: .id)
-            key = container.lenientString(forKey: .key)
-            self.container = container.lenientString(forKey: .container)
-            duration = container.lenientInt(forKey: .duration)
-            let streams = container.decodeOneOrMany(TuneStream.self, forKey: .Stream)
-            Stream = streams.isEmpty ? nil : streams
-        }
-
-        func makePart(id fallbackID: Int, sessionPath: String) -> MediaPart {
-            MediaPart(
-                id: String(id ?? fallbackID),
-                key: key ?? sessionPath,
-                file: nil,
-                size: nil,
-                container: container ?? "mpegts",
-                duration: duration,
-                videoProfile: nil,
-                audioProfile: nil,
-                accessible: true,
-                exists: true,
-                streams: (Stream ?? []).enumerated().compactMap { index, stream in
-                    stream.makeStream(id: index)
-                }
-            )
-        }
-    }
-
-    struct TuneStream: Decodable {
-        let id: Int?
-        let index: Int?
-        let kind: Int?
-        let codec: String?
-        let width: Int?
-        let height: Int?
-        let bitrate: Int?
-        let frameRate: Double?
-        let bitDepth: Int?
-        let profile: String?
-        let level: Int?
-        let channels: Int?
-        let audioChannelLayout: String?
-        let samplingRate: Int?
-        let scanType: String?
-
-        private enum CodingKeys: String, CodingKey {
-            case id, index, kind = "streamType", codec, width, height, bitrate, frameRate, bitDepth
-            case profile, level, channels, audioChannelLayout, samplingRate, scanType
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = container.lenientInt(forKey: .id)
-            index = container.lenientInt(forKey: .index)
-            kind = container.lenientInt(forKey: .kind)
-            codec = container.lenientString(forKey: .codec)
-            width = container.lenientInt(forKey: .width)
-            height = container.lenientInt(forKey: .height)
-            bitrate = container.lenientInt(forKey: .bitrate)
-            frameRate = container.lenientDouble(forKey: .frameRate)
-            bitDepth = container.lenientInt(forKey: .bitDepth)
-            profile = container.lenientString(forKey: .profile)
-            level = container.lenientInt(forKey: .level)
-            channels = container.lenientInt(forKey: .channels)
-            audioChannelLayout = container.lenientString(forKey: .audioChannelLayout)
-            samplingRate = container.lenientInt(forKey: .samplingRate)
-            scanType = container.lenientString(forKey: .scanType)
-        }
-
-        func makeStream(id fallbackID: Int) -> MediaStream? {
-            guard let kind, let type = StreamKind(rawValue: kind) else {
-                return nil
-            }
-
-            return MediaStream(
-                id: String(id ?? index ?? fallbackID),
-                kind: type,
-                codec: codec,
-                displayTitle: nil,
-                extendedDisplayTitle: nil,
-                language: nil,
-                languageCode: nil,
-                languageTag: nil,
-                isSelected: nil,
-                isDefault: nil,
-                width: width,
-                height: height,
-                bitrate: bitrate,
-                frameRate: frameRate,
-                bitDepth: bitDepth,
-                colorSpace: nil,
-                colorRange: nil,
-                colorPrimaries: nil,
-                colorTransfer: nil,
-                chromaSubsampling: nil,
-                profile: profile,
-                level: level,
-                doviPresent: nil,
-                doviProfile: nil,
-                doviLevel: nil,
-                doviBLCompatID: nil,
-                channels: channels,
-                channelLayout: audioChannelLayout,
-                samplingRate: samplingRate,
-                isForced: nil,
-                isHearingImpaired: nil,
-                key: nil
-            )
-        }
-    }
-}
-
-private extension KeyedDecodingContainer {
-    func decodeOneOrMany<T: Decodable>(
-        _ type: T.Type,
-        forKey key: Key
-    ) -> [T] {
-        if let values = try? decode([T].self, forKey: key) {
-            return values
-        }
-        if let value = try? decode(T.self, forKey: key) {
-            return [value]
-        }
-        return []
-    }
-
-    /// Numbers the tune answer may send as JSON numbers or as strings.
-    func lenientInt(forKey key: Key) -> Int? {
-        if let value = try? decodeIfPresent(Int.self, forKey: key) {
-            return value
-        }
-        if let value = try? decodeIfPresent(Double.self, forKey: key), value.isFinite {
-            return Int(value)
-        }
-        if let text = try? decodeIfPresent(String.self, forKey: key) {
-            let trimmed = text.trimmingCharacters(in: .whitespaces)
-            return Int(trimmed) ?? Double(trimmed).flatMap { $0.isFinite ? Int($0) : nil }
-        }
-        return nil
-    }
-
-    func lenientDouble(forKey key: Key) -> Double? {
-        if let value = try? decodeIfPresent(Double.self, forKey: key) {
-            return value
-        }
-        if let text = try? decodeIfPresent(String.self, forKey: key) {
-            return Double(text.trimmingCharacters(in: .whitespaces))
-        }
-        return nil
-    }
-
-    func lenientString(forKey key: Key) -> String? {
-        if let value = try? decodeIfPresent(String.self, forKey: key) {
-            return value
-        }
-        if let value = try? decodeIfPresent(Int.self, forKey: key) {
-            return String(value)
-        }
-        return nil
-    }
 }

@@ -130,10 +130,10 @@ struct IPTVCatchUpTests {
 @Suite("Live TV guide catch-up")
 struct LiveTVGuideCatchUpTests {
     private func program(_ title: String, from begin: Date, to end: Date) throws -> LiveProgram {
-        try JSONDecoder().decode(LiveProgram.self, from: Data("""
+        try PlexLiveTVMapper.program(JSONDecoder().decode(PlexLiveProgramDTO.self, from: Data("""
         { "ratingKey": "\(title)", "title": "\(title)", "guid": "plex://episode/\(title)",
           "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
-        """.utf8))
+        """.utf8)))
     }
 
     private let channel = LiveChannel(
@@ -387,10 +387,10 @@ struct LiveTVGuideCatchUpTests {
     // MARK: Filler airings
 
     private func airing(_ key: String, _ title: String, from begin: Date, to end: Date) throws -> LiveProgram {
-        try JSONDecoder().decode(LiveProgram.self, from: Data("""
+        try PlexLiveTVMapper.program(JSONDecoder().decode(PlexLiveProgramDTO.self, from: Data("""
         { "ratingKey": "\(key)", "title": "\(title)",
           "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
-        """.utf8))
+        """.utf8)))
     }
 
     /// A relay's IPTV guide: sessions days apart with "No live session"
