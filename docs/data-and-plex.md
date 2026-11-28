@@ -939,7 +939,8 @@ File: `MediaService+Photos.swift`, model `Domain/PhotoItem.swift`.
 
 ## Image URL And Data Handling
 Files: `MediaService+Images.swift` (routing, fetching), `Providers/Plex/PlexImages.swift`
-(Plex URLs), `IPTVService/IPTVImageProvider.swift`; the facet is
+(Plex URLs), `Providers/Jellyfin/JellyfinImages.swift` (Jellyfin URLs),
+`IPTVService/IPTVImageProvider.swift`; the facet is
 `Providers/Core/ImageProviding.swift`.
 - Call `media.imageURL(for: ArtworkRef, size: ImageSize)` from view models/UI
   helpers. An `ArtworkRef` is the server id plus an opaque locator (for Plex the
@@ -954,6 +955,16 @@ Files: `MediaService+Images.swift` (routing, fetching), `Providers/Plex/PlexImag
   `IPTVImageProvider` before any pool lookup.
 - Plex: with dimensions, URLs go through `/photo/:/transcode` using display-scaled
   pixel dimensions (`ImageDisplayScale`), `minSize=1`, and `upscale=0`.
+- Jellyfin: the locator is `jf:<itemID>:<type>:<index>:<tag>`
+  (`JellyfinArtworkLocator`, item id = the image's owner, so an episode's show
+  poster names the series). URLs are `/Items/{id}/Images/{type}[/{index}]?tag=`
+  plus `fillWidth`/`fillHeight` (display-scaled) and `quality=90`. `fill*`
+  covers the box without cropping or upscaling, so the same `ImageSize` gives
+  the same pixels as Plex's `minSize=1&upscale=0`; chapter images ignore `fill*`
+  and use `maxWidth`/`maxHeight`. The tag makes the URL an immutable cache key.
+  No token in the URL or the request (images are unauthenticated), no `format`
+  (logos stay PNG). A `jf:` ref whose server is not connected falls through to
+  `PlexImages` and gives an unloadable URL, i.e. the placeholder.
 - The transcode `url` is the server-relative path (`transcodeSourceURLString`),
   as Plex Web sends it. With the server's own absolute URL the server fetches
   itself, which 404s over a LAN address and left every poster blank at home.

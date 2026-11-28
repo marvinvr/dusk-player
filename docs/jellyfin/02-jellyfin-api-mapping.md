@@ -519,8 +519,10 @@ no token (03 §10.4). All **[live]**.
 | chapter | `Chapter.thumb` | `/Items/{id}/Images/Chapter/{i}` |
 | placeholder colours | `UltraBlurColors` | `ImageBlurHashes[type][tag]` (BlurHash string; needs a decoder, or ignore) |
 
-`fillWidth`/`fillHeight` crop to the box (use for fixed-aspect cards);
-`maxWidth`/`maxHeight` keep aspect. `GET /Items/{id}/Images` lists every image
+`fillWidth`/`fillHeight` scale to *cover* the box without cropping and never
+upscale (300×300 on a 2:3 poster gives 300×450), the same as Plex's
+`minSize=1&upscale=0`; chapter images ignore them and come back at full size.
+`maxWidth`/`maxHeight` fit inside the box (they work for chapters too). `GET /Items/{id}/Images` lists every image
 with `Width/Height/Size`. The image layer needs an abstract
 `ArtworkRef(kind, itemID, tag)` → URL builder per backend instead of the
 server-relative path strings `PS+Images.imageURL` takes today; offline artwork

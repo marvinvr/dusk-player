@@ -469,6 +469,15 @@ matrix (§6) against `plex-demo` and `jellyfin-demo` as `duskcompare`.
 keys, person and chapter images. **Accept:** matrix rows "posters",
 "episode stills", "hero art + logo" look the same on both servers.
 
+- **As built (2026-11-28).** `Providers/Jellyfin/JellyfinImages.swift`, no
+  stored state. `ImageSize` stayed without a `mode`: every call site passes a
+  box, and `fill*` already gives Plex's cover-without-crop pixels (measured:
+  poster, still, backdrop and logo dimensions match plex-demo at the same
+  boxes). Chapters use `max*`, the only fit case. Open: J-01's
+  placeholder image facet is swapped for it when J-01 lands; nothing maps or
+  shows chapter images yet; a `jf:` ref whose server is not connected falls
+  through to `PlexImages` and yields an unloadable `jf:` URL (placeholder).
+
 ### J-02 Catalog and browse — L
 
 - **Scope.** Libraries (incl. `homevideos` classification), items with sort
