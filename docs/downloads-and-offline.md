@@ -75,7 +75,16 @@ their own preset, and a partial show/season retry inherits the scope's saved
 choice. A failed download's explicit retry resets its server job and recovery
 budget while preserving source media/part IDs and quality. Pause keeps the job.
 
-`MediaService+Downloads` owns the Download Queue API (PMS 1.41.9+). Each record
+Converted downloads go through the server's `DownloadProviding` facet
+(`Providers/Core/DownloadProviding.swift`) as a resumable job: create queue,
+add job, poll, fetch the prepared file, remove. `DownloadManager` owns the job
+state machine and persists every id between steps; `MediaService+Downloads`
+routes each step to the session's provider and hands it a
+`DownloadConversionTransport` that checks the owning profile and the
+server's switched-off state before and after every await and never refreshes
+into another profile's token. Plex's facet (`Providers/Plex/PlexDownloads.swift`,
+wire parsing in `PlexDownloadQueue.swift`) speaks the Download Queue API
+(PMS 1.41.9+). Each record
 persists a unique client identifier before creating its user/client-scoped
 queue. The queue ID is saved before add; listing that dedicated queue recovers
 an add whose response was lost. Every operation uses captured server credentials
@@ -280,9 +289,21 @@ transfers are created without being demoted. No widget extension.
 
 ## Metadata And Artwork Cache
 
-`PlexMetadataCache` stores raw Plex payloads by server id and endpoint:
-`/library/metadata/{ratingKey}` and
-`/library/metadata/{ratingKey}/children`.
+`MetadataSnapshotCache` stores raw provider payloads by profile, server id and
+`MetadataSnapshotKey` (`.details`, `.children`). The file name is SHA-256 of
+the provider format's `storageName(for:)`; Plex's
+(`PlexMetadataSnapshotFormat`) is exactly the PMS endpoint,
+`/library/metadata/{ratingKey}` and `/library/metadata/{ratingKey}/children`,
+so files written before the provider split are found under the same names
+(golden test: `MetadataSnapshotKeyTests`). Plex payloads are stored bare.
+Formats are reached by `ProviderKind` without a session
+(`MediaService.metadataSnapshotFormats`, via the factory's
+`MetadataSnapshotFormatProviding`), so offline browsing decodes with the
+record's provider: `DownloadedMediaRecord.provider` is an optional tag that is
+absent for Plex (absent = Plex), so a Plex `downloads.json` keeps its exact
+shape. Fetches use the same reads the catalog makes online
+(`/library/metadata/{id}?includeMarkers=1&includeGuids=1`, `…/children`).
+`PlexMetadataCache` is a source-compatibility alias until its last callers move.
 
 Queueing fills cache progressively: movies cache their own details; episodes
 cache details plus season/show context; seasons cache details, episodes, show
@@ -459,7 +480,9 @@ stale Plex metadata.
 New preference: `UserPreferences`, settings UI, then `DownloadManager` at queue
 or start time. New queue action: public manager API plus `DownloadScope`
 aggregate behavior, then `DownloadContextMenuContent`. New cached metadata type:
-typed accessor in `PlexMetadataCache`; keep storage raw and endpoint-keyed. New
+a `MetadataSnapshotKey` case plus a typed accessor in `MetadataSnapshotCache`
+and a decode in each `MetadataSnapshotFormat`; keep storage raw and never change
+an existing provider's `storageName`. New
 offline playback behavior: `PlaybackCoordinator+Session` or
 `PlaybackCoordinator+Timeline`, not engine views. New path rule:
 `DownloadFileStore`; verify relative paths, containment, deletion, and migration.
@@ -474,8 +497,9 @@ plays offline; only new network work needs the server back. Do
 not casually delete shared metadata/artwork; show/season browsing and up-next may
 reuse it. Do not trust `downloadTaskIdentifier` across relaunch. Do not report
 Plex timeline directly for local downloads. Keep Downloads visibility tied to
-records or the offline fallback. Do not add
-a generic provider abstraction unless product scope changes.
+records or the offline fallback. Do not name a provider's wire types or
+transport in `DownloadManager`; add what it needs to `DownloadProviding` and
+route it through `MediaService+Downloads`.
 
 ## Safe-Change Checklist
 

@@ -537,8 +537,9 @@ Detail and hierarchy:
 - `getSeasons(showKey:)` and `getEpisodes(seasonKey:)` use
   `/library/metadata/{ratingKey}/children`.
 - `getNextEpisode(after:)` walks current season episodes, then later seasons.
-- `getMediaDetailsPayload` and `getChildrenPayload` return raw data for
-  `PlexMetadataCache` and downloads. Keep their endpoint semantics stable.
+- `getMediaDetailsPayload` and `getChildrenPayload` return raw data. Downloads
+  make the same reads through `PlexMetadataSnapshotFormat.fetchRequest` for
+  `MetadataSnapshotCache`; keep the two in step.
 
 Subtitle search and download (`MediaService+Subtitles.swift`):
 - Plex Media Server proxies OpenSubtitles, so Dusk needs no OpenSubtitles

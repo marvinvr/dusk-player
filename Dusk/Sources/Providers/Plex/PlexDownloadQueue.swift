@@ -1,14 +1,8 @@
 import CoreFoundation
 import Foundation
 
-/// Credentials are captured for an operation, never stored in downloads.json.
-/// The caller persists a unique client identifier before creating the queue so
-/// a lost create/add response can be recovered without duplicating conversion.
-struct PlexDownloadQueueContext: Sendable {
-    let profileID: String
-    let connection: ServerSession
-    let headers: [String: String]
-}
+// Plex's Download Queue API (PMS 1.41.9+): the wire shapes behind
+// `PlexDownloads`' converted downloads.
 
 enum PlexDownloadQueueStatus: String, Sendable {
     case deciding, waiting, processing, available, error, expired
@@ -24,29 +18,33 @@ struct PlexDownloadQueueItem: Sendable {
     let error: String?
 }
 
-struct PlexPreparedDownload: Sendable {
-    let request: URLRequest
-    let media: MediaVersion
-    let expectedBytes: Int64?
-}
+extension PlexDownloadQueueItem {
+    private static let metadataKeyPrefix = "/library/metadata/"
 
-enum PlexDownloadQueueError: LocalizedError {
-    case wrongProfile
-    case expired
-    case invalidResponse(String)
-    case preparationFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .wrongProfile:
-            return "Switch back to the Plex profile that queued this download to continue."
-        case .expired:
-            return "The prepared download expired on the Plex server. Please retry."
-        case .invalidResponse(let reason), .preparationFailed(let reason):
-            return reason
+    /// The neutral job. The item id is the rating key behind
+    /// `/library/metadata/`, so comparing it with a rating key is the same
+    /// test as comparing `key` with that item's metadata path.
+    var job: ConversionJob {
+        let state: ConversionJobState = switch status {
+        case .deciding, .waiting, .processing: .preparing
+        case .available: .ready
+        case .error: .failed
+        case .expired: .expired
         }
+        return ConversionJob(
+            id: id,
+            queueID: queueID,
+            itemID: key.hasPrefix(Self.metadataKeyPrefix) ? String(key.dropFirst(Self.metadataKeyPrefix.count)) : nil,
+            state: state,
+            progress: progress,
+            failureReason: error
+        )
     }
 }
+
+/// The Plex name for the neutral preparation error; the queue parser and its
+/// regression fixtures throw it.
+typealias PlexDownloadQueueError = DownloadPreparationError
 
 /// Only describes the validated converted output; library stream IDs and HDR
 /// flags belong to the original file and must not leak into offline playback.
@@ -79,7 +77,8 @@ struct PlexDownloadDecision: Sendable {
 }
 
 /// Pure response parsing shared by preparation and its protocol regression
-/// fixtures. Network and active-profile validation remain in MediaService.
+/// fixtures. Sending and active-profile validation stay in the facade
+/// (`MediaService+Downloads`), reached through `DownloadConversionTransport`.
 enum PlexDownloadQueueResponse {
     static func decision(_ data: Data) throws -> PlexDownloadDecision {
         let metadata = try elements(data, named: "Metadata")
