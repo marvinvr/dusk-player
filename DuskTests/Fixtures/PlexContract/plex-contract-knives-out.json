@@ -1,0 +1,1035 @@
+{
+  "MediaContainer": {
+    "Metadata": [
+      {
+        "CommonSenseMedia": [
+          {
+            "AgeRating": [
+              {
+                "age": 13,
+                "rating": 4,
+                "type": "official"
+              }
+            ],
+            "id": 1074,
+            "oneLiner": "Effortlessly fun all-star mystery-comedy; blood, language."
+          }
+        ],
+        "Country": [
+          {
+            "filter": "country=1048",
+            "id": 1048,
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "filter": "director=1078",
+            "id": 1078,
+            "tag": "Rian Johnson",
+            "tagKey": "5d77683361141d001fb15399",
+            "thumb": "https://metadata-static.plex.tv/iva/person/11872/394cec7c58d303c875d1807957f58a0e.jpg"
+          }
+        ],
+        "Genre": [
+          {
+            "filter": "genre=1075",
+            "id": 1075,
+            "tag": "Mystery"
+          },
+          {
+            "filter": "genre=1076",
+            "id": 1076,
+            "tag": "Crime"
+          },
+          {
+            "filter": "genre=7",
+            "id": 7,
+            "tag": "Comedy"
+          },
+          {
+            "filter": "genre=55",
+            "id": 55,
+            "tag": "Drama"
+          },
+          {
+            "filter": "genre=1077",
+            "id": 1077,
+            "tag": "Thriller"
+          }
+        ],
+        "Guid": [
+          {
+            "id": "imdb://tt8946378"
+          },
+          {
+            "id": "tmdb://546554"
+          },
+          {
+            "id": "tvdb://35214"
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Knives Out",
+            "type": "coverPoster",
+            "url": "/library/metadata/166519/thumb/1795812653"
+          },
+          {
+            "alt": "Knives Out",
+            "type": "background",
+            "url": "/library/metadata/166519/art/1795812653"
+          },
+          {
+            "alt": "Knives Out",
+            "type": "clearLogo",
+            "url": "/library/metadata/166519/clearLogo/1795812653"
+          },
+          {
+            "alt": "Knives Out",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/166519/squareArt/1795812653"
+          }
+        ],
+        "Media": [
+          {
+            "Part": [
+              {
+                "Stream": [
+                  {
+                    "DOVIBLCompatID": 1,
+                    "DOVIBLPresent": true,
+                    "DOVIELPresent": false,
+                    "DOVILevel": 10,
+                    "DOVIPresent": true,
+                    "DOVIProfile": 8,
+                    "DOVIRPUPresent": true,
+                    "DOVIVersion": "1.0",
+                    "bitDepth": 10,
+                    "bitrate": 6981,
+                    "chromaLocation": "topleft",
+                    "chromaSubsampling": "4:2:0",
+                    "codec": "hevc",
+                    "codedHeight": 1040,
+                    "codedWidth": 1920,
+                    "colorPrimaries": "bt2020",
+                    "colorRange": "tv",
+                    "colorSpace": "bt2020nc",
+                    "colorTrc": "smpte2084",
+                    "default": true,
+                    "displayTitle": "1080p DoVi/HDR10",
+                    "extendedDisplayTitle": "1080p DoVi/HDR10 (HEVC Main 10)",
+                    "frameRate": 23.976,
+                    "height": 1038,
+                    "id": 284221,
+                    "index": 0,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "level": 153,
+                    "profile": "main 10",
+                    "refFrames": 1,
+                    "streamType": 1,
+                    "width": 1920
+                  },
+                  {
+                    "audioChannelLayout": "5.1(side)",
+                    "bitrate": 768,
+                    "canNormalizeLoudness": true,
+                    "channels": 6,
+                    "codec": "eac3",
+                    "default": true,
+                    "displayTitle": "English (EAC3 5.1 + Atmos)",
+                    "extendedDisplayTitle": "Surround (English EAC3 5.1 + Atmos)",
+                    "gainOffset": "0.95",
+                    "id": 284222,
+                    "index": 1,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-27.35",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "17.90",
+                    "peak": "-0.54",
+                    "profile": "dolby digital plus + dolby atmos",
+                    "samplingRate": 48000,
+                    "selected": true,
+                    "streamType": 2,
+                    "threshold": "-39.35",
+                    "title": "Surround"
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitrate": 192,
+                    "canNormalizeLoudness": true,
+                    "channels": 2,
+                    "codec": "ac3",
+                    "comment": true,
+                    "displayTitle": "English (AC3 Stereo)",
+                    "extendedDisplayTitle": "Commentary by Writer/Director Rian Johnson, Cinematographer Steve Yedlin & Actor Noah Segan (English AC3 Stereo)",
+                    "gainOffset": "0.04",
+                    "id": 284223,
+                    "index": 2,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-28.36",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "6.20",
+                    "peak": "-6.83",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-38.92",
+                    "title": "Commentary by Writer/Director Rian Johnson, Cinematographer Steve Yedlin & Actor Noah Segan"
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitrate": 192,
+                    "canNormalizeLoudness": true,
+                    "channels": 2,
+                    "codec": "ac3",
+                    "comment": true,
+                    "displayTitle": "English (AC3 Stereo)",
+                    "extendedDisplayTitle": "Commentary by Writer/Director Rian Johnson (In-Theater) (English AC3 Stereo)",
+                    "gainOffset": "0.22",
+                    "id": 284224,
+                    "index": 3,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-26.96",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "8.00",
+                    "peak": "-6.61",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-37.94",
+                    "title": "Commentary by Writer/Director Rian Johnson (In-Theater)"
+                  },
+                  {
+                    "bitrate": 60,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "default": true,
+                    "displayTitle": "English SDH",
+                    "extendedDisplayTitle": "English (SDH) (PGS)",
+                    "hearingImpaired": true,
+                    "id": 284225,
+                    "index": 4,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "streamType": 3,
+                    "title": "English (SDH)"
+                  },
+                  {
+                    "bitrate": 57,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "English",
+                    "extendedDisplayTitle": "English (PGS)",
+                    "id": 284226,
+                    "index": 5,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "streamType": 3,
+                    "title": "English"
+                  },
+                  {
+                    "bitrate": 41,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "comment": true,
+                    "displayTitle": "Français",
+                    "extendedDisplayTitle": "French (Commentary #1) (Français PGS)",
+                    "id": 284227,
+                    "index": 6,
+                    "language": "Français",
+                    "languageCode": "fra",
+                    "languageTag": "fr",
+                    "streamType": 3,
+                    "title": "French (Commentary #1)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "العربية",
+                    "extendedDisplayTitle": "العربية (SRT)",
+                    "id": 284228,
+                    "index": 7,
+                    "language": "العربية",
+                    "languageCode": "ara",
+                    "languageTag": "ar",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "中文（台灣）",
+                    "extendedDisplayTitle": "中文（台灣） (SRT)",
+                    "id": 284229,
+                    "index": 8,
+                    "language": "中文（台灣）",
+                    "languageCode": "zho",
+                    "languageTag": "zh-Hant",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Čeština",
+                    "extendedDisplayTitle": "Čeština (SRT)",
+                    "id": 284230,
+                    "index": 9,
+                    "language": "Čeština",
+                    "languageCode": "ces",
+                    "languageTag": "cs",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Dansk",
+                    "extendedDisplayTitle": "Dansk (SRT)",
+                    "id": 284231,
+                    "index": 10,
+                    "language": "Dansk",
+                    "languageCode": "dan",
+                    "languageTag": "da",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Deutsch",
+                    "extendedDisplayTitle": "Deutsch (SRT)",
+                    "id": 284232,
+                    "index": 11,
+                    "language": "Deutsch",
+                    "languageCode": "deu",
+                    "languageTag": "de",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Ελληνικά",
+                    "extendedDisplayTitle": "Ελληνικά (SRT)",
+                    "id": 284233,
+                    "index": 12,
+                    "language": "Ελληνικά",
+                    "languageCode": "ell",
+                    "languageTag": "el",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "English",
+                    "extendedDisplayTitle": "English (SRT)",
+                    "id": 284234,
+                    "index": 13,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en-US",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "English SDH",
+                    "extendedDisplayTitle": "SDH (English SRT)",
+                    "hearingImpaired": true,
+                    "id": 284235,
+                    "index": 14,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en-US",
+                    "streamType": 3,
+                    "title": "SDH"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Español (Latinoamérica)",
+                    "extendedDisplayTitle": "Español (Latinoamérica) (SRT)",
+                    "id": 284236,
+                    "index": 15,
+                    "language": "Español (Latinoamérica)",
+                    "languageCode": "spa",
+                    "languageTag": "es-419",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Español",
+                    "extendedDisplayTitle": "Español (SRT)",
+                    "id": 284237,
+                    "index": 16,
+                    "language": "Español",
+                    "languageCode": "spa",
+                    "languageTag": "es-ES",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Suomi",
+                    "extendedDisplayTitle": "Suomi (SRT)",
+                    "id": 284238,
+                    "index": 17,
+                    "language": "Suomi",
+                    "languageCode": "fin",
+                    "languageTag": "fi",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Français",
+                    "extendedDisplayTitle": "Français (SRT)",
+                    "id": 284239,
+                    "index": 18,
+                    "language": "Français",
+                    "languageCode": "fra",
+                    "languageTag": "fr-FR",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Hrvatski",
+                    "extendedDisplayTitle": "Hrvatski (SRT)",
+                    "id": 284240,
+                    "index": 19,
+                    "language": "Hrvatski",
+                    "languageCode": "hrv",
+                    "languageTag": "hr",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Indonesia",
+                    "extendedDisplayTitle": "Indonesia (SRT)",
+                    "id": 284241,
+                    "index": 20,
+                    "language": "Indonesia",
+                    "languageCode": "ind",
+                    "languageTag": "id",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Italiano",
+                    "extendedDisplayTitle": "Italiano (SRT)",
+                    "id": 284242,
+                    "index": 21,
+                    "language": "Italiano",
+                    "languageCode": "ita",
+                    "languageTag": "it",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "日本語",
+                    "extendedDisplayTitle": "日本語 (SRT)",
+                    "id": 284243,
+                    "index": 22,
+                    "language": "日本語",
+                    "languageCode": "jpn",
+                    "languageTag": "ja",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Melayu",
+                    "extendedDisplayTitle": "Melayu (SRT)",
+                    "id": 284244,
+                    "index": 23,
+                    "language": "Melayu",
+                    "languageCode": "msa",
+                    "languageTag": "ms",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Nederlands",
+                    "extendedDisplayTitle": "Nederlands (SRT)",
+                    "id": 284245,
+                    "index": 24,
+                    "language": "Nederlands",
+                    "languageCode": "nld",
+                    "languageTag": "nl",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "norsk",
+                    "extendedDisplayTitle": "norsk (SRT)",
+                    "id": 284246,
+                    "index": 25,
+                    "language": "norsk",
+                    "languageCode": "nor",
+                    "languageTag": "no",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "polski",
+                    "extendedDisplayTitle": "polski (SRT)",
+                    "id": 284247,
+                    "index": 26,
+                    "language": "polski",
+                    "languageCode": "pol",
+                    "languageTag": "pl",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Português",
+                    "extendedDisplayTitle": "Português (SRT)",
+                    "id": 284248,
+                    "index": 27,
+                    "language": "Português",
+                    "languageCode": "por",
+                    "languageTag": "pt-BR",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Português SDH",
+                    "extendedDisplayTitle": "SDH (Português SRT)",
+                    "hearingImpaired": true,
+                    "id": 284249,
+                    "index": 28,
+                    "language": "Português",
+                    "languageCode": "por",
+                    "languageTag": "pt-BR",
+                    "streamType": 3,
+                    "title": "SDH"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "română",
+                    "extendedDisplayTitle": "română (SRT)",
+                    "id": 284250,
+                    "index": 29,
+                    "language": "română",
+                    "languageCode": "ron",
+                    "languageTag": "ro",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Slovenčina",
+                    "extendedDisplayTitle": "Slovenčina (SRT)",
+                    "id": 284251,
+                    "index": 30,
+                    "language": "Slovenčina",
+                    "languageCode": "slk",
+                    "languageTag": "sk",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Svenska",
+                    "extendedDisplayTitle": "Svenska (SRT)",
+                    "id": 284252,
+                    "index": 31,
+                    "language": "Svenska",
+                    "languageCode": "swe",
+                    "languageTag": "sv",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "ไทย",
+                    "extendedDisplayTitle": "ไทย (SRT)",
+                    "id": 284253,
+                    "index": 32,
+                    "language": "ไทย",
+                    "languageCode": "tha",
+                    "languageTag": "th",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "粵語",
+                    "extendedDisplayTitle": "粵語 (SRT)",
+                    "id": 284254,
+                    "index": 33,
+                    "language": "粵語",
+                    "languageCode": "yue",
+                    "languageTag": "yue-Hant",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "中文",
+                    "extendedDisplayTitle": "中文 (SRT)",
+                    "id": 284255,
+                    "index": 34,
+                    "language": "中文",
+                    "languageCode": "zho",
+                    "languageTag": "zh-Hans",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "中文（台灣）",
+                    "extendedDisplayTitle": "中文（台灣） (SRT)",
+                    "id": 284256,
+                    "index": 35,
+                    "language": "中文（台灣）",
+                    "languageCode": "zho",
+                    "languageTag": "zh-Hant",
+                    "streamType": 3
+                  }
+                ],
+                "audioProfile": "dolby digital plus + dolby atmos",
+                "container": "mkv",
+                "duration": 7817247,
+                "file": "/data/Real/Movies/Knives Out (2019)/Knives Out (2019) - 1080p.mkv",
+                "id": 160477,
+                "indexes": "sd",
+                "key": "/library/parts/160477/1781780819/file.mkv",
+                "size": 7947205245,
+                "videoProfile": "main 10"
+              }
+            ],
+            "aspectRatio": 1.85,
+            "audioChannels": 6,
+            "audioCodec": "eac3",
+            "audioProfile": "dolby digital plus + dolby atmos",
+            "bitrate": 8133,
+            "container": "mkv",
+            "duration": 7817247,
+            "hasVoiceActivity": false,
+            "height": 1038,
+            "id": 160477,
+            "videoCodec": "hevc",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "videoResolution": "1080",
+            "width": 1920
+          }
+        ],
+        "Producer": [
+          {
+            "filter": "producer=1112",
+            "id": 1112,
+            "tag": "Rian Johnson",
+            "tagKey": "5d77683361141d001fb15399",
+            "thumb": "https://metadata-static.plex.tv/iva/person/11872/394cec7c58d303c875d1807957f58a0e.jpg"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "type": "audience",
+            "value": 7.9
+          },
+          {
+            "image": "rottentomatoes://image.rating.ripe",
+            "type": "critic",
+            "value": 9.7
+          },
+          {
+            "image": "rottentomatoes://image.rating.upright",
+            "type": "audience",
+            "value": 9.2
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "type": "audience",
+            "value": 7.8
+          }
+        ],
+        "Role": [
+          {
+            "filter": "actor=1080",
+            "id": 1080,
+            "role": "Benoit Blanc",
+            "tag": "Daniel Craig",
+            "tagKey": "5d776827999c64001ec2c986",
+            "thumb": "https://metadata-static.plex.tv/0/people/0d5dd39118e76f4527572de714bf4ac0.jpg"
+          },
+          {
+            "filter": "actor=1081",
+            "id": 1081,
+            "role": "Ransom Drysdale",
+            "tag": "Chris Evans",
+            "tagKey": "5d776829103a2d001f564c59",
+            "thumb": "https://metadata-static.plex.tv/9/people/98fac67e877533113ffaa2286448b99f.jpg"
+          },
+          {
+            "filter": "actor=1082",
+            "id": 1082,
+            "role": "Marta Cabrera",
+            "tag": "Ana de Armas",
+            "tagKey": "5d7768416f4521001ea9e575",
+            "thumb": "https://metadata-static.plex.tv/c/people/c6878aeca2a6f9ad8c6b05686d77d529.jpg"
+          },
+          {
+            "filter": "actor=1083",
+            "id": 1083,
+            "role": "Linda Drysdale",
+            "tag": "Jamie Lee Curtis",
+            "tagKey": "5d77682785719b001f3a0f91",
+            "thumb": "https://metadata-static.plex.tv/b/people/bd0176b861ea83bdde2714898a0f5fd1.jpg"
+          },
+          {
+            "filter": "actor=1084",
+            "id": 1084,
+            "role": "Walt Thrombey",
+            "tag": "Michael Shannon",
+            "tagKey": "5d776826e6d55c002040af93",
+            "thumb": "https://metadata-static.plex.tv/a/people/a4ff686dcd0dcd6f48ffb47f8638ba99.jpg"
+          },
+          {
+            "filter": "actor=1085",
+            "id": 1085,
+            "role": "Richard Drysdale",
+            "tag": "Don Johnson",
+            "tagKey": "5d77682b5af944001f1f7bee",
+            "thumb": "https://metadata-static.plex.tv/6/people/6954000e9645e9100d1928b6f530f127.jpg"
+          },
+          {
+            "filter": "actor=1086",
+            "id": 1086,
+            "role": "Joni Thrombey",
+            "tag": "Toni Collette",
+            "tagKey": "5d7768262ec6b5001f6ba24b",
+            "thumb": "https://metadata-static.plex.tv/7/people/7e508c0e373d9c4c0d5a18ffd3728e23.jpg"
+          },
+          {
+            "filter": "actor=1087",
+            "id": 1087,
+            "role": "Lieutenant Elliott",
+            "tag": "LaKeith Stanfield",
+            "tagKey": "5d77698496b655001fdd0ecc",
+            "thumb": "https://metadata-static.plex.tv/c/people/c068a50c1526c281b2b98cd8d1fc0045.jpg"
+          },
+          {
+            "filter": "actor=1088",
+            "id": 1088,
+            "role": "Harlan Thrombey",
+            "tag": "Christopher Plummer",
+            "tagKey": "5d7768253c3c2a001fbca996",
+            "thumb": "https://metadata-static.plex.tv/a/people/a7e5a358f03bbdb3f4a96a2c8039ecc6.jpg"
+          },
+          {
+            "filter": "actor=1089",
+            "id": 1089,
+            "role": "Meg Thrombey",
+            "tag": "Katherine Langford",
+            "tagKey": "5d776b37fb0d55001f560537",
+            "thumb": "https://metadata-static.plex.tv/8/people/8c29104f5fa7988177ef3f5a29b4cca3.jpg"
+          },
+          {
+            "filter": "actor=1090",
+            "id": 1090,
+            "role": "Jacob Thrombey",
+            "tag": "Jaeden Martell",
+            "tagKey": "5d776a59fb0d55001f543233",
+            "thumb": "https://metadata-static.plex.tv/6/people/6dc886b8df41be01e4fde50f403c2b82.jpg"
+          },
+          {
+            "filter": "actor=1091",
+            "id": 1091,
+            "role": "Donna Thrombrey",
+            "tag": "Riki Lindhome",
+            "tagKey": "5d776824151a60001f24a323",
+            "thumb": "https://metadata-static.plex.tv/7/people/7e02c747f2f8c2ab166b0899e06cf03c.jpg"
+          },
+          {
+            "filter": "actor=1092",
+            "id": 1092,
+            "role": "Fran",
+            "tag": "Edi Patterson",
+            "tagKey": "5d77684161141d001fb16f3e",
+            "thumb": "https://metadata-static.plex.tv/6/people/6cc8ec167a0fa3e73d839a4bf3dbf947.jpg"
+          },
+          {
+            "filter": "actor=1093",
+            "id": 1093,
+            "role": "Alan Stevens",
+            "tag": "Frank Oz",
+            "tagKey": "5d776826961905001eb91169",
+            "thumb": "https://metadata-static.plex.tv/1/people/125b8f36fccaf26fcd75e9cea03922f7.jpg"
+          },
+          {
+            "filter": "actor=1094",
+            "id": 1094,
+            "role": "Greatnana Wanetta",
+            "tag": "K Callan",
+            "tagKey": "5d77682c85719b001f3a1dfb",
+            "thumb": "https://metadata-static.plex.tv/e/people/eb14eb185a898b634919954215e689bc.jpg"
+          },
+          {
+            "filter": "actor=1095",
+            "id": 1095,
+            "role": "Trooper Wagner",
+            "tag": "Noah Segan",
+            "tagKey": "5d7768302e80df001ebddc2c",
+            "thumb": "https://metadata-static.plex.tv/5/people/5c887646c7d6c6de931824b07e632361.jpg"
+          },
+          {
+            "filter": "actor=1096",
+            "id": 1096,
+            "role": "Mr. Proofroc",
+            "tag": "M. Emmet Walsh",
+            "tagKey": "5d7768245af944001f1f6358",
+            "thumb": "https://metadata-static.plex.tv/1/people/194500ccded1e20d6be5414abd064e12.jpg"
+          },
+          {
+            "filter": "actor=1097",
+            "id": 1097,
+            "role": "Marta's Mom",
+            "tag": "Marlene Forte",
+            "tagKey": "5d77683beb5d26001f1e1f4b",
+            "thumb": "https://metadata-static.plex.tv/e/people/ec7afa44f67de9a5a517a3927b93c6f9.jpg"
+          },
+          {
+            "filter": "actor=1098",
+            "id": 1098,
+            "role": "Cop",
+            "tag": "Raúl Castillo",
+            "tagKey": "5d7768525af944001f1ff2ae",
+            "thumb": "https://metadata-static.plex.tv/iva/person/1170185/b6039ca7b51ba38a98ddb0f61dae022a.jpg"
+          },
+          {
+            "filter": "actor=1099",
+            "id": 1099,
+            "role": "Alicia",
+            "tag": "Shyrley Rodriguez",
+            "tagKey": "5d776ad57a53e9001e7110dc",
+            "thumb": "https://metadata-static.plex.tv/0/people/08628cc1ce575426e45d6cdcd1515322.jpg"
+          },
+          {
+            "filter": "actor=1100",
+            "id": 1100,
+            "role": "Sally",
+            "tag": "Kerry Frances",
+            "tagKey": "5e165a17bc1372003ea932f9",
+            "thumb": "https://metadata-static.plex.tv/7/people/772a8f4272dbc4d0713af93395826df5.jpg"
+          },
+          {
+            "filter": "actor=1101",
+            "id": 1101,
+            "role": "Local News Anchor",
+            "tag": "Gary Tanguay",
+            "tagKey": "5d776addad5437001f78b20b",
+            "thumb": "https://metadata-static.plex.tv/7/people/7aba52d7697da1f738cadcc044b10ee1.jpg"
+          },
+          {
+            "filter": "actor=1102",
+            "id": 1102,
+            "role": "Other Woman",
+            "tag": "Octavia Chavez-Richmond",
+            "tagKey": "5d776cc57a53e9001e74c2d4",
+            "thumb": "https://metadata-static.plex.tv/people/5d776cc57a53e9001e74c2d4.jpg"
+          },
+          {
+            "filter": "actor=1103",
+            "id": 1103,
+            "role": "Detective Hardrock (voice)",
+            "tag": "Joseph Gordon-Levitt",
+            "tagKey": "5d7768254de0ee001fcc8145",
+            "thumb": "https://metadata-static.plex.tv/a/people/aafc7025c7b3d9c7a05e1f95baba1e9a.jpg"
+          },
+          {
+            "filter": "actor=1104",
+            "id": 1104,
+            "role": "Friend of Harlan Thrombey (uncredited)",
+            "tag": "Paul Bellefeuille",
+            "tagKey": "5d776c76ad5437001f7bec61",
+            "thumb": "https://metadata-static.plex.tv/7/people/72f9c7495bb269224a7ea972e75f918b.jpg"
+          },
+          {
+            "filter": "actor=1105",
+            "id": 1105,
+            "role": "Worker (uncredited)",
+            "tag": "Ben Bunnag",
+            "tagKey": "5e166bfafef2d4003e8c8d19",
+            "thumb": "https://metadata-static.plex.tv/people/5e166bfafef2d4003e8c8d19.jpg"
+          },
+          {
+            "filter": "actor=1106",
+            "id": 1106,
+            "role": "Firefighter (uncredited)",
+            "tag": "Michael Burnell",
+            "tagKey": "5e204237065879003f222122"
+          },
+          {
+            "filter": "actor=1107",
+            "id": 1107,
+            "role": "Officer Perry interviewing Marta (uncredited)",
+            "tag": "Frankie Francois",
+            "tagKey": "5e204237fa2200003df9c6a8",
+            "thumb": "https://metadata-static.plex.tv/people/5e204237fa2200003df9c6a8.jpg"
+          },
+          {
+            "filter": "actor=1108",
+            "id": 1108,
+            "role": "Pedestrian (uncredited)",
+            "tag": "Marcela Jaramillo",
+            "tagKey": "6a0c059104e137f15b95e691",
+            "thumb": "https://metadata-static.plex.tv/b/people/bfa1d6c81ae225208ea0dfc0974262ca.jpg"
+          },
+          {
+            "filter": "actor=1109",
+            "id": 1109,
+            "role": "Waitress (uncredited)",
+            "tag": "Gabrielle Lorthe",
+            "tagKey": "5d776bb447dd6e001f6e2252",
+            "thumb": "https://metadata-static.plex.tv/people/5d776bb447dd6e001f6e2252.jpg"
+          },
+          {
+            "filter": "actor=1110",
+            "id": 1110,
+            "role": "Morgue Fire Spectator (uncredited)",
+            "tag": "Rob Lévesque",
+            "tagKey": "5d776c7c594b2b001e6f4d7f",
+            "thumb": "https://metadata-static.plex.tv/people/5d776c7c594b2b001e6f4d7f.jpg"
+          },
+          {
+            "filter": "actor=1111",
+            "id": 1111,
+            "role": "Officer Taillie (uncredited)",
+            "tag": "Paul Tawczynski",
+            "tagKey": "5d776c8d96b655001fe347ee",
+            "thumb": "https://metadata-static.plex.tv/people/5d776c8d96b655001fe347ee.jpg"
+          }
+        ],
+        "UltraBlurColors": {
+          "bottomLeft": "7a3f97",
+          "bottomRight": "ae0e2e",
+          "topLeft": "531602",
+          "topRight": "924323"
+        },
+        "Writer": [
+          {
+            "filter": "writer=1079",
+            "id": 1079,
+            "tag": "Rian Johnson",
+            "tagKey": "5d77683361141d001fb15399",
+            "thumb": "https://metadata-static.plex.tv/iva/person/11872/394cec7c58d303c875d1807957f58a0e.jpg"
+          }
+        ],
+        "addedAt": 1781780819,
+        "art": "/library/metadata/166519/art/1795812653",
+        "audienceRating": 9.2,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "contentRating": "PG-13",
+        "contentRatingAge": 13,
+        "duration": 7817247,
+        "guid": "plex://movie/5d77707e6afb3d002061b768",
+        "key": "/library/metadata/166519",
+        "librarySectionID": 19,
+        "librarySectionKey": "/library/sections/19",
+        "librarySectionTitle": "Real Movies",
+        "loudnessAnalysisVersion": "0.02",
+        "originallyAvailableAt": "2019-11-27",
+        "primaryExtraKey": "/library/metadata/166539",
+        "rating": 9.7,
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "ratingKey": "166519",
+        "slug": "knives-out-2019",
+        "studio": "MRC",
+        "summary": "When renowned crime novelist Harlan Thrombey (Christopher Plummer) is found dead at his estate just after his 85th birthday, the inquisitive and debonair Detective Benoit Blanc (Daniel Craig) is mysteriously enlisted to investigate. From Harlan's disfunctional family to his devoted staff, Blanc sifts through a web of red herrings and self-serving lies to uncover the truth behind Harlan's untimely death.",
+        "tagline": "Hell, any of them could have done it.",
+        "thumb": "/library/metadata/166519/thumb/1795812653",
+        "title": "Knives Out",
+        "type": "movie",
+        "updatedAt": 1795812653,
+        "year": 2019
+      }
+    ],
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 19,
+    "librarySectionTitle": "Real Movies",
+    "librarySectionUUID": "c0ffeec0ffeec0ffeec0ffeec0ffeec0",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1791214582,
+    "size": 1
+  }
+}
