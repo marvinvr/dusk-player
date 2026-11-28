@@ -15,70 +15,19 @@ struct ServerSessionToken: Equatable {
 }
 
 extension MediaService {
-    /// Whether a plex.tv resource is a Plex Media Server. `provides` normally
-    /// lists "server", but plex.tv can report a real server with a wrong
-    /// `provides` (the owner's main server came back as `"controller"` with
-    /// `product` still "Plex Media Server", 2026-11-10), which made Dusk drop
-    /// it before any connection was tried while Plex's own apps kept working.
-    /// The product name is enough; `/identity` still has to name the server
-    /// before any connection to it is used.
+    /// Whether a plex.tv resource is a Plex Media Server. See
+    /// `PlexAccountProvider.isMediaServerResource`.
     nonisolated static func isMediaServerResource(_ json: [String: Any]) -> Bool {
-        let provides = (json["provides"] as? String)?
-            .lowercased()
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) } ?? []
-        if provides.contains("server") { return true }
-        return (json["product"] as? String)?.caseInsensitiveCompare("Plex Media Server") == .orderedSame
+        PlexAccountProvider.isMediaServerResource(json)
     }
 
     var serverSessionToken: ServerSessionToken {
         ServerSessionToken(profileID: activeProfileID, generation: pool.generation)
     }
 
+    /// The account's servers from plex.tv, through its provider.
     func discoverServers() async throws -> [PlexServer] {
-        guard !needsHomeUserSelection, let activeAccountToken else {
-            throw PlexServiceError.notAuthenticated
-        }
-
-        return try await retryAfterFreshAuthentication {
-            guard let url = buildURL(
-                base: Self.plexTVBase,
-                path: "/api/v2/resources",
-                queryItems: [
-                    URLQueryItem(name: "includeHttps", value: "1"),
-                    URLQueryItem(name: "includeRelay", value: "1"),
-                ]
-            ) else { throw PlexServiceError.invalidURL }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            applyHeaders(to: &request, token: activeAccountToken)
-            guard bootstrapNetworkAvailable else {
-                throw PlexServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
-            }
-            let data = try await executeRequest(request, using: bootstrapSession)
-
-            guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw PlexServiceError.decodingError("Expected JSON array from resources endpoint")
-            }
-
-            let servers = jsonArray.compactMap { json -> PlexServer? in
-                guard Self.isMediaServerResource(json) else { return nil }
-                guard let itemData = try? JSONSerialization.data(withJSONObject: json) else {
-                    return nil
-                }
-                return try? decoder.decode(PlexServer.self, from: itemData)
-            }
-
-            if isAuthenticationFresh,
-               !servers.isEmpty,
-               servers.allSatisfy({ $0.usableAccessToken == nil }) {
-                plexAuthLogger.notice("Server discovery returned servers without usable access tokens during bootstrap window")
-                throw AuthenticationBootstrapError.waitingForPropagation
-            }
-
-            return servers
-        }
+        try await plexAccount.discoverServers()
     }
 
     /// Connects every enabled server in parallel: discover, fold the result into

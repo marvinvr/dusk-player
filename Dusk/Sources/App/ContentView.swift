@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Root view that routes between sign-in, the Plex Home profile picker, and the
-/// main tab shell.
+/// Root view that routes on `MediaService.sessionState` between sign-in, the
+/// bootstrap screen, the profile picker, and the main tab shell.
 ///
 /// There is no server step: once the session is ready the shell mounts and
 /// `ServerConnectionCoordinator` connects every enabled server underneath it.
@@ -25,19 +25,20 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !media.isAuthenticated {
+            switch media.sessionState {
+            case .signedOut:
                 SignInView()
-            } else if !media.homeBootstrapCompleted {
+            case .bootstrapping:
                 homeBootstrapView
-            } else if media.needsHomeUserSelection {
+            case .needsProfile:
                 HomeUserPickerView(
-                    users: media.homeUsers,
+                    profiles: media.profiles,
                     rememberSelection: media.automaticHomeSignIn,
                     onSignOut: {
                         signOut()
                     }
                 )
-            } else {
+            case .ready:
                 #if os(macOS)
                 MacRootView()
                     .id(media.activeProfileID)
@@ -57,9 +58,7 @@ struct ContentView: View {
         .onChange(of: revealsWithoutHome, initial: true) { _, reveals in
             if reveals { launchSplash.contentIsReady() }
         }
-        .animation(.default, value: media.isAuthenticated)
-        .animation(.default, value: media.homeBootstrapCompleted)
-        .animation(.default, value: media.needsHomeUserSelection)
+        .animation(.default, value: media.sessionState)
         .background(Color.duskBackground.ignoresSafeArea())
         .duskSuppressTVOSButtonChrome()
         .task(id: media.isAuthenticated) {
@@ -117,11 +116,14 @@ struct ContentView: View {
     /// The screens that are complete the moment they mount, so the launch
     /// splash can leave without waiting for Home (which reports itself).
     private var revealsWithoutHome: Bool {
-        if !media.isAuthenticated { return true }
-        if !media.homeBootstrapCompleted {
-            return homeBootstrapError != nil || connections.lastError != nil
+        switch media.sessionState {
+        case .signedOut, .needsProfile:
+            true
+        case .bootstrapping:
+            homeBootstrapError != nil || connections.lastError != nil
+        case .ready:
+            false
         }
-        return media.needsHomeUserSelection
     }
 
     /// Re-runs the connect pass whenever the session identity changes: sign-in,

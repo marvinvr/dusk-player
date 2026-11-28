@@ -97,6 +97,20 @@ enabled flags), `ServerSession.swift` (one session), `ServerProbe.swift`
   ("Local", "Remote", "Relay", "Connecting…", "Offline", "Not authorized",
   "Disabled", "Your server", "Shared by X").
 
+Accounts (docs/jellyfin/04-architecture.md §7): `PlexAccountProvider` owns the
+Plex account's credentials and Home state (`PlexAccountState`), the plex.tv
+request core with the fresh-sign-in retry, and discovery; `PlexProfiles` the
+Home member calls; `PlexSignInFlow` the PIN calls. `MediaService` forwards its
+account properties (`primaryAccountToken`, `homeUsers`, `automaticHomeSignIn`, …)
+to that state and keeps the orchestration (teardown on account change, Home
+bootstrap and switch, persistence) in `+Auth` / `+Home`. `AccountStore` lists
+the signed-in accounts as `StoredAccount`s read in place from the Keychain
+token (nothing new is stored); `sessionState`
+(`signedOut | bootstrapping | needsProfile | ready`) is what `ContentView`
+routes on, and the picker shows neutral `Profile`s (`id` = `stableProfileID`).
+`MediaService+Networking.rawPlexTVRequest` is still a second copy of the plex.tv
+request core for the account features not yet extracted; keep both identical.
+
 Tokens and persisted state:
 - `primaryAccountToken`: the full Plex account token established by device-link
   sign-in. It is the durable authority for listing and switching Plex Home
@@ -136,8 +150,8 @@ Tokens and persisted state:
 
 Flow:
 1. `generatePin(strong:)` posts to `https://plex.tv/api/v2/pins`.
-2. `authURL(for:)` builds Plex's hosted auth page URL for the PIN. `SignInView`
-   opens it in an in-app `SFSafariViewController` on iPhone/iPad, but for an iOS
+2. `authURL(for:)` builds Plex's hosted auth page URL for the PIN.
+   `SignInPlexFlowView` (inside the `SignInView` host) opens it in an in-app `SFSafariViewController` on iPhone/iPad, but for an iOS
    app on macOS (`isiOSAppOnMac`/`isMacCatalystApp`, where that sheet dismisses
    itself immediately) it opens the external browser instead. Polling is started
    before the browser opens and is independent of the browser's lifecycle:
@@ -151,8 +165,8 @@ Flow:
    the `plex.tv` → `www.plex.tv` 301 keeps the query. New Code reruns
    `signIn()`; Cancel goes back to the start screen.
 3. `checkPin(_:)` polls until `authToken` appears.
-4. `setAuthToken(_:)` stores the primary token and clears stale account/server
-   state on account change.
+4. `completeSignIn(_:credential:)` → `setAuthToken(_:)` stores the primary token
+   and clears stale account/server state on account change.
 5. Account bootstrap and resource discovery use a dedicated ephemeral session
    with no connectivity waiting and a 3 s request/resource budget. The network
    monitor also rejects new bootstrap requests without a route. Account-wide

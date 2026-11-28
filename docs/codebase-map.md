@@ -12,12 +12,14 @@ Dusk/Sources
   Domain/              App-facing media models; Plex payloads decode in Providers/Plex/DTO/
   Providers/
     Core/              Provider and facet protocols (one file per facet), ProviderRegistry,
-                       server registry, request types; declarations, wave 4 fills them in
-    Plex/              PlexClient (sessions, headers, sending), provider shells and one
-                       empty facet per file, transport security, DTO/ and Mappers/
+                       server registry, StoredAccount, Profile, SignInFlow, request types
+    Plex/              PlexClient (sessions, headers, sending), PlexAccountProvider (account
+                       credentials + Home state, plex.tv requests, discovery), PlexProfiles,
+                       PlexSignInFlow, one facet per file, transport security, DTO/, Mappers/
     Jellyfin/          Client and DTOs (not wired in yet)
-  MediaService/        The facade: Plex auth, the multi-server session pool, request
-                       routing and self-healing, API calls, images, playback + subtitle URLs
+  MediaService/        The facade: AccountStore + session state, sign-in/Home orchestration,
+                       the multi-server session pool, request routing and self-healing,
+                       API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        same-server library copies, the alternates index, and library server labelling
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
@@ -70,13 +72,14 @@ SwiftUI environment:
 - `AnalyticsClient`
 - `SupporterStore`
 
-`ContentView` gates the app by session state only — there is no server step:
+`ContentView` gates the app by `media.sessionState` only — there is no server
+step:
 
 ```text
-not authenticated      -> SignInView
-Home bootstrap pending -> loading / retry
-Home user needed       -> HomeUserPickerView
-otherwise              -> MainTabView
+.signedOut     -> SignInView (host; shows the one flow, SignInPlexFlowView)
+.bootstrapping -> loading / retry
+.needsProfile  -> HomeUserPickerView (the account's Profiles)
+.ready         -> MainTabView
 ```
 
 Connecting happens *underneath* the shell. `ServerConnectionCoordinator`

@@ -1,7 +1,28 @@
 import Foundation
 import OSLog
 
+/// Profiles: the neutral verbs the profile picker and Settings use, and the
+/// Plex Home orchestration behind them. The plex.tv calls are
+/// `PlexProfiles`'; the state transitions, teardown and persistence stay here.
 extension MediaService {
+    /// The primary account's profiles, for the picker.
+    var profiles: [Profile] { plexAccount.profiles.all }
+
+    /// The active profile, when the account has one.
+    var activeProfile: Profile? { plexAccount.profiles.current }
+
+    /// More than one profile to switch between.
+    var canSwitchProfiles: Bool { plexAccount.profiles.canSwitch }
+
+    /// Switches the active profile. `secret` is the Plex Home PIN for a
+    /// protected member; it is sent only in the switch request.
+    func switchProfile(_ profile: Profile, secret: String?, remember: Bool) async throws {
+        guard let user = plexAccount.plexProfiles.homeUser(for: profile) else {
+            throw PlexServiceError.homeUserUnavailable
+        }
+        try await switchHomeUser(user, pin: secret, remember: remember)
+    }
+
     /// Resolves the linked account's Plex Home and restores an automatically
     /// signed-in member when possible.
     ///
@@ -17,8 +38,9 @@ extension MediaService {
         }
 
         do {
-            async let fetchedUsers = fetchHomeUsers(primaryToken: primaryAccountToken)
-            async let fetchedPrimaryUser = fetchPrimaryAccountIdentity(primaryToken: primaryAccountToken)
+            let profiles = plexAccount.plexProfiles
+            async let fetchedUsers = profiles.fetchHomeUsers(primaryToken: primaryAccountToken)
+            async let fetchedPrimaryUser = profiles.fetchPrimaryAccountIdentity(primaryToken: primaryAccountToken)
 
             let users = try await fetchedUsers
             let primaryUser = try await fetchedPrimaryUser
@@ -35,7 +57,7 @@ extension MediaService {
                let restoredUser = restoredHomeUser(in: users),
                hasRememberedHomeUserToken,
                let activeAccountToken {
-                if try await validateRestoredHomeSession(
+                if try await plexAccount.plexProfiles.validateRestoredHomeSession(
                     user: restoredUser,
                     token: activeAccountToken
                 ) {
@@ -128,28 +150,11 @@ extension MediaService {
             throw PlexServiceError.homePINRequired
         }
 
-        let responseData: Data
-        do {
-            responseData = try await rawPlexTVRequest(
-                method: "POST",
-                path: "/api/home/users/\(user.id)/switch",
-                queryItems: normalizedPIN.map { [URLQueryItem(name: "pin", value: $0)] },
-                accountToken: primaryAccountToken,
-                retriesFreshAuthentication: false
-            )
-        } catch let error as PlexServiceError {
-            if user.isProtected,
-               error == .unauthorized || error == .httpError(statusCode: 403) {
-                throw PlexServiceError.homePINIncorrect
-            }
-            throw error
-        }
-
-        guard let switchedToken = switchToken(from: responseData) else {
-            throw PlexServiceError.decodingError(
-                "Plex did not return an account token when switching Home users."
-            )
-        }
+        let switchedToken = try await plexAccount.plexProfiles.switchToken(
+            for: user,
+            pin: normalizedPIN,
+            primaryToken: primaryAccountToken
+        )
 
         // Commit only after the switch succeeds, so a wrong PIN leaves the
         // existing playback/session state intact.
@@ -195,38 +200,7 @@ extension MediaService {
     }
 
     func automaticHomeSignInDidChange() {
-        let enabled = automaticHomeSignIn
-        UserDefaults.standard.set(enabled, forKey: Self.defaultsAutomaticHomeSignInKey)
-
-        guard enabled else {
-            hasRememberedHomeUserToken = false
-            KeychainHelper.delete(key: Self.keychainActiveHomeTokenKey)
-            return
-        }
-
-        guard activeHomeUser != nil, let activeAccountToken else { return }
-        hasRememberedHomeUserToken = true
-        KeychainHelper.save(
-            key: Self.keychainActiveHomeTokenKey,
-            data: Data(activeAccountToken.utf8)
-        )
-    }
-
-    private func fetchHomeUsers(primaryToken: String) async throws -> [PlexHomeUser] {
-        let data = try await rawPlexTVRequest(
-            path: "/api/v2/home/users",
-            accountToken: primaryToken,
-            bootstrap: true
-        )
-        return try decodeHomeUsers(from: data)
-    }
-
-    private func fetchPrimaryAccountIdentity(primaryToken: String) async throws -> PlexUser {
-        try await plexTVRequest(
-            path: "/api/v2/user",
-            accountToken: primaryToken,
-            bootstrap: true
-        )
+        plexAccount.persistAutomaticHomeSignIn()
     }
 
     private func updatePrimaryProfileIdentity(
@@ -291,144 +265,5 @@ extension MediaService {
         isUsingOfflineHomeSession = false
         homeBootstrapCompleted = true
         UserDefaults.standard.set(true, forKey: Self.defaultsHomeMigrationCompletedKey)
-    }
-
-    private func decodeHomeUsers(from data: Data) throws -> [PlexHomeUser] {
-        if let users = try? decoder.decode([PlexHomeUser].self, from: data) {
-            return users
-        }
-
-        guard let object = try? JSONSerialization.jsonObject(with: data) else {
-            throw PlexServiceError.decodingError("Invalid Plex Home users response.")
-        }
-
-        let rawUsers: [Any]?
-        if let dictionary = object as? [String: Any] {
-            rawUsers = Self.userArray(in: dictionary)
-        } else {
-            rawUsers = nil
-        }
-
-        guard let rawUsers else {
-            throw PlexServiceError.decodingError(
-                "Expected a Plex Home users array or envelope."
-            )
-        }
-
-        let users = rawUsers.compactMap { rawUser -> PlexHomeUser? in
-            guard JSONSerialization.isValidJSONObject(rawUser),
-                  let userData = try? JSONSerialization.data(withJSONObject: rawUser) else {
-                return nil
-            }
-            return try? decoder.decode(PlexHomeUser.self, from: userData)
-        }
-
-        if users.count != rawUsers.count {
-            throw PlexServiceError.decodingError(
-                "Plex Home returned users in an unsupported format."
-            )
-        }
-        return users
-    }
-
-    private static func userArray(in dictionary: [String: Any]) -> [Any]? {
-        for key in ["users", "Users", "User", "Metadata"] {
-            if let users = dictionary[key] as? [Any] {
-                return users
-            }
-            if let nested = dictionary[key] as? [String: Any],
-               let users = userArray(in: nested) {
-                return users
-            }
-        }
-
-        if let container = dictionary["MediaContainer"] as? [String: Any] {
-            return userArray(in: container)
-        }
-        if let container = dictionary["mediaContainer"] as? [String: Any] {
-            return userArray(in: container)
-        }
-        return nil
-    }
-
-    private func switchToken(from data: Data) -> String? {
-        if let object = try? JSONSerialization.jsonObject(with: data),
-           let token = Self.switchToken(in: object) {
-            return token
-        }
-
-        let parserDelegate = PlexHomeSwitchTokenParser()
-        let parser = XMLParser(data: data)
-        parser.delegate = parserDelegate
-        return parser.parse() ? parserDelegate.token : nil
-    }
-
-    private static func switchToken(in object: Any) -> String? {
-        if let dictionary = object as? [String: Any] {
-            for key in ["authToken", "authenticationToken"] {
-                if let token = dictionary[key] as? String,
-                   let token = token.nilIfEmpty {
-                    return token
-                }
-            }
-            for key in ["user", "User", "account"] {
-                if let nested = dictionary[key],
-                   let token = switchToken(in: nested) {
-                    return token
-                }
-            }
-        }
-        return nil
-    }
-
-    private func validateRestoredHomeSession(
-        user: PlexHomeUser,
-        token: String
-    ) async throws -> Bool {
-        do {
-            let account: PlexUser = try await plexTVRequest(
-                path: "/api/v2/user",
-                accountToken: token,
-                retriesFreshAuthentication: false,
-                bootstrap: true
-            )
-
-            if let expectedUUID = user.uuid?.nilIfEmpty,
-               let actualUUID = account.uuid?.nilIfEmpty {
-                return expectedUUID == actualUUID
-            }
-            return account.id == user.id
-                || (user.username != nil && user.username == account.username)
-        } catch let error as PlexServiceError
-            where error == .unauthorized || error == .httpError(statusCode: 403) {
-            plexAuthLogger.notice(
-                "Remembered Plex Home token is no longer valid; requiring user selection"
-            )
-            return false
-        } catch {
-            // The primary Home list already confirmed this member still exists.
-            // A non-auth validation failure should not discard a remembered
-            // offline-capable identity due to a transient Plex response.
-            plexAuthLogger.notice(
-                "Could not validate remembered Plex Home token: \(error.localizedDescription, privacy: .public)"
-            )
-            return true
-        }
-    }
-}
-
-private final class PlexHomeSwitchTokenParser: NSObject, XMLParserDelegate {
-    private(set) var token: String?
-
-    func parser(
-        _ parser: XMLParser,
-        didStartElement elementName: String,
-        namespaceURI: String?,
-        qualifiedName qName: String?,
-        attributes attributeDict: [String: String] = [:]
-    ) {
-        guard token == nil else { return }
-        token = attributeDict["authenticationToken"]?.nilIfEmpty
-            ?? attributeDict["authToken"]?.nilIfEmpty
     }
 }
