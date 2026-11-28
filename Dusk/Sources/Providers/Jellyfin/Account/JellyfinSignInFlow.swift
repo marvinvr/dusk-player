@@ -52,8 +52,11 @@ struct JellyfinSignInFlow: SignInFlow {
 
     // MARK: - Address
 
-    /// Tries every URL the address stands for at once and takes the most
-    /// preferred one that answers as a Jellyfin server.
+    /// Tries every URL the address stands for at once (`JellyfinAddress`).
+    /// The most preferred URL wins as soon as every URL before it has failed;
+    /// a less preferred one that answers first wins after `preferenceGrace`,
+    /// so a bare host whose HTTPS port drops packets does not wait for its
+    /// timeout, and one that serves both still lands on HTTPS.
     @MainActor
     func connect(to address: String) async throws -> Server {
         let candidates = JellyfinAddress.candidates(for: address)
@@ -62,23 +65,8 @@ struct JellyfinSignInFlow: SignInFlow {
         let identity = JellyfinClientIdentity.dusk(deviceID: deviceID)
         let transport = account.sessions.probeTransport
 
-        let outcomes = await withTaskGroup(of: (Int, ProbeOutcome).self) { group in
-            for (index, url) in candidates.enumerated() {
-                group.addTask {
-                    (index, await Self.probePublicInfo(baseURL: url, identity: identity, transport: transport))
-                }
-            }
-            var outcomes = [ProbeOutcome?](repeating: nil, count: candidates.count)
-            for await (index, outcome) in group {
-                outcomes[index] = outcome
-                // The most preferred URL that answered, once every URL before it failed.
-                if let first = outcomes.firstIndex(where: { $0 == nil || $0?.info != nil }),
-                   outcomes[first]?.info != nil {
-                    group.cancelAll()
-                    break
-                }
-            }
-            return outcomes
+        let outcomes = await Self.race(candidates, grace: Self.preferenceGrace) { url in
+            await Self.probePublicInfo(baseURL: url, identity: identity, transport: transport)
         }
 
         guard let index = outcomes.firstIndex(where: { $0?.info != nil }),
@@ -93,12 +81,68 @@ struct JellyfinSignInFlow: SignInFlow {
         return Server(baseURL: baseURL, info: info, quickConnectEnabled: quickConnect, deviceID: deviceID)
     }
 
-    private struct ProbeOutcome: Sendable, Equatable {
+    /// How long a less preferred URL that answered waits for a more preferred
+    /// one still running. A server that answers at all answers in this time.
+    static let preferenceGrace: Duration = .milliseconds(600)
+
+    /// Probes every candidate in parallel. Returns when the most preferred
+    /// one still possible answered, `grace` after the first answer, or when
+    /// all have failed; candidates still running are cancelled and stay nil.
+    nonisolated static func race(
+        _ candidates: [URL],
+        grace: Duration,
+        probe: @escaping @Sendable (URL) async -> ProbeOutcome
+    ) async -> [ProbeOutcome?] {
+        enum Event: Sendable {
+            case probed(Int, ProbeOutcome)
+            case graceOver
+        }
+        return await withTaskGroup(of: Event.self) { group in
+            for (index, url) in candidates.enumerated() {
+                group.addTask { .probed(index, await probe(url)) }
+            }
+            var outcomes = [ProbeOutcome?](repeating: nil, count: candidates.count)
+            var graceStarted = false
+            var graceOver = false
+            var pending = candidates.count
+            for await event in group {
+                switch event {
+                case let .probed(index, outcome):
+                    outcomes[index] = outcome
+                    pending -= 1
+                case .graceOver:
+                    graceOver = true
+                }
+                // The most preferred URL that answered, once every URL before it failed.
+                if let first = outcomes.firstIndex(where: { $0 == nil || $0?.info != nil }),
+                   outcomes[first]?.info != nil {
+                    break
+                }
+                guard outcomes.contains(where: { $0?.info != nil }) else {
+                    if pending == 0 { break }
+                    continue
+                }
+                if graceOver || pending == 0 { break }
+                if !graceStarted {
+                    graceStarted = true
+                    group.addTask {
+                        _ = await Swift.Result<Void, any Error>.capturing { try await Task.sleep(for: grace) }
+                        return .graceOver
+                    }
+                }
+            }
+            group.cancelAll()
+            return outcomes
+        }
+    }
+
+    struct ProbeOutcome: Sendable, Equatable {
         var info: JellyfinPublicSystemInfoDTO?
         var isOtherServer = false
         var failure: String?
     }
 
+    @inline(never)
     private static func probePublicInfo(
         baseURL: URL,
         identity: JellyfinClientIdentity,

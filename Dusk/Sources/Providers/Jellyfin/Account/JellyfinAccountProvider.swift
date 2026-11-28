@@ -17,6 +17,9 @@ final class JellyfinAccountState {
     var profileSelectionRequested = false
     /// `/Users/Public` of the active server, for the picker. Often empty.
     var publicUsers: [JellyfinPublicUser] = []
+    /// Each user's `OrderedViews` / `MyMediaExcludes` as last read or written
+    /// (`JellyfinAccountPreferences`), by account id.
+    @ObservationIgnored var libraryViews: [String: JellyfinLibraryViews] = [:]
 
     var activeRecord: JellyfinAccountRecord? {
         guard let activeAccountID else { return nil }
@@ -162,7 +165,7 @@ final class JellyfinAccountProvider: MediaAccountProvider {
     }
 
     var profiles: any ProfileProviding { JellyfinProfiles(account: self) }
-    var preferences: any AccountPreferencesProviding { JellyfinAccountPreferences() }
+    var preferences: any AccountPreferencesProviding { JellyfinAccountPreferences(account: self) }
     var watchlist: (any WatchlistProviding)? { nil }
     @MainActor var seerrAuth: any SeerrAuthProviding { JellyfinSeerrAuth() }
     @MainActor var session: (any AccountSession)? { self }

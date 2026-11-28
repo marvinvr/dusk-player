@@ -275,7 +275,7 @@ value that `PlexServerProvider` / `PlexAccountProvider` return):
 | P0-16 | `MediaServerProvider`, `MediaAccountProvider`, `ProviderRegistry`, `ServerPermissions`, `ProfileProviding`, `SignInFlow` | `PlexServerProvider`, `PlexAccountProvider`, `PlexProviderFactory`, `PlexProfiles`, `PlexClient` |
 | P0-17 | `AccountPreferencesProviding`, `WatchlistProviding` | `PlexAccountPreferences`, `PlexWatchlist` |
 | P0-18 | `SeerrAuthProviding` | `PlexSeerrAuth` |
-| none yet | `SubtitleSearchProviding` | `PlexSubtitleSearch` |
+| J-11 | `SubtitleSearchProviding` | `PlexSubtitleSearch` |
 
 P0-16 also adds what P0-06 left out of the provider protocols because it needs
 the account layer: `MediaServerProvider.permissions`, `MediaAccountProvider`'s
@@ -845,6 +845,56 @@ Library order and hidden libraries on `OrderedViews` / `MyMediaExcludes`
 `/Intros`. **Accept:** reorder and hide in Dusk, confirm in Jellyfin Web and
 the other way round; the subtitle action appears only for the user with the
 permission; a pre-roll plays when the plugin returns one.
+
+- **As built (2026-11-28).**
+  - Library order / hidden: `JellyfinAccountPreferences` on `OrderedViews` /
+    `MyMediaExcludes`. Writes re-read `/Users/Me` and send the whole
+    `Configuration` back as raw JSON with only those two arrays changed (all
+    15 live keys survive). Dusk's libraries take the slots Dusk's libraries
+    hold in the server's effective order, so Collections and Playlists stay
+    put in Jellyfin Web. `/UserViews` now asks `includeHidden=true` (one-line
+    hook in J-02's `JellyfinAPI.userViews`), else a hidden library could not be
+    shown again. Without `EnableUserPreferenceAccess`, or on a `403`, the lists
+    stay on the device (`JellyfinLibraryViews.<accountID>`, a new key).
+  - Search drops hits from hidden views (`JellyfinHiddenLibraries`: the same
+    search once more per hidden view with `parentId`; hook in
+    `JellyfinCatalog.searchGroups` and its init).
+  - Language defaults from `User.Configuration`; an untouched account says
+    nothing (`PlayDefaultAudioTrack` ignored, `Default` mode → nil).
+  - `SubtitleSearchProviding` has `search` / `install`; the Plex requests
+    moved unchanged from the facade into `PlexSubtitleSearch` (pinned by
+    `PlexSubtitleSearchRequestTests`). `canDownloadSubtitles` also needs the
+    facet. Jellyfin: `RemoteSearch/Subtitles/{639-2/B}`.
+  - Pre-rolls: `JellyfinPrerolls`, `/Items/{id}/Intros` then `/Items/{id}` per
+    intro (the intros answer has no probed streams).
+  - Extras: the Mac welcome tagline is now "Sign in to get started." like
+    iOS/tvOS; the address race takes the most preferred answer once everything
+    before it failed, else the first answer after 600 ms
+    (`JellyfinSignInFlow.race`), so a bare host whose HTTPS port drops packets
+    answers in about a second instead of 8; a host serving both still lands on
+    HTTPS. Hidden Libraries' footer names the account's product.
+  - Verified against jellyfin-demo (iPhone and Apple TV simulators):
+    `jellyfin-demo` typed bare → credentials / Quick Connect in about 1 s;
+    hiding Shorts in Dusk (iOS and tvOS) wrote `MyMediaExcludes` and Jellyfin's
+    own `/UserViews` dropped it; search for "Weekend" then found nothing;
+    order and hidden set changed on the server showed in Dusk after a relaunch;
+    showing Movies again kept Collections/Playlists in place; the intros
+    plugin's clip played with Skip before Knives Out (no report, state
+    unchanged); duskcompare (no subtitle management) sees no subtitle action.
+    duskcompare's configuration was restored to the original afterwards.
+  - Open:
+    - The subtitle action for a user *with* the permission, a real subtitle
+      plugin result and the device-local fallback are unit-tested only: only
+      `duskcompare` is cleared for use, and it has preference access but no
+      subtitle management.
+    - Continue Watching / Next Up items carry no library id, so hidden
+      libraries' titles still show there (J-04's rows); person pages and Siri
+      likewise.
+    - `JellyfinAPI+Preferences` and J-04's `JellyfinAPI+Home` each have a raw
+      configuration read/write (different names); fold them into one.
+    - Shared copy still says Plex on Jellyfin: search placeholder "Search
+      Plex", "Nothing in Plex matches", "Dusk can't reach any of your Plex
+      servers".
 
 ### J-12 Integrations — M
 

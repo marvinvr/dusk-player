@@ -32,6 +32,7 @@
 		053F70BD5E443D188775C913 /* PlayerControlsOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F5B10C80802214DB6C255DB /* PlayerControlsOverlay.swift */; };
 		054A66F43D4E3AD72F818834 /* jellyfin-playlist-create.json in Resources */ = {isa = PBXBuildFile; fileRef = 46C149AA76C1AD0E710537FA /* jellyfin-playlist-create.json */; };
 		0580F944743C97240D5A5E07 /* HomeWatchlistPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8A511412EB493251D32B25 /* HomeWatchlistPlacement.swift */; };
+		05CD2F11302F927BF9B1C3F5 /* JellyfinAccountPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D0246DF469507EF76654BF /* JellyfinAccountPreferences.swift */; };
 		05F0AE981366D9B164327854 /* ServerSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFCD613D576088DA24E29D78 /* ServerSession.swift */; };
 		060FFD41045BA83D0C8D4517 /* MediaService+Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F7B532D8C55080B8F65887C /* MediaService+Downloads.swift */; };
 		062EB3889CCB1D9CE26A9691 /* Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43D6DC6EBC070670B2F40480 /* Library.swift */; };
@@ -180,6 +181,7 @@
 		188453DC0B3D0D2B8C29475D /* PlexSubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B2D6D093F62DD2580FA108 /* PlexSubtitleSearch.swift */; };
 		1896768E9D00310F48DCB269 /* DownloadQueuePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD72CF5DA0D573052564A4D /* DownloadQueuePolicyTests.swift */; };
 		18AE3E646CAB6221D20320CF /* MediaService+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C029DA0708D2CEEFE391CB7 /* MediaService+Collections.swift */; };
+		190E91513031B3157393A904 /* JellyfinSubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499922DFDC28B6C1B96981C7 /* JellyfinSubtitleSearch.swift */; };
 		191E202CD834A470931F2ACB /* Playlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304F810CFA17A264C542BB53 /* Playlist.swift */; };
 		19880A96243DFCCAB61CDF27 /* PlexServerRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4460D84E31902A7B0A0F9C0F /* PlexServerRouter.swift */; };
 		19A2D8602B9098662EF5C9F0 /* MediaCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D20DB9A2637960960C907B7 /* MediaCollection.swift */; };
@@ -280,6 +282,7 @@
 		25D88AC7DFCF2E74CC43E9A4 /* ServerProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D71A74CC51CD890B4EF7D1 /* ServerProbe.swift */; };
 		25E475573A7BB00CBEB9B1F0 /* MacUIHover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DEABAACE188DBB2C1776118 /* MacUIHover.swift */; };
 		260CF0C779C183106D164B0D /* TransportSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911C8D8FF7B17A09927A51B1 /* TransportSecurity.swift */; };
+		2642A7E3B9BB229E7B3E139B /* JellyfinAccountPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D0246DF469507EF76654BF /* JellyfinAccountPreferences.swift */; };
 		265A99C6F7A58E1B12EB9397 /* MediaService+Watchlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDE53E787055805A42AFB853 /* MediaService+Watchlist.swift */; };
 		26962993D4B6949FACC34EEE /* DolbyVision7Fixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B58ECD58A2993A669751C6E /* DolbyVision7Fixtures.swift */; };
 		26FFF0C0E843D77A0673E880 /* SiriTitleMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF057A9635F25B051D84230 /* SiriTitleMatching.swift */; };
@@ -397,6 +400,7 @@
 		3409B30477E9D1A9832F12CD /* AccountServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 425996BAD588E534E2511017 /* AccountServer.swift */; };
 		3458364F992218DE5BC5ADF9 /* LegacyContainer-real-metadata-a3d2fd1255dd.json in Resources */ = {isa = PBXBuildFile; fileRef = B6F4EE5FF593C4FF205D20CD /* LegacyContainer-real-metadata-a3d2fd1255dd.json */; };
 		347CEF79BA453A5FE0D48350 /* SignInCodeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE89379F6403888229C7033B /* SignInCodeScreen.swift */; };
+		34AD048AF8087D8D6B482FDE /* JellyfinAPI+Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFC3A2924C57E1B96F12E41 /* JellyfinAPI+Preferences.swift */; };
 		34C11E2A718226943E5D1E68 /* MediaItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9E093F0A11EFB8D5770436 /* MediaItem.swift */; };
 		34C14DD2297D869F955F9FF2 /* JellyfinDTODecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4BC24DD4E5B8D0BB899095 /* JellyfinDTODecodingTests.swift */; };
 		34E88C5D2F82C496FCC2FD06 /* PictureInPictureStartRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF7181E2C7035DB5EE83BE4 /* PictureInPictureStartRequest.swift */; };
@@ -404,6 +408,7 @@
 		3501DE596E2844422D156594 /* MediaService+WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026C8148641BEAF61B97AF9F /* MediaService+WatchState.swift */; };
 		3521C3D99766EE6AC9152B39 /* HLSProxyHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = D21B1CD893CD92808A901B71 /* HLSProxyHTTP.swift */; };
 		353719895FBCA45E2102C8C3 /* DownloadActivitySummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FEBF80A686C2AE94C9399A4 /* DownloadActivitySummary.swift */; };
+		35400ABF7B06EFAF8923424A /* JellyfinPrerolls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBACF544E9DF9308C280DAF /* JellyfinPrerolls.swift */; };
 		35458451235B5BD882F9721E /* SubtitleSearchResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A4963A231B97189657430CA /* SubtitleSearchResult.swift */; };
 		35666005F4733975E89CEADA /* LegacyContainer-real-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 632CEFE315128729A7A1FFC4 /* LegacyContainer-real-manifest.json */; };
 		35770BCF1F68981F46E5CAB3 /* PhotoBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67315F139346FAE3583B0D2 /* PhotoBrowserView.swift */; };
@@ -416,6 +421,7 @@
 		368505B28CB0E804FF637CBF /* IPTVParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463848151A3F93227AE00035 /* IPTVParserTests.swift */; };
 		3698EED6326141D343714E53 /* PlayerTVHUDLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7BBD18898B781C09206CB6 /* PlayerTVHUDLayout.swift */; };
 		36A8F6DBF337B87E6B6DDDC6 /* PlexServerProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF22A40BE3D8E25E2F9AC27A /* PlexServerProvider.swift */; };
+		36AED640DF13A1F48F8E0F20 /* JellyfinLanguageCodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73DCD9F958AC1E887BB4A545 /* JellyfinLanguageCodes.swift */; };
 		36B59DD806E3A4F9E9003AD0 /* PlexLoggers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C077DDADA7557EE7F87BB00 /* PlexLoggers.swift */; };
 		36BF8A769C1FEBB663ADE888 /* LegacyContainer-real-metadata-33db271c6bdf.json in Resources */ = {isa = PBXBuildFile; fileRef = 3BFFD2FBFA37FD14FD76F090 /* LegacyContainer-real-metadata-33db271c6bdf.json */; };
 		36E9E6238A705495CFA206FD /* MediaItemID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA16A02A6CA5C9748FB1EA7 /* MediaItemID.swift */; };
@@ -427,6 +433,7 @@
 		3838A8D4814017BAEDEE2007 /* IPTVRetunePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32B832AD12BBD3A42D6A602 /* IPTVRetunePolicyTests.swift */; };
 		3850B28D7585B2549F74F850 /* LibraryFiltersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6CFC0E37D9EC2FF408A65AD /* LibraryFiltersSheet.swift */; };
 		3867D0E516F274D32EBC0494 /* HomePinnedPlaylistShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EEDAE0F9EC810D866B0590 /* HomePinnedPlaylistShelf.swift */; };
+		386A3A32F36584DB5E2EC536 /* JellyfinPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75747B313D08B662405ED22D /* JellyfinPreferencesTests.swift */; };
 		389365BB3336778CC4E162F1 /* PlexTransportSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA73BA1B64DB17CE33898269 /* PlexTransportSecurity.swift */; };
 		38C14A959DD445A69A566910 /* DownloadContinuedTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB4E5DD7C611E3B480D16B5 /* DownloadContinuedTask.swift */; };
 		38E75A1929B89DB1F1D68663 /* DownloadTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36407804ED44963931F20BA /* DownloadTransfer.swift */; };
@@ -543,6 +550,7 @@
 		470C9BBDF3F32B492F435A54 /* MediaService+PlexFacets.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DA8548BAAE0905B5993531 /* MediaService+PlexFacets.swift */; };
 		4713FAE724DCD5EA9F4EF86B /* DuskApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E04ECF8E20F247BA70F3250 /* DuskApp.swift */; };
 		471AA74D7EB80B8C7B91A8AF /* HEVCSampleEntryProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A52586077A370B8E9A7441F /* HEVCSampleEntryProbe.swift */; };
+		4722B04E783D26234F3B1F36 /* JellyfinPrerolls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBACF544E9DF9308C280DAF /* JellyfinPrerolls.swift */; };
 		473CB12C94A03DCFD8927C97 /* MediaService+JellyfinSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79144E0050B171A8EF213869 /* MediaService+JellyfinSignIn.swift */; };
 		4744B70467832F20D78FF8C1 /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E2D2D6B8FA40C8916427782 /* AccountStore.swift */; };
 		475D1E7FBE211E59E91DD4AA /* SiriTitleMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36D9204A97644783EA96756 /* SiriTitleMatchingTests.swift */; };
@@ -682,6 +690,7 @@
 		57000B53E50ADEAEA44AFD06 /* VLCKitRendererTVOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A904B86FC535FC7ADFADE196 /* VLCKitRendererTVOS.swift */; };
 		5716AC625828ACE9A4E2E226 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356E30FE6F72B592D5145C9A /* HomeView.swift */; };
 		57532B38BDC3B883642E1FEA /* SupporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F845F23072AE640CA393F779 /* SupporterView.swift */; };
+		57A0C03C916D2E773D062C9A /* JellyfinHiddenLibraries.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABDF50C29FD6D118C86BA537 /* JellyfinHiddenLibraries.swift */; };
 		57B22A4FD60FFF0FD3B41A8B /* SupporterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992B63A04A0FDC9B113C2B74 /* SupporterStore.swift */; };
 		57B8A8FD9BF37FFF3913E592 /* jellyfin-item-dune-part-two.json in Resources */ = {isa = PBXBuildFile; fileRef = A9FBCF0C9D40647A49CFCBB3 /* jellyfin-item-dune-part-two.json */; };
 		57C0C01D754117A2C6E86B6D /* PlexLiveTVGuideMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E198E305F60A7C171B58533 /* PlexLiveTVGuideMatchingTests.swift */; };
@@ -893,6 +902,7 @@
 		7319B0B3C9C116170333AFEF /* HDRVideoRemuxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2245C6E8DD626DA6C5902A5 /* HDRVideoRemuxTests.swift */; };
 		732738B547163259AF6DAB4E /* PlexPinnedSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3DB2C0499043B0AB177D4A8 /* PlexPinnedSource.swift */; };
 		735943C951D5E52B96263AA0 /* VLCKitBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143273750029FA000B33F65D /* VLCKitBuildInfo.swift */; };
+		73597C15C229464C5315C018 /* JellyfinAPI+Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFC3A2924C57E1B96F12E41 /* JellyfinAPI+Preferences.swift */; };
 		737A73DD826A5F98661D968F /* PlexSeerrAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 786760F077C91EA981237442 /* PlexSeerrAuth.swift */; };
 		73B1364BD88E9E12D901E5A4 /* AnalyticsErrorReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 943331C13CF702CB9C3F8FCB /* AnalyticsErrorReport.swift */; };
 		73E66F42CF11B82229C467BD /* MediaItemPager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD63B6584D68B08EB25BA80 /* MediaItemPager.swift */; };
@@ -1142,6 +1152,7 @@
 		8FB92F26D505D22DDDE1B367 /* PlayerViewModel+TrackSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3EAF2638D0F06CB02215DF /* PlayerViewModel+TrackSelection.swift */; };
 		8FDA89BC315B5418004E3FFB /* HLSProxyHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = D21B1CD893CD92808A901B71 /* HLSProxyHTTP.swift */; };
 		903E4C3DCE64C2995BC5828F /* PlaylistDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA10C77002D9D3081BA27FA4 /* PlaylistDetailViewModel.swift */; };
+		9040515152049AC6363ABE46 /* JellyfinPrerolls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DBACF544E9DF9308C280DAF /* JellyfinPrerolls.swift */; };
 		906D31866DED47069FF26563 /* ProviderSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20F5775A0A4AD82E095A6EE /* ProviderSetup.swift */; };
 		906E9D6E254980B9B943477B /* ContinueWatchingMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F856C8B10F1ED98461F59FC /* ContinueWatchingMerge.swift */; };
 		9093FEE0BCD29FFB379E8188 /* StreamResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E03BAD6F6D7F3A24BBB7BF /* StreamResolver.swift */; };
@@ -1224,6 +1235,7 @@
 		99CDF17D8195D1D39BCC368D /* PinnedPlaylistsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6987033060B92D69C29CCB /* PinnedPlaylistsSettingsView.swift */; };
 		9A060186D258BB7D5A4D465F /* SubtitleSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF0C29393E5D69F6D27233A /* SubtitleSearchViewModel.swift */; };
 		9A06221F4A8910090B598B7C /* JellyfinItemMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2FFE93F9B8848EC11577887 /* JellyfinItemMapper.swift */; };
+		9A27C663D5A3B9BE8ACFB5A8 /* JellyfinSubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499922DFDC28B6C1B96981C7 /* JellyfinSubtitleSearch.swift */; };
 		9A4B013CD404975EEF18D3C6 /* jellyfin-items-counts.json in Resources */ = {isa = PBXBuildFile; fileRef = 8EA54142296DF60251EA5549 /* jellyfin-items-counts.json */; };
 		9A8726FA22FBCFFEBB981CF7 /* SeerrServerURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1FE63A70397ED20C5C69191 /* SeerrServerURL.swift */; };
 		9AB147E36562F009664EBFA3 /* PlexHubDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E70B04B89CB5B17C004491C /* PlexHubDTO.swift */; };
@@ -1379,6 +1391,7 @@
 		AE8E483A2C220511CD792D33 /* PlexHubFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BCC236A56E0FE866E1BD84 /* PlexHubFixtureTests.swift */; };
 		AE916750A9FFC768FA9A9542 /* jellyfin-item-av1-sdr-test-2026.json in Resources */ = {isa = PBXBuildFile; fileRef = A411A226860A4AFF587A2AFF /* jellyfin-item-av1-sdr-test-2026.json */; };
 		AEC65381DFE4D58CF5C8BBB4 /* MediaService+JellyfinSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79144E0050B171A8EF213869 /* MediaService+JellyfinSignIn.swift */; };
+		AEEE0500E49AA374D0FC4DF7 /* JellyfinLanguageCodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73DCD9F958AC1E887BB4A545 /* JellyfinLanguageCodes.swift */; };
 		AEF23E2D2D8CD415E5271079 /* MacRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0F514D5703704182646605D /* MacRootView.swift */; };
 		AF07F2741678402F039B9CCA /* PlexHubMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F976D6B9BDD1EB38B9A4C68 /* PlexHubMapper.swift */; };
 		AF0F588707DED40708DBAD80 /* PlaybackCoordinator+Timeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215D686AF085421BB487A99B /* PlaybackCoordinator+Timeline.swift */; };
@@ -1477,6 +1490,7 @@
 		B9CF452D3051283C92758079 /* PlexSeasonEpisodeDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3589FC56C4A03D010A6A3501 /* PlexSeasonEpisodeDTO.swift */; };
 		B9E18E586F5997C37EB9C07C /* TransportSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 911C8D8FF7B17A09927A51B1 /* TransportSecurity.swift */; };
 		BA2097294DA662726729FFEE /* HomeHubItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E408567EE9F363C18871F53 /* HomeHubItemsView.swift */; };
+		BA52F61B3DC979C2FEC47DBF /* JellyfinLanguageCodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73DCD9F958AC1E887BB4A545 /* JellyfinLanguageCodes.swift */; };
 		BA8077F616BA5F7CCF71DBD7 /* PlexImages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FF06279DB3C8495E566989 /* PlexImages.swift */; };
 		BA972893749D65D729A6B30D /* PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFFB965A834EEB6A4372345 /* PlaybackEngine.swift */; };
 		BA98BA7DE8D1E143A04C87C0 /* jellyfin-items-playlists.json in Resources */ = {isa = PBXBuildFile; fileRef = CD11A0E3BF06E1D97ECBC571 /* jellyfin-items-playlists.json */; };
@@ -1491,6 +1505,7 @@
 		BB58161B656D53B07A829E9A /* jellyfin-item-hdr10-jellyfin-4k-hevc-60m-2024.json in Resources */ = {isa = PBXBuildFile; fileRef = F48A3A5FF1224AE4B2601A28 /* jellyfin-item-hdr10-jellyfin-4k-hevc-60m-2024.json */; };
 		BB654257E67F98D4E9CFCF28 /* VLCKitRendererTVOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A904B86FC535FC7ADFADE196 /* VLCKitRendererTVOS.swift */; };
 		BB7414061C94FF71B2FAA249 /* Season.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C865F472C33B0F86ABABEB1 /* Season.swift */; };
+		BB956A3FEAA19DC1FA874FCA /* JellyfinAPI+Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DFC3A2924C57E1B96F12E41 /* JellyfinAPI+Preferences.swift */; };
 		BBE063BFFA5443CD64403040 /* jellyfin-items-series-unplayed.json in Resources */ = {isa = PBXBuildFile; fileRef = 6316E2BF17CF4597953CD549 /* jellyfin-items-series-unplayed.json */; };
 		BBFB8A7B19997D471CE10361 /* MediaService+Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A0A4A3023D1DB6FBECEA98 /* MediaService+Home.swift */; };
 		BC2A947B53429454BF058254 /* MacShellRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 591012B02DAC12A97737C2F2 /* MacShellRouter.swift */; };
@@ -1571,7 +1586,6 @@
 		C4B31EF912C78AB417AB368C /* MediaService+History.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA2D66EA49A92F6DB081945 /* MediaService+History.swift */; };
 		C4C53F59A4014E9C0D4DE737 /* LiveTVHomeShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E873624B104DE44EC8453F /* LiveTVHomeShelf.swift */; };
 		C4F33BC79CBD81C2751E7116 /* SubtitleClearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC9274EDBE67C76BA3CDAC3 /* SubtitleClearanceTests.swift */; };
-		C4F3478BCF5AFBB5929DA772 /* MediaService+SubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6053360AABCDCB9E40D68A89 /* MediaService+SubtitleSearch.swift */; };
 		C518C0EDB303B3C97A89CEB8 /* record_plex_contract_fixtures.py in Resources */ = {isa = PBXBuildFile; fileRef = 2A60C50FFF012C9F54901270 /* record_plex_contract_fixtures.py */; };
 		C5259459FB4EE80F2386084C /* LiveTVGuideGridModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55A3D332805421142BD6879 /* LiveTVGuideGridModel.swift */; };
 		C52BFED1B47A774815C6D610 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A90BC03A7C9895263EAD07 /* SettingsViewModel.swift */; };
@@ -1772,6 +1786,7 @@
 		DDC1D940CD1CF534DF3DC37D /* PlexAccountProfileDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597D8C4E451B0F0738A9E71C /* PlexAccountProfileDTO.swift */; };
 		DDD4B86B6E6AD80BFEE376D2 /* HomeProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FB58D8E104B2943755FADFD /* HomeProviding.swift */; };
 		DDDB4DB539803E97693FCEBE /* LibraryBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA11C84E3B7673C68E8C7DF1 /* LibraryBrowse.swift */; };
+		DDEDB7F1337170B88ACC8F9F /* JellyfinAccountPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D0246DF469507EF76654BF /* JellyfinAccountPreferences.swift */; };
 		DE0689C715E6F49E40D725C6 /* ServerConnectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FC23599DFC642C5B1C521C /* ServerConnectionCoordinator.swift */; };
 		DE3539489B1A6DA305DB699F /* Episode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CC9F4BE5546CFB3BBCD12C /* Episode.swift */; };
 		DE8B6292ED0901FA998A12ED /* jellyfin-playback-info-knives-out-avplayer-srt.json in Resources */ = {isa = PBXBuildFile; fileRef = AD4028859C7D56874BC4E416 /* jellyfin-playback-info-knives-out-avplayer-srt.json */; };
@@ -1780,6 +1795,7 @@
 		DEAC934F25222EAFEDFD31F9 /* ProviderRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAFAA22A9E81DB2770059E75 /* ProviderRegistryTests.swift */; };
 		DEEB8AC389A6CD6621E82A8E /* ShowTrackPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37D7220987E8FEF6EE7A34F /* ShowTrackPreferences.swift */; };
 		DF2A0BEF76AE2AF3C0524A50 /* DownloadActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D31C38374E5081B8E28B646 /* DownloadActionButton.swift */; };
+		DF36334BF461B0EDC060C14A /* JellyfinHiddenLibraries.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABDF50C29FD6D118C86BA537 /* JellyfinHiddenLibraries.swift */; };
 		DF373CF8D502D1AB2C5BB1D5 /* LibraryOrderSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39633D1424ADCBCCEC514B0D /* LibraryOrderSettingsViewModel.swift */; };
 		DF523015B4677EFB2BB17F4D /* LegacyContainer-real-PlexServerSnapshots.json in Resources */ = {isa = PBXBuildFile; fileRef = 5DA4CDDEA791F6A1192E2F79 /* LegacyContainer-real-PlexServerSnapshots.json */; };
 		DF743505B70438ECF600E68C /* SeriesDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CECABD89A2D380E9B2E7B109 /* SeriesDetailView.swift */; };
@@ -1803,6 +1819,7 @@
 		E14291BCDE457FA9755C1502 /* LibraryRecommendationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4AF71FF1066CE67045FF1A6 /* LibraryRecommendationsView.swift */; };
 		E173D9AB16C15F14BF998A93 /* LegacyContainer-PlexActiveHomeUserData.json in Resources */ = {isa = PBXBuildFile; fileRef = 306FF7ABFB97D87D7051C8F0 /* LegacyContainer-PlexActiveHomeUserData.json */; };
 		E1787D50424645F8C5D5CE56 /* DownloadQueuePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51BF55F4E7640A61FDB4249 /* DownloadQueuePolicy.swift */; };
+		E184C28638D419484F92D369 /* JellyfinPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75747B313D08B662405ED22D /* JellyfinPreferencesTests.swift */; };
 		E1932F7A10F9AD8CCD1A8391 /* jellyfin-users-me.json in Resources */ = {isa = PBXBuildFile; fileRef = D72C3D53760EB9955A8E035F /* jellyfin-users-me.json */; };
 		E196CC11190A61E81F9C86B8 /* SubtitleSearchProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575585752B3F01FB9AD5CD5C /* SubtitleSearchProviding.swift */; };
 		E1AD4A0B780EA4E63CF662A1 /* JellyfinItemMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2FFE93F9B8848EC11577887 /* JellyfinItemMapper.swift */; };
@@ -1847,7 +1864,6 @@
 		E6750EC6A3BF901FD8F1F7BE /* TopShelfLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63E4168938707C67A8369F76 /* TopShelfLink.swift */; };
 		E67E6360EBB5863036B5B541 /* LibraryRecommendationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C0D6A670C2ABA47CDBE6A2 /* LibraryRecommendationEngine.swift */; };
 		E6B6BF72F6E4E2954A7C9DF9 /* LiveTVViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BE8D8266661A45454DBB5D /* LiveTVViewModel.swift */; };
-		E6C8CE67F2621E90FC5C99AD /* MediaService+SubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6053360AABCDCB9E40D68A89 /* MediaService+SubtitleSearch.swift */; };
 		E6D7AB6945936CC1224240DD /* VLCKitBuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143273750029FA000B33F65D /* VLCKitBuildInfo.swift */; };
 		E6F1C33B56A1E529C3EC5E25 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0978713893F45F1E3F6E9467 /* AppNavigation.swift */; };
 		E7062A6379CC8A93BA46565C /* jellyfin-item-season-the-office-s01.json in Resources */ = {isa = PBXBuildFile; fileRef = 9AD434EE564409C58C291F55 /* jellyfin-item-season-the-office-s01.json */; };
@@ -1860,6 +1876,7 @@
 		E824564A578481DFF8413BDD /* PlaybackCoordinator+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D376ADA86C86B4C9AD6D918 /* PlaybackCoordinator+Session.swift */; };
 		E8353A4F5DC3D3889929241C /* PersistedPreferenceGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EA1237D36E0CC0DDD7FBA7 /* PersistedPreferenceGoldenTests.swift */; };
 		E883B2698FE72A95DCAAE530 /* LegacyContainer-TopShelfSnapshot.json in Resources */ = {isa = PBXBuildFile; fileRef = BA136A81FCF4AE6F1A1E9D05 /* LegacyContainer-TopShelfSnapshot.json */; };
+		E8D995107D794047A3C354D7 /* JellyfinSubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499922DFDC28B6C1B96981C7 /* JellyfinSubtitleSearch.swift */; };
 		E8D9F3F0826A8085CACC0616 /* JellyfinSystemDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44138FC9EA46A6BC60F9EEAF /* JellyfinSystemDTO.swift */; };
 		E8DF27C24DE69CDEBA948563 /* plex-contract-the-office-s01e01.json in Resources */ = {isa = PBXBuildFile; fileRef = 0D828E7C537A4CE107B33E5D /* plex-contract-the-office-s01e01.json */; };
 		E923ADAFD225E8132C392053 /* JellyfinCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8BCED09F35C1048D51425C9 /* JellyfinCatalog.swift */; };
@@ -1883,6 +1900,7 @@
 		EC6461BF06ADEE20B803C900 /* HomeUserPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810ECDBECB8D4BED807CDF60 /* HomeUserPickerView.swift */; };
 		EC6F5D6C8DCEF5FBE5932F28 /* PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFFB965A834EEB6A4372345 /* PlaybackEngine.swift */; };
 		EC7311679B84BE37303A49EB /* JellyfinProfiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1977A61ADDB4D7E41D56E55 /* JellyfinProfiles.swift */; };
+		EC7757691490DD93DB99561A /* JellyfinHiddenLibraries.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABDF50C29FD6D118C86BA537 /* JellyfinHiddenLibraries.swift */; };
 		EC7C374949EB4953A0BBD983 /* SubtitleSelectionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2408B8CF5A94FB6F59B9FFA1 /* SubtitleSelectionPolicy.swift */; };
 		EC8E1A4B84E87F476F6A987B /* jellyfin-genres.json in Resources */ = {isa = PBXBuildFile; fileRef = 064F43B6ED474A896C085F64 /* jellyfin-genres.json */; };
 		EC946C9AB5919D7FC742576B /* RemuxSegmentRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78773C124A046E21F9C01CB3 /* RemuxSegmentRelay.swift */; };
@@ -1975,7 +1993,6 @@
 		F755A35ACC4A2D1FAE50B0FE /* LegacyContainer-downloads.json in Resources */ = {isa = PBXBuildFile; fileRef = EF894A91B0E99229CD7BB74C /* LegacyContainer-downloads.json */; };
 		F76635235F13937FF5D7A80C /* SupporterEntitlementsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4471C9A0F9D6A5E471F4BDC /* SupporterEntitlementsTests.swift */; };
 		F7A13BCEB5B7BA525A5BFF66 /* jellyfin-ancestors-the-office-s01e01.json in Resources */ = {isa = PBXBuildFile; fileRef = D0BA1E959859D52802CCDD7C /* jellyfin-ancestors-the-office-s01e01.json */; };
-		F7A4D9D14E80BCEB3197B1B9 /* MediaService+SubtitleSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6053360AABCDCB9E40D68A89 /* MediaService+SubtitleSearch.swift */; };
 		F82DAF8467E02B80B8C2F263 /* PlexSeasonEpisodeDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3589FC56C4A03D010A6A3501 /* PlexSeasonEpisodeDTO.swift */; };
 		F8630E7E0807552F2DCB9898 /* jellyfin-item-person.json in Resources */ = {isa = PBXBuildFile; fileRef = F6BCC555004C940BC6353D10 /* jellyfin-item-person.json */; };
 		F864E508FE3F4423999E88AB /* IPTVAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214BE2D4078B915AC643D27F /* IPTVAsset.swift */; };
@@ -2341,6 +2358,7 @@
 		48B1ECE0840EFAA073B10970 /* PlayerSelectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerSelectionSheet.swift; sourceTree = "<group>"; };
 		495F8619C5C1B6C2ABF08ED8 /* HubMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubMerge.swift; sourceTree = "<group>"; };
 		497B99BEE91763950A35C86E /* PlexMarkers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexMarkers.swift; sourceTree = "<group>"; };
+		499922DFDC28B6C1B96981C7 /* JellyfinSubtitleSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinSubtitleSearch.swift; sourceTree = "<group>"; };
 		4A52E8DD60DBABB711D54282 /* TraktHistoryMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraktHistoryMapper.swift; sourceTree = "<group>"; };
 		4A8A2A92BBA7E5E1FA944E6A /* ScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotMode.swift; sourceTree = "<group>"; };
 		4AD9375A0719F429DBAC20FD /* jellyfin-item-dv-p7-mel-hybrid-hdr10-truehd-5-1-2020.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "jellyfin-item-dv-p7-mel-hybrid-hdr10-truehd-5-1-2020.json"; sourceTree = "<group>"; };
@@ -2383,6 +2401,7 @@
 		591012B02DAC12A97737C2F2 /* MacShellRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacShellRouter.swift; sourceTree = "<group>"; };
 		597D8C4E451B0F0738A9E71C /* PlexAccountProfileDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexAccountProfileDTO.swift; sourceTree = "<group>"; };
 		59C83537EA726ED189552D70 /* ServerLabeling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerLabeling.swift; sourceTree = "<group>"; };
+		59D0246DF469507EF76654BF /* JellyfinAccountPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinAccountPreferences.swift; sourceTree = "<group>"; };
 		59D3DFD09891C72BA03E6F9D /* SeasonDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonDetailViewModel.swift; sourceTree = "<group>"; };
 		59E25B84F59A23585E00759F /* PlaylistActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistActions.swift; sourceTree = "<group>"; };
 		59FD7F35D838F5C4946C3689 /* DuskTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DuskTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -2397,6 +2416,7 @@
 		5D5383E5A46024BD9C5CE933 /* PlexUserContentMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexUserContentMapper.swift; sourceTree = "<group>"; };
 		5D8D699F78FA6910B7E4A587 /* CircularProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircularProgressView.swift; sourceTree = "<group>"; };
 		5DA4CDDEA791F6A1192E2F79 /* LegacyContainer-real-PlexServerSnapshots.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "LegacyContainer-real-PlexServerSnapshots.json"; sourceTree = "<group>"; };
+		5DBACF544E9DF9308C280DAF /* JellyfinPrerolls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinPrerolls.swift; sourceTree = "<group>"; };
 		5DE31EB32CE5B2B5948D8339 /* LegacyContainer-WatchTogetherActivity.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "LegacyContainer-WatchTogetherActivity.json"; sourceTree = "<group>"; };
 		5E03DC5BE4B2032194F772E8 /* LegacyContainer-ShowTrackPreferences-track.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "LegacyContainer-ShowTrackPreferences-track.json"; sourceTree = "<group>"; };
 		5E6530866DC2A28714731AF8 /* DuskTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuskTypography.swift; sourceTree = "<group>"; };
@@ -2408,7 +2428,6 @@
 		5F7620F01084B7FE9DE2D413 /* SeerrRequestStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeerrRequestStateTests.swift; sourceTree = "<group>"; };
 		5FABA212CEF54442E338EF5F /* MediaFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFormatting.swift; sourceTree = "<group>"; };
 		5FD5541677233C8D131366D4 /* PlexCatalogQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexCatalogQueryTests.swift; sourceTree = "<group>"; };
-		6053360AABCDCB9E40D68A89 /* MediaService+SubtitleSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MediaService+SubtitleSearch.swift"; sourceTree = "<group>"; };
 		607E230ED6A6C92B422D4950 /* jellyfin-item-dv-p7-fel-power-rangers-credits-test-2020.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "jellyfin-item-dv-p7-fel-power-rangers-credits-test-2020.json"; sourceTree = "<group>"; };
 		623960236A03A906CBB549EF /* LibraryOrderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryOrderStore.swift; sourceTree = "<group>"; };
 		626FEE28813E63C65C481790 /* VideoDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDetailViewModel.swift; sourceTree = "<group>"; };
@@ -2451,6 +2470,7 @@
 		7168D0D44CA628541B1D4A63 /* jellyfin-item-dv-p7-mel-awaken-girl-color-accuracy-2020.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "jellyfin-item-dv-p7-mel-awaken-girl-color-accuracy-2020.json"; sourceTree = "<group>"; };
 		71F8FF05D14208D909DD6461 /* MediaServerProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaServerProvider.swift; sourceTree = "<group>"; };
 		71FD2A50461478ABD112E76E /* LaunchSplash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSplash.swift; sourceTree = "<group>"; };
+		73DCD9F958AC1E887BB4A545 /* JellyfinLanguageCodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinLanguageCodes.swift; sourceTree = "<group>"; };
 		7417D58AC5EB13018CBFAC8C /* PlexMediaPartDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexMediaPartDecodingTests.swift; sourceTree = "<group>"; };
 		7432B696F62F211CDFB979AF /* LegacyContainer-SiriCatalogEntries.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "LegacyContainer-SiriCatalogEntries.json"; sourceTree = "<group>"; };
 		7436B3B5C0DF3F31B6FCD200 /* LegacyContainer-IPTVSourceHeaderValues.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "LegacyContainer-IPTVSourceHeaderValues.json"; sourceTree = "<group>"; };
@@ -2460,6 +2480,7 @@
 		75189482CC2500EB75A15169 /* LegacyContainerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyContainerTests.swift; sourceTree = "<group>"; };
 		7544739258CFA8FA07B61B54 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		75738857B8F894A4D8675F62 /* VideoEnhancement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEnhancement.swift; sourceTree = "<group>"; };
+		75747B313D08B662405ED22D /* JellyfinPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinPreferencesTests.swift; sourceTree = "<group>"; };
 		75C07F159C757519EA8D8799 /* plex-hubs-section-1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "plex-hubs-section-1.json"; sourceTree = "<group>"; };
 		7642956F89B8A476290CDC9E /* jellyfin-item-the-office-s01e01.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "jellyfin-item-the-office-s01e01.json"; sourceTree = "<group>"; };
 		77561B5C0FC2A9AE7F48AFAA /* ServerPrioritySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerPrioritySettingsView.swift; sourceTree = "<group>"; };
@@ -2485,6 +2506,7 @@
 		7C865F472C33B0F86ABABEB1 /* Season.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Season.swift; sourceTree = "<group>"; };
 		7CD6FD8A811CD0590F3C81C2 /* jellyfin-items-photo-timeline.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "jellyfin-items-photo-timeline.json"; sourceTree = "<group>"; };
 		7DAC7D13B98704B26DB8E7B5 /* DuskIconSapphire.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconSapphire.icon; sourceTree = "<group>"; };
+		7DFC3A2924C57E1B96F12E41 /* JellyfinAPI+Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "JellyfinAPI+Preferences.swift"; sourceTree = "<group>"; };
 		7E0033F33AFA7EBD434411F3 /* PlayerLandscapePreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLandscapePreferenceTests.swift; sourceTree = "<group>"; };
 		7EE725F98C7D4F04F09B3F7B /* PlayerTVHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTVHUDController.swift; sourceTree = "<group>"; };
 		7F35F34FAAABDC0F5B8B9D5C /* PlayerLandscapeOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLandscapeOrientation.swift; sourceTree = "<group>"; };
@@ -2627,6 +2649,7 @@
 		AAA99FC8FBAC9A33C54767BB /* PlaybackAirPlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackAirPlayController.swift; sourceTree = "<group>"; };
 		AAD3F1493243BA94C3A416B1 /* DuskTopShelf.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = DuskTopShelf.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ABB4E5DD7C611E3B480D16B5 /* DownloadContinuedTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadContinuedTask.swift; sourceTree = "<group>"; };
+		ABDF50C29FD6D118C86BA537 /* JellyfinHiddenLibraries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinHiddenLibraries.swift; sourceTree = "<group>"; };
 		AC85B7143D7774B74A1855BF /* PosterCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterCard.swift; sourceTree = "<group>"; };
 		ACC24E49ED3C42E11AE56E24 /* Dusk.storekit */ = {isa = PBXFileReference; path = Dusk.storekit; sourceTree = "<group>"; };
 		ACECE6741157A32EFA6BFAEC /* AnalyticsErrorReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsErrorReportTests.swift; sourceTree = "<group>"; };
@@ -3125,6 +3148,7 @@
 				F2FFE93F9B8848EC11577887 /* JellyfinItemMapper.swift */,
 				4C2BC0779B4D8DD2A87591F8 /* JellyfinItemMapper+Catalog.swift */,
 				807459638645226E48CEBE20 /* JellyfinItemMapper+Photos.swift */,
+				73DCD9F958AC1E887BB4A545 /* JellyfinLanguageCodes.swift */,
 				17775B7FF0541D00FEEC5257 /* JellyfinMediaMapper.swift */,
 			);
 			path = Mappers;
@@ -3288,6 +3312,7 @@
 				3BC013D1A314E9CF01951D8E /* JellyfinBrowseVocabulary.swift */,
 				A8BCED09F35C1048D51425C9 /* JellyfinCatalog.swift */,
 				934DDA530802EEA0C8663CEA /* JellyfinDownloads.swift */,
+				ABDF50C29FD6D118C86BA537 /* JellyfinHiddenLibraries.swift */,
 				CBB74C9EDB2139F72DA1D401 /* JellyfinHome.swift */,
 				A21578CC7CBC35B8EE5C4EBE /* JellyfinItemDetails.swift */,
 				7F4D0C7479A6B8BE7F2DDD56 /* JellyfinMarkers.swift */,
@@ -3295,6 +3320,8 @@
 				8C56DAD02C40F27E3EF12E7A /* JellyfinPhotos.swift */,
 				F72433D24AF08BE50C769423 /* JellyfinPlayback.swift */,
 				C2C1FD9CD1C78F5DD5A23B1E /* JellyfinPlaylists.swift */,
+				5DBACF544E9DF9308C280DAF /* JellyfinPrerolls.swift */,
+				499922DFDC28B6C1B96981C7 /* JellyfinSubtitleSearch.swift */,
 				B4368C2680933A6EA16339AD /* JellyfinUserData.swift */,
 			);
 			path = Facets;
@@ -3318,6 +3345,7 @@
 		4FEC6D5A3137395A9641198A /* Account */ = {
 			isa = PBXGroup;
 			children = (
+				59D0246DF469507EF76654BF /* JellyfinAccountPreferences.swift */,
 				843DF23018A8C6384A326259 /* JellyfinAccountProvider.swift */,
 				97BE09264490D429874E0815 /* JellyfinAccountRecord.swift */,
 				D1B6022331994E785270E854 /* JellyfinAddress.swift */,
@@ -3459,6 +3487,7 @@
 				F615EC946484A83C1E0AF848 /* JellyfinPhotosLiveTests.swift */,
 				F2280373B469C4CE94E68778 /* JellyfinPhotosTests.swift */,
 				2525693AF04BC29990FCD7A0 /* JellyfinPlaybackTests.swift */,
+				75747B313D08B662405ED22D /* JellyfinPreferencesTests.swift */,
 				3AC84BE26121B410A7F4B29D /* JellyfinWireTests.swift */,
 				EEBF07A4B4A6024A34B8026A /* LegacyContainerRecorder.swift */,
 				450C5D44AAF25340FED2053E /* LegacyContainerSupport.swift */,
@@ -3659,6 +3688,7 @@
 				03B05B789092EC33B7DD7354 /* JellyfinAPI.swift */,
 				8D2BB591FA219F38860AFC22 /* JellyfinAPI+Catalog.swift */,
 				5F18957577B9CFF69E82B55A /* JellyfinAPI+Home.swift */,
+				7DFC3A2924C57E1B96F12E41 /* JellyfinAPI+Preferences.swift */,
 				CEB87CD615518202ED8AD685 /* JellyfinAuthorization.swift */,
 				5286AB8D631FD14A4B78072D /* JellyfinClient.swift */,
 				53F6090DFDAC34F96A22D65F /* JellyfinCredentialPolicy.swift */,
@@ -3858,7 +3888,6 @@
 				DD17B3770AE6FFC3CAE0DF4F /* MediaService+PlexAccount.swift */,
 				B7DA8548BAAE0905B5993531 /* MediaService+PlexFacets.swift */,
 				D7A98F32446408CE04F67F8B /* MediaService+PlexSignIn.swift */,
-				6053360AABCDCB9E40D68A89 /* MediaService+SubtitleSearch.swift */,
 			);
 			path = Facade;
 			sourceTree = "<group>";
@@ -4831,7 +4860,9 @@
 				A93747F2280BD12A6B058AB1 /* ImageProviding.swift in Sources */,
 				518C7ADFBB0F513AC1293E55 /* JellyfinAPI+Catalog.swift in Sources */,
 				A873A91E87624183C9B9921D /* JellyfinAPI+Home.swift in Sources */,
+				34AD048AF8087D8D6B482FDE /* JellyfinAPI+Preferences.swift in Sources */,
 				FA16DC2D22A747E56E9E686A /* JellyfinAPI.swift in Sources */,
+				2642A7E3B9BB229E7B3E139B /* JellyfinAccountPreferences.swift in Sources */,
 				F25BF0333E89BE5BAF2B3969 /* JellyfinAccountProvider.swift in Sources */,
 				B80B682A0BAD03C7C8A6D8FB /* JellyfinAccountRecord.swift in Sources */,
 				B2E6D399B55042A3F6B50B9E /* JellyfinAddress.swift in Sources */,
@@ -4844,6 +4875,7 @@
 				CFE218003BB92EA2BE07E989 /* JellyfinCredentialPolicy.swift in Sources */,
 				D20D337F772788A0CA92A9F1 /* JellyfinDownloads.swift in Sources */,
 				EE16F95609A4630902C2CA0D /* JellyfinError.swift in Sources */,
+				57A0C03C916D2E773D062C9A /* JellyfinHiddenLibraries.swift in Sources */,
 				8F1F81D9DC090763B1670893 /* JellyfinHome.swift in Sources */,
 				50C8B000C9253ACCCB86BA4A /* JellyfinHomeRowMapper.swift in Sources */,
 				9B381B0645AD8F2C08FCF90A /* JellyfinImages.swift in Sources */,
@@ -4853,6 +4885,7 @@
 				E444DE3048EAA703725B22F1 /* JellyfinItemMapper+Photos.swift in Sources */,
 				084C067BF7710FBC7AB9397A /* JellyfinItemMapper.swift in Sources */,
 				4403A942A73BC1EBA47F9974 /* JellyfinItemQuery.swift in Sources */,
+				BA52F61B3DC979C2FEC47DBF /* JellyfinLanguageCodes.swift in Sources */,
 				5EEBAEC66D50E8BD176A8F96 /* JellyfinLibraryDTO.swift in Sources */,
 				3F658D169AE779503941B906 /* JellyfinMarkers.swift in Sources */,
 				C88D6AF8F9AB3C7FD1A4B03C /* JellyfinMediaDTO.swift in Sources */,
@@ -4863,12 +4896,14 @@
 				7ECDDDB399BFCD4E82A0C82D /* JellyfinPlayback.swift in Sources */,
 				3A059E4F7E12890C8365C4E8 /* JellyfinPlaybackDTO.swift in Sources */,
 				F134E22D3BF82813425AA899 /* JellyfinPlaylists.swift in Sources */,
+				9040515152049AC6363ABE46 /* JellyfinPrerolls.swift in Sources */,
 				978C7DD352730A2BA24C8144 /* JellyfinProfiles.swift in Sources */,
 				C24EF1D030A7FF4A961A69B6 /* JellyfinProviderFactory.swift in Sources */,
 				0C745264DB5C9F8817379265 /* JellyfinRequest.swift in Sources */,
 				48C437670D54E7B7A3ED30DB /* JellyfinServerProvider.swift in Sources */,
 				ADBF850A61490FFDE1D0600E /* JellyfinSessions.swift in Sources */,
 				D6312ECFD07447D549013EC5 /* JellyfinSignInFlow.swift in Sources */,
+				190E91513031B3157393A904 /* JellyfinSubtitleSearch.swift in Sources */,
 				B3FD6726B852652729DCA0D6 /* JellyfinSystemDTO.swift in Sources */,
 				3BDAA7C1EDD4A3D94CEBE034 /* JellyfinUserData.swift in Sources */,
 				B9993BF4C6B212091B9E392A /* JellyfinWire.swift in Sources */,
@@ -4977,7 +5012,6 @@
 				F1A2166E43283837E671A500 /* MediaService+ServerIdentity.swift in Sources */,
 				81254F5D10244E13DCE9F508 /* MediaService+Servers.swift in Sources */,
 				D112056825FE08A97264D985 /* MediaService+Streams.swift in Sources */,
-				F7A4D9D14E80BCEB3197B1B9 /* MediaService+SubtitleSearch.swift in Sources */,
 				C74F4364E969023FAD9CDC4A /* MediaService+Subtitles.swift in Sources */,
 				E1F480D1C0DED4807F33449F /* MediaService+WatchState.swift in Sources */,
 				A4A74EA0359CC51CC54DBAA0 /* MediaService+WatchedFanOut.swift in Sources */,
@@ -5348,7 +5382,9 @@
 				7B7925A4F031680E7638729B /* ImageProviding.swift in Sources */,
 				0A1FE563516831D0C4FE9261 /* JellyfinAPI+Catalog.swift in Sources */,
 				64230229440114C816F2C2CA /* JellyfinAPI+Home.swift in Sources */,
+				73597C15C229464C5315C018 /* JellyfinAPI+Preferences.swift in Sources */,
 				BE87DEC0F163C580427E59A4 /* JellyfinAPI.swift in Sources */,
+				05CD2F11302F927BF9B1C3F5 /* JellyfinAccountPreferences.swift in Sources */,
 				D0FAF47169D6755B89A4C80F /* JellyfinAccountProvider.swift in Sources */,
 				7DFD333DCF6090C664391C0E /* JellyfinAccountRecord.swift in Sources */,
 				4ECCEDA5F3F6DE6E6578B080 /* JellyfinAddress.swift in Sources */,
@@ -5361,6 +5397,7 @@
 				B38452B5D43493C3E036B12F /* JellyfinCredentialPolicy.swift in Sources */,
 				2706577475864C243DC149A3 /* JellyfinDownloads.swift in Sources */,
 				C986B18F129F9BCDE292B49C /* JellyfinError.swift in Sources */,
+				EC7757691490DD93DB99561A /* JellyfinHiddenLibraries.swift in Sources */,
 				7301B06DBBD246D16F229780 /* JellyfinHome.swift in Sources */,
 				ACB538FC2E5F3E2C42AD10CF /* JellyfinHomeRowMapper.swift in Sources */,
 				FB84305C09A9D051CA1550F0 /* JellyfinImages.swift in Sources */,
@@ -5370,6 +5407,7 @@
 				6F468819F3FCA1E6BCCF88EB /* JellyfinItemMapper+Photos.swift in Sources */,
 				9A06221F4A8910090B598B7C /* JellyfinItemMapper.swift in Sources */,
 				982AA9710D94605D19899A6D /* JellyfinItemQuery.swift in Sources */,
+				36AED640DF13A1F48F8E0F20 /* JellyfinLanguageCodes.swift in Sources */,
 				55D49BD2B145958E3847E4DC /* JellyfinLibraryDTO.swift in Sources */,
 				506487C603B3D54442158715 /* JellyfinMarkers.swift in Sources */,
 				EBFFE0C393DFD22C426503B1 /* JellyfinMediaDTO.swift in Sources */,
@@ -5380,12 +5418,14 @@
 				B38ABBBEB9F5E82A402EC35C /* JellyfinPlayback.swift in Sources */,
 				F86FB12FE134A46345E85404 /* JellyfinPlaybackDTO.swift in Sources */,
 				EDB964BBE2687CA9D325BB6E /* JellyfinPlaylists.swift in Sources */,
+				4722B04E783D26234F3B1F36 /* JellyfinPrerolls.swift in Sources */,
 				2DB00B3B5161423088404B6E /* JellyfinProfiles.swift in Sources */,
 				DA77EF45F605C7CD5B446708 /* JellyfinProviderFactory.swift in Sources */,
 				A65F7228A3A599165DA79D63 /* JellyfinRequest.swift in Sources */,
 				F44EED2BF806603C638BD0EB /* JellyfinServerProvider.swift in Sources */,
 				F08BDACB7A4BEBF59CFE7153 /* JellyfinSessions.swift in Sources */,
 				D01B5334555479B02A3068F3 /* JellyfinSignInFlow.swift in Sources */,
+				E8D995107D794047A3C354D7 /* JellyfinSubtitleSearch.swift in Sources */,
 				E8D9F3F0826A8085CACC0616 /* JellyfinSystemDTO.swift in Sources */,
 				11395C2BD3CB045E7F4FFC4E /* JellyfinUserData.swift in Sources */,
 				C61A1BDA3C73C853B6BA52A6 /* JellyfinWire.swift in Sources */,
@@ -5494,7 +5534,6 @@
 				3E238A67B6618BD414BE6C41 /* MediaService+ServerIdentity.swift in Sources */,
 				6E270C32D428E05F6AD5377E /* MediaService+Servers.swift in Sources */,
 				B0F6059B1918F31BC7D8DAE8 /* MediaService+Streams.swift in Sources */,
-				C4F3478BCF5AFBB5929DA772 /* MediaService+SubtitleSearch.swift in Sources */,
 				5C774AD7ACA085C37B63EB59 /* MediaService+Subtitles.swift in Sources */,
 				3501DE596E2844422D156594 /* MediaService+WatchState.swift in Sources */,
 				4AA877CEAB6A5B216171F11B /* MediaService+WatchedFanOut.swift in Sources */,
@@ -5811,6 +5850,7 @@
 				520FBA6E6EDCE758C6971ED5 /* JellyfinPhotosLiveTests.swift in Sources */,
 				4B29536E686986ED12DB8F81 /* JellyfinPhotosTests.swift in Sources */,
 				4687461CA87897D1417CB6EB /* JellyfinPlaybackTests.swift in Sources */,
+				E184C28638D419484F92D369 /* JellyfinPreferencesTests.swift in Sources */,
 				23BAE5EDBF8476CD6F78E7A4 /* JellyfinWireTests.swift in Sources */,
 				FD6AE8382165142FB6573309 /* LegacyContainerRecorder.swift in Sources */,
 				D882E93CB72D18F21852CEAB /* LegacyContainerSupport.swift in Sources */,
@@ -5997,7 +6037,9 @@
 				F36475D243F831508A16ACC2 /* ImageProviding.swift in Sources */,
 				7BE8AA1AB406867879374527 /* JellyfinAPI+Catalog.swift in Sources */,
 				6E1FF738292E36B5EAE98237 /* JellyfinAPI+Home.swift in Sources */,
+				BB956A3FEAA19DC1FA874FCA /* JellyfinAPI+Preferences.swift in Sources */,
 				47841A78718A5D4E18C1ED12 /* JellyfinAPI.swift in Sources */,
+				DDEDB7F1337170B88ACC8F9F /* JellyfinAccountPreferences.swift in Sources */,
 				3DA2B50DED9D21DC50BD7BC1 /* JellyfinAccountProvider.swift in Sources */,
 				43EF3E56CFFE573DF679F191 /* JellyfinAccountRecord.swift in Sources */,
 				8C65087F8FA97FADF511E14A /* JellyfinAddress.swift in Sources */,
@@ -6010,6 +6052,7 @@
 				06EF3B518C8283ABFF71A938 /* JellyfinCredentialPolicy.swift in Sources */,
 				D10C449C5EBC6CC4DA360588 /* JellyfinDownloads.swift in Sources */,
 				65586D4E87975D271B20867F /* JellyfinError.swift in Sources */,
+				DF36334BF461B0EDC060C14A /* JellyfinHiddenLibraries.swift in Sources */,
 				4B37E5563F7790D41DFAD52F /* JellyfinHome.swift in Sources */,
 				8ACEF38C70E75965EEB35BC3 /* JellyfinHomeRowMapper.swift in Sources */,
 				0717515FB6754E66DCAE6EA3 /* JellyfinImages.swift in Sources */,
@@ -6019,6 +6062,7 @@
 				24354FE15CEDE21605AF0FDE /* JellyfinItemMapper+Photos.swift in Sources */,
 				E1AD4A0B780EA4E63CF662A1 /* JellyfinItemMapper.swift in Sources */,
 				D5835F7D279649D30D4D34F4 /* JellyfinItemQuery.swift in Sources */,
+				AEEE0500E49AA374D0FC4DF7 /* JellyfinLanguageCodes.swift in Sources */,
 				4AA054A2739678D810AAE3E5 /* JellyfinLibraryDTO.swift in Sources */,
 				C73EA4F25EC17054B0081BEC /* JellyfinMarkers.swift in Sources */,
 				40111C65FC8FADEC283C488A /* JellyfinMediaDTO.swift in Sources */,
@@ -6029,12 +6073,14 @@
 				E12AEB4A296739830CD5C2A9 /* JellyfinPlayback.swift in Sources */,
 				4BACE033AA1CEE44D173C188 /* JellyfinPlaybackDTO.swift in Sources */,
 				B858D0CF99802A45DB3351CC /* JellyfinPlaylists.swift in Sources */,
+				35400ABF7B06EFAF8923424A /* JellyfinPrerolls.swift in Sources */,
 				EC7311679B84BE37303A49EB /* JellyfinProfiles.swift in Sources */,
 				7104B80F13DEC79A21CD2D5D /* JellyfinProviderFactory.swift in Sources */,
 				F8F8561AC28EE00EC6276537 /* JellyfinRequest.swift in Sources */,
 				957EBB66DE94AC000418726E /* JellyfinServerProvider.swift in Sources */,
 				EDC0AC08DF2A65B07D32AAA5 /* JellyfinSessions.swift in Sources */,
 				D35E81813E91F5E486CFE2AD /* JellyfinSignInFlow.swift in Sources */,
+				9A27C663D5A3B9BE8ACFB5A8 /* JellyfinSubtitleSearch.swift in Sources */,
 				4842312D903235CA7886347C /* JellyfinSystemDTO.swift in Sources */,
 				FC520C3AB95D2B2236F41A60 /* JellyfinUserData.swift in Sources */,
 				0CE1BDD1EF88754A031A0BB7 /* JellyfinWire.swift in Sources */,
@@ -6143,7 +6189,6 @@
 				58D3CCBFF8A7BF67CCF0F0B5 /* MediaService+ServerIdentity.swift in Sources */,
 				467C5B114D50C4F784F9A01E /* MediaService+Servers.swift in Sources */,
 				75304E81EFA8B1E45E27012E /* MediaService+Streams.swift in Sources */,
-				E6C8CE67F2621E90FC5C99AD /* MediaService+SubtitleSearch.swift in Sources */,
 				4D226BB3123BE81E459F88BC /* MediaService+Subtitles.swift in Sources */,
 				B1B3F51982C80F26DA51F33C /* MediaService+WatchState.swift in Sources */,
 				FEE3466C84DAFA02913700F7 /* MediaService+WatchedFanOut.swift in Sources */,
@@ -6451,6 +6496,7 @@
 				AD00C35D5D26E05A82496871 /* JellyfinPhotosLiveTests.swift in Sources */,
 				A75BE2EFA911C79AE12071D0 /* JellyfinPhotosTests.swift in Sources */,
 				D0AE8AC1F17C93EDBDEC554B /* JellyfinPlaybackTests.swift in Sources */,
+				386A3A32F36584DB5E2EC536 /* JellyfinPreferencesTests.swift in Sources */,
 				6BB852C68AFC37D9CFADCDB3 /* JellyfinWireTests.swift in Sources */,
 				8D9EDBB9458FAE3AB3775215 /* LegacyContainerRecorder.swift in Sources */,
 				D9D2A1E137EA23E35EF581BD /* LegacyContainerSupport.swift in Sources */,

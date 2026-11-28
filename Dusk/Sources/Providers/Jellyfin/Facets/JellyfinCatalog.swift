@@ -12,10 +12,13 @@ import Foundation
 struct JellyfinCatalog: CatalogProviding {
     let serverID: String
     private let makeClient: @MainActor () throws -> JellyfinClient
+    /// The views the user hides (J-11), for search, whose hits carry no library.
+    private var hiddenViewIDs: @MainActor () async -> Set<String> = { [] }
 
     nonisolated init(server: JellyfinServerProvider) {
         serverID = server.descriptor.id
         makeClient = { try server.client() }
+        hiddenViewIDs = { await JellyfinAccountPreferences(account: server.account).hiddenViewIDs(serverID: server.descriptor.id) }
     }
 
     /// For tests: a client over a stub transport.
@@ -259,6 +262,7 @@ struct JellyfinCatalog: CatalogProviding {
     func searchGroups(query: String) async throws -> [HomeRow] {
         let client = try makeClient()
         let serverID = serverID
+        let hidden = await hiddenViewIDs()
         return try await withThrowingTaskGroup(of: (Int, HomeRow?).self) { group in
             for (index, spec) in JellyfinItemMapper.searchGroups.enumerated() {
                 var request = JellyfinItemQuery()
@@ -268,8 +272,9 @@ struct JellyfinCatalog: CatalogProviding {
                 request.fields = Vocabulary.listFields
                 request.limit = 10
                 group.addTask {
-                    let items = try await client.send(JellyfinAPI.items(request)).items
+                    let found = try await client.send(JellyfinAPI.items(request)).items
                         .map { JellyfinItemMapper.map($0, serverID: serverID) }
+                    let items = try await JellyfinHiddenLibraries.dropping(hidden, from: found, search: request, client: client)
                     return (index, items.isEmpty ? nil : JellyfinItemMapper.searchRow(spec, items: items, serverID: serverID))
                 }
             }

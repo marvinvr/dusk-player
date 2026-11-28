@@ -1407,8 +1407,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   `externalSubtitleRefreshToken` (VLCKit mounts it in place), restarts on VLCKit
   (AVPlayer), or hands the id to Plex (AirPlay burns it in).
 - The user-facing flow is "Download Subtitles" (`SubtitleSearchView` /
-  `SubtitleSearchViewModel`, `Features/Player/`): pick a language, Plex searches
-  OpenSubtitles, the chosen result is installed server-side. From the player it
+  `SubtitleSearchViewModel`, `Features/Player/`): pick a language, the server
+  searches OpenSubtitles (Plex itself, Jellyfin through its subtitle plugin),
+  the chosen result is installed server-side. From the player it
   then calls `refreshSubtitleStreamsAfterDownload()` so the new sidecar reaches
   the live session; from a detail screen there is no session to refresh, so the
   detail model just re-reads the item and the next playback mounts it.
@@ -2968,6 +2969,11 @@ Plex clients do. There is no app setting: the server decides.
   pre-rolls. `advancePreroll(from:)` is pinned to the pre-roll's
   `playerPresentationID`, so an end-of-file callback racing a Skip or an error
   cannot skip two.
+- Jellyfin (`JellyfinPrerolls`): `GET /Items/{id}/Intros?userId=`, what the
+  server's intros plugin puts in front of the film (`{Items: []}` without one).
+  Its items carry media sources without probed streams, so each is read again
+  as a full item (`/Items/{id}`) for the engine pick; one that cannot be read is
+  left out. Same gate and playback as above.
 - Verification: a scratch copy of the screenshot mock (`dusk-screenshots`)
   answering `/playQueues` with clips is enough to exercise the whole flow in
   the simulator via `-DuskScreenshotScreen player` (which goes through

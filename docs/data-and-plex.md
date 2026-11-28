@@ -38,7 +38,7 @@ docs/jellyfin/04-architecture.md §2–§8 is the design; this is how it is buil
   relays, the pool); it forwards to the provider policy.
 - `Providers/Plex/Facade/`: facade extensions that are Plex-only so far: the
   account state forwarders and persisted names (`+PlexAccount`), PIN sign-in,
-  Plex Home (`+Home`), history, subtitle search, and the routes without a
+  Plex Home (`+Home`), history, and the routes without a
   neutral facet member yet (`+PlexFacets`: live-stream consumers, raw catalog
   routes, image URL forwarders). Each moves behind a facet member when a
   second provider needs it.
@@ -736,6 +736,30 @@ picks the servers whose pins may be rewritten; the provider may only drop more.
   (`Library.id`, `"<serverID>|<key>"`), never by the bare section key — those
   are per-server counters that collide.
 
+Jellyfin (`Providers/Jellyfin/Account/JellyfinAccountPreferences.swift`): the
+order is the user's `Configuration.OrderedViews`, hidden is `MyMediaExcludes`
+(view ids, the lists Jellyfin Web's Home settings edit), per user on its one
+server.
+- `/UserViews` is read with `includeHidden=true`: without it an excluded view
+  disappears from Dusk entirely and could never be shown again.
+- Write: re-read `/Users/Me`, send the whole `Configuration` back as raw JSON
+  with only the two arrays changed (`POST /Users/Configuration` replaces the
+  object, so a typed DTO would reset keys Dusk has no field for). Dusk's
+  libraries take the slots Dusk's libraries hold in the server's effective
+  order (`/UserViews`); Collections, Playlists and other views Dusk does not
+  show keep theirs, and their exclusions stay.
+- Without `Policy.EnableUserPreferenceAccess` (or on a `403`) the lists are
+  kept on the device (UserDefaults `JellyfinLibraryViews.<accountID>`), seeded
+  from the server's.
+- Jellyfin's search ignores `MyMediaExcludes` and its items name no library
+  (`ParentId` is the folder on disk), so `JellyfinHiddenLibraries` asks each
+  search again per hidden view (`parentId`, same order and limit) and drops
+  those hits before `HiddenLibraryFilter` sees the rows.
+- Language defaults: `AudioLanguagePreference`, `SubtitleLanguagePreference`
+  (ISO 639-2, mapped to 639-1 by `JellyfinLanguageCodes`) and `SubtitleMode`
+  (`Smart` → Auto, `Always`, `None`/`OnlyForced` → Off, `Default` says
+  nothing). `PlayDefaultAudioTrack` is ignored: it is on for every new user.
+
 Traps:
 - The write is a **full-blob replace**. Read the whole `experience` document,
   mutate only `sidebarSettings.pinnedSources` (plus `hasCompletedSetup`), and POST
@@ -770,31 +794,41 @@ Detail and hierarchy:
   same details and children reads through `PlexMetadataSnapshotFormat.fetchRequest` for
   `MetadataSnapshotCache`; keep the two in step.
 
-Subtitle search and download (`MediaService+Subtitles.swift`):
+Subtitle search and download (`MediaService+Subtitles.swift` routes to the
+item's server's `SubtitleSearchProviding`; Plex requests in
+`Providers/Plex/PlexSubtitleSearch.swift`, Jellyfin's in
+`Providers/Jellyfin/Facets/JellyfinSubtitleSearch.swift`):
 - Plex Media Server proxies OpenSubtitles, so Dusk needs no OpenSubtitles
   account, API key, or rate limiting of its own.
-- `searchSubtitles(ratingKey:languageCode:hearingImpaired:forced:)` ->
+- `search(itemID:languageCode:hearingImpaired:forced:)` ->
   `GET /library/metadata/{ratingKey}/subtitles?language=&hearingImpaired=0|1&forced=0|1`,
   decoded through `StreamResponse<SubtitleSearchResult>`. `language` is the
   ISO 639-1 code Plex Web sends (`en`); servers also accept 639-2 (`eng`), and
   the value is only trimmed/lowercased, never mapped. Servers may answer
   `size: 0` with no `Stream` array, which decodes to `[]`.
-- `downloadSubtitle(ratingKey:result:)` -> `PUT` on the same path with
+- `install(_:itemID:)` -> `PUT` on the same path with
   `key` plus the optional `codec`/`language`/`hearingImpaired`/`forced`/
   `providerTitle`/`title` params, sent only when the result carries them. The
   server fetches the file, writes it as a sidecar, and refreshes the item; the
   200 body is empty. Refetch `getMediaDetails(ratingKey:)` to see the new track.
+  `PlexSubtitleSearchRequestTests` pins both requests.
 - The PUT passes `timeoutInterval: 30` to `rawServerRequest` because the provider
   round-trip routinely exceeds the session's 15s request default. 30s is also the
   session's `timeoutIntervalForResource`, so it is the practical ceiling.
+- Jellyfin: `GET /Items/{id}/RemoteSearch/Subtitles/{lang}` with the ISO 639-2/B
+  code (`ger`, `fre`: `JellyfinLanguageCodes.threeLetter`), filtered on the
+  client for hearing impaired / forced (the server has no such filter); install
+  is `POST /Items/{id}/RemoteSearch/Subtitles/{resultId}` (30 s). Needs
+  `Policy.EnableSubtitleManagement` (or admin), else `403`, and a subtitle
+  plugin, else every search is `[]`.
 - `externalSubtitleURL(for:)` builds the item's server base URL + `stream.key` +
   `X-Plex-Token` for sidecar streams (`kind == .subtitle` with a non-nil `key`) so the
   engine can attach them via VLCKit `addPlaybackSlave`. Server token, never the
   account token; log only through `sanitizedPlaybackURLString`.
-- `canDownloadSubtitles(serverID:)` gates the affordance per server: an owned
-  server and a non-restricted
-  Home user. Shared-server and managed-profile users cannot write sidecars, so
-  hide the entry point instead of surfacing a 403.
+- `canDownloadSubtitles(serverID:)` gates the affordance per server: the server
+  has a `subtitleSearch` facet and `permissions.canInstallSubtitles` (Plex: an
+  owned server and a non-restricted Home user; Jellyfin: subtitle management).
+  Everyone else never sees the entry point instead of a 403.
 
 Where to edit:
 - Browse/library/detail endpoints: `Providers/Plex/PlexCatalog.swift`, routed from
@@ -810,7 +844,8 @@ Where to edit:
 - Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`
   (routes) and `Providers/Plex/PlexHomeRows.swift` (the Plex requests), rows
   mapped by `Providers/Plex/Mappers/PlexHubMapper.swift`.
-- Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
+- Subtitle search/download endpoints: `Providers/Plex/PlexSubtitleSearch.swift`
+  (Jellyfin: `JellyfinSubtitleSearch.swift`), routed from `MediaService+Subtitles.swift`.
 - Account-level plex.tv settings (library order, language defaults):
   `MediaService+LibraryOrder.swift` / `+LanguageDefaults.swift` route to
   `Providers/Plex/PlexAccountPreferences.swift`, with the shared state in

@@ -371,9 +371,11 @@ Supporter:
   return a single list verbatim so single-server installs are untouched.
 - New "the servers are the problem" empty state: `Shared/ServerAvailabilityViews.swift`
   (`ServerAvailabilityStateView`, `ServerOutageNote`), driven by `pool.availability`.
-- New Plex endpoint: matching `MediaService+*.swift` file — e.g.
-  `MediaService+Subtitles.swift` owns the server-side OpenSubtitles search,
-  sidecar download, sidecar stream URL, and the `canDownloadSubtitles` gate.
+- New Plex endpoint: the provider facet that owns it, routed from the matching
+  `MediaService+*.swift` file — e.g. `MediaService+Subtitles.swift` routes the
+  server-side subtitle search and download to `SubtitleSearchProviding`
+  (`PlexSubtitleSearch`, `JellyfinSubtitleSearch`) and owns the sidecar stream
+  URL and the `canDownloadSubtitles` gate.
 - New Home row type: a `HomeRow.Kind` set by the provider's mapper
   (`PlexHubMapper`), then `HomeViewModel` plus `HomeHubFilter`/`HomeHubArrangement`.
   Home's row sequence is fixed in `HomeIOSView`/`HomeTVView`; keep the two shells

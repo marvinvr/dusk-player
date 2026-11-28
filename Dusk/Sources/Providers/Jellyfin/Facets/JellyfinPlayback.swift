@@ -3,8 +3,8 @@ import Foundation
 /// Jellyfin's playback (docs/jellyfin/04-architecture.md §12): direct play on
 /// both engines and sidecar subtitles. Server streams (remux, quality,
 /// AirPlay) are J-06; until then `openServerStream` throws, which the ladder
-/// treats like any declined remux and plays the file directly. Pre-rolls
-/// (`/Items/{id}/Intros`) are J-11.
+/// treats like any declined remux and plays the file directly. Pre-rolls are
+/// `JellyfinPrerolls`.
 @MainActor
 struct JellyfinPlayback: PlaybackProviding {
     let server: JellyfinServerProvider
@@ -61,7 +61,7 @@ struct JellyfinPlayback: PlaybackProviding {
         return Self.authenticatedURL(forServerPath: key, client: client)
     }
 
-    func prerolls(before itemID: String) async throws -> [MediaDetails] { [] }
+    func prerolls(before itemID: String) async throws -> [MediaDetails] { try await JellyfinPrerolls.load(before: itemID, server: server) }
 
     /// A token-free server path from the mapper (`part.key`, `stream.key`:
     /// path plus query) as a URL carrying `ApiKey`, for engines that cannot

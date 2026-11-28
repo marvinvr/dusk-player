@@ -85,7 +85,7 @@ struct JellyfinClientTests {
 
     @Test func userIDIsInjectedOnce() throws {
         let views = try client().makeURLRequest(for: JellyfinAPI.userViews())
-        #expect(views.url?.absoluteString == "http://jellyfin.example:8096/UserViews?userId=user-1")
+        #expect(views.url?.absoluteString == "http://jellyfin.example:8096/UserViews?includeHidden=true&userId=user-1")
 
         var request = JellyfinAPI.userViews()
         request.query = [URLQueryItem(name: "UserId", value: "other")]

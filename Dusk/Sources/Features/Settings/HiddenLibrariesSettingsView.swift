@@ -4,14 +4,16 @@ import SwiftUI
 /// when there are several. A hidden library is gone from Dusk completely — tabs,
 /// library lists, Home, search, Siri, the Top Shelf (see `HiddenLibraryFilter`).
 ///
-/// The flag is the Plex account's `pinnedSources[].isHidden`, written through
-/// `LibraryOrderSettingsViewModel` like the order, so Plex Web and the other Plex
-/// apps hide the library too.
+/// The flag is the account's own (Plex `pinnedSources[].isHidden`, Jellyfin
+/// `MyMediaExcludes`), written through `LibraryOrderSettingsViewModel` like the
+/// order, so the server's other apps hide the library too.
 struct HiddenLibrariesSettingsView: View {
     @Environment(MediaService.self) private var media
     @State private var viewModel: LibraryOrderSettingsViewModel?
 
-    static let footerText = "Switched-off libraries are hidden here and in other Plex apps."
+    private var footerText: String {
+        "Switched-off libraries are hidden here and in other \(media.accountProductName) apps."
+    }
 
     var body: some View {
         content
@@ -60,7 +62,7 @@ struct HiddenLibrariesSettingsView: View {
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     TVSettingsSection(
                         title: showsServers ? group.serverName : "Libraries",
-                        footer: index == groups.count - 1 ? Self.footerText : nil
+                        footer: index == groups.count - 1 ? footerText : nil
                     ) {
                         // Keyed on the library's own id: `Library`'s
                         // Hashable conformance only looks at `key`, which two
@@ -110,7 +112,7 @@ struct HiddenLibrariesSettingsView: View {
                     }
                 } footer: {
                     if index == groups.count - 1 {
-                        Text(Self.footerText)
+                        Text(footerText)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }

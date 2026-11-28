@@ -80,8 +80,10 @@ enum JellyfinAPI {
 
     // MARK: Libraries, browse, details (§2, §3, §6)
 
+    /// Hidden views (`MyMediaExcludes`) included: Dusk drops them itself and
+    /// lists them in Settings › Hidden Libraries.
     static func userViews() -> JellyfinRequest<Items> {
-        .json(.get, "/UserViews", isUserScoped: true) { result, _ in
+        .json(.get, "/UserViews", query: [URLQueryItem(name: "includeHidden", value: "true")], isUserScoped: true) { result, _ in
             try JellyfinItemQuery.validate(result.items)
         }
     }

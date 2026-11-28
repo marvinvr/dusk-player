@@ -65,7 +65,7 @@ struct SignInPlexFlowView: View {
                 .foregroundStyle(Color.duskTextPrimary)
                 .padding(.top, 18)
 
-            Text("The Plex App We Deserve.")
+            Text(otherFlows.isEmpty ? "Sign in with your Plex account to get started." : "Sign in to get started.")
                 .font(.title3)
                 .foregroundStyle(Color.duskTextSecondary)
                 .padding(.top, 4)

@@ -62,23 +62,6 @@ struct JellyfinProfiles: ProfileProviding {
 
 // MARK: - Account facets later packages fill in
 
-/// No account-level library layout yet (J-11 maps `OrderedViews` /
-/// `MyMediaExcludes`): libraries keep the server's order.
-struct JellyfinAccountPreferences: AccountPreferencesProviding {
-    @MainActor func libraryLayout() async throws -> AccountLibraryLayout { .neverCustomized }
-
-    @MainActor func saveLibraryLayout(
-        _ order: [Library],
-        hidden: Set<String>?,
-        serverIDs: Set<String>,
-        didRead: (AccountLibraryLayout) -> Void
-    ) async throws -> AccountLibraryLayout {
-        throw MediaServiceError.notImplemented
-    }
-
-    @MainActor func languageDefaults() async throws -> AccountLanguageDefaults? { nil }
-}
-
 /// No Seerr sign-in yet (J-12: Jellyfin user and password, kept in the Keychain).
 struct JellyfinSeerrAuth: SeerrAuthProviding {
     func accepts(_ settings: SeerrPublicSettings) -> Bool { false }
