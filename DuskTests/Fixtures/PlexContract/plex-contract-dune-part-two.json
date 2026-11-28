@@ -1,0 +1,1578 @@
+{
+  "MediaContainer": {
+    "Metadata": [
+      {
+        "CommonSenseMedia": [
+          {
+            "AgeRating": [
+              {
+                "age": 13,
+                "rating": 4,
+                "type": "official"
+              }
+            ],
+            "id": 1074,
+            "oneLiner": "Superior 2nd half of sci-fi epic has violence, fighting."
+          }
+        ],
+        "Country": [
+          {
+            "filter": "country=1048",
+            "id": 1048,
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "filter": "director=941",
+            "id": 941,
+            "tag": "Denis Villeneuve",
+            "tagKey": "5d77684954c0f0001f305b2b",
+            "thumb": "https://metadata-static.plex.tv/3/people/350bbfe1ef2b9b3d99920bd947eae703.jpg"
+          }
+        ],
+        "Genre": [
+          {
+            "filter": "genre=53",
+            "id": 53,
+            "tag": "Action"
+          },
+          {
+            "filter": "genre=54",
+            "id": 54,
+            "tag": "Adventure"
+          },
+          {
+            "filter": "genre=55",
+            "id": 55,
+            "tag": "Drama"
+          },
+          {
+            "filter": "genre=23",
+            "id": 23,
+            "tag": "Science Fiction"
+          }
+        ],
+        "Guid": [
+          {
+            "id": "imdb://tt15239678"
+          },
+          {
+            "id": "tmdb://693134"
+          },
+          {
+            "id": "tvdb://290272"
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Dune: Part Two",
+            "type": "coverPoster",
+            "url": "/library/metadata/166518/thumb/1795794012"
+          },
+          {
+            "alt": "Dune: Part Two",
+            "type": "background",
+            "url": "/library/metadata/166518/art/1795794012"
+          },
+          {
+            "alt": "Dune: Part Two",
+            "type": "clearLogo",
+            "url": "/library/metadata/166518/clearLogo/1795794012"
+          },
+          {
+            "alt": "Dune: Part Two",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/166518/squareArt/1795794012"
+          }
+        ],
+        "Media": [
+          {
+            "Part": [
+              {
+                "Stream": [
+                  {
+                    "DOVIBLCompatID": 6,
+                    "DOVIBLPresent": true,
+                    "DOVIELPresent": true,
+                    "DOVILevel": 6,
+                    "DOVIPresent": true,
+                    "DOVIProfile": 7,
+                    "DOVIRPUPresent": true,
+                    "DOVIVersion": "1.0",
+                    "bitDepth": 10,
+                    "bitrate": 54283,
+                    "chromaLocation": "topleft",
+                    "chromaSubsampling": "4:2:0",
+                    "codec": "hevc",
+                    "codedHeight": 2160,
+                    "codedWidth": 3840,
+                    "colorPrimaries": "bt2020",
+                    "colorRange": "tv",
+                    "colorSpace": "bt2020nc",
+                    "colorTrc": "smpte2084",
+                    "default": true,
+                    "displayTitle": "4K DoVi/HDR10",
+                    "extendedDisplayTitle": "BaixarBluray.org - Alta Definição é Aqui! (4K DoVi/HDR10 HEVC Main 10)",
+                    "frameRate": 23.976,
+                    "height": 2160,
+                    "id": 284142,
+                    "index": 0,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "level": 153,
+                    "profile": "main 10",
+                    "refFrames": 1,
+                    "streamType": 1,
+                    "title": "BaixarBluray.org - Alta Definição é Aqui!",
+                    "width": 3840
+                  },
+                  {
+                    "audioChannelLayout": "7.1",
+                    "bitDepth": 24,
+                    "bitrate": 3257,
+                    "canNormalizeLoudness": true,
+                    "channels": 8,
+                    "codec": "truehd",
+                    "displayTitle": "English (TRUEHD 7.1 + Atmos)",
+                    "extendedDisplayTitle": "English (TRUEHD 7.1 + Atmos)",
+                    "gainOffset": "0.42",
+                    "id": 284143,
+                    "index": 1,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-11.99",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "24.00",
+                    "peak": "0.55",
+                    "profile": "dolby truehd + dolby atmos",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-25.02"
+                  },
+                  {
+                    "audioChannelLayout": "5.1(side)",
+                    "bitrate": 448,
+                    "canNormalizeLoudness": true,
+                    "channels": 6,
+                    "codec": "ac3",
+                    "displayTitle": "English (AC3 5.1)",
+                    "extendedDisplayTitle": "English (AC3 5.1)",
+                    "gainOffset": "-0.01",
+                    "id": 284144,
+                    "index": 2,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-18.04",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "19.90",
+                    "peak": "-0.01",
+                    "samplingRate": 48000,
+                    "selected": true,
+                    "streamType": 2,
+                    "threshold": "-29.97"
+                  },
+                  {
+                    "audioChannelLayout": "5.1(side)",
+                    "bitrate": 640,
+                    "canNormalizeLoudness": true,
+                    "channels": 6,
+                    "codec": "ac3",
+                    "default": true,
+                    "displayTitle": "Português (AC3 5.1)",
+                    "extendedDisplayTitle": "Português (AC3 5.1)",
+                    "forced": true,
+                    "gainOffset": "1.08",
+                    "id": 284145,
+                    "index": 3,
+                    "language": "Português",
+                    "languageCode": "por",
+                    "languageTag": "pt-BR",
+                    "loudness": "-18.23",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "25.00",
+                    "peak": "-0.57",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-31.79"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Português",
+                    "extendedDisplayTitle": "Português (SRT)",
+                    "id": 284146,
+                    "index": 4,
+                    "language": "Português",
+                    "languageCode": "por",
+                    "languageTag": "pt-BR",
+                    "streamType": 3
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "default": true,
+                    "displayTitle": "Português Forced",
+                    "extendedDisplayTitle": "Forced (Português SRT)",
+                    "forced": true,
+                    "id": 284147,
+                    "index": 5,
+                    "language": "Português",
+                    "languageCode": "por",
+                    "languageTag": "pt-BR",
+                    "streamType": 3,
+                    "title": "Forced"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "English",
+                    "extendedDisplayTitle": "English (SRT)",
+                    "id": 284148,
+                    "index": 6,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "selected": true,
+                    "streamType": 3,
+                    "title": "English"
+                  },
+                  {
+                    "bitrate": 25,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "English SDH",
+                    "extendedDisplayTitle": "English (SDH) (PGS)",
+                    "hearingImpaired": true,
+                    "id": 284149,
+                    "index": 7,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "streamType": 3,
+                    "title": "English (SDH)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "български",
+                    "extendedDisplayTitle": "Bulgarian (български SRT)",
+                    "id": 284150,
+                    "index": 8,
+                    "language": "български",
+                    "languageCode": "bul",
+                    "languageTag": "bg",
+                    "streamType": 3,
+                    "title": "Bulgarian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "粵語",
+                    "extendedDisplayTitle": "Chinese (Cantonese) (粵語 SRT)",
+                    "id": 284151,
+                    "index": 9,
+                    "language": "粵語",
+                    "languageCode": "yue",
+                    "languageTag": "yue",
+                    "streamType": 3,
+                    "title": "Chinese (Cantonese)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "中文（台灣）",
+                    "extendedDisplayTitle": "Chinese (Traditional) (中文（台灣） SRT)",
+                    "id": 284152,
+                    "index": 10,
+                    "language": "中文（台灣）",
+                    "languageCode": "zho",
+                    "languageTag": "zh-Hant",
+                    "streamType": 3,
+                    "title": "Chinese (Traditional)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Čeština",
+                    "extendedDisplayTitle": "Czech (Čeština SRT)",
+                    "id": 284153,
+                    "index": 11,
+                    "language": "Čeština",
+                    "languageCode": "ces",
+                    "languageTag": "cs",
+                    "streamType": 3,
+                    "title": "Czech"
+                  },
+                  {
+                    "bitrate": 16,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "Dansk",
+                    "extendedDisplayTitle": "Danish (Dansk PGS)",
+                    "id": 284154,
+                    "index": 12,
+                    "language": "Dansk",
+                    "languageCode": "dan",
+                    "languageTag": "da",
+                    "streamType": 3,
+                    "title": "Danish"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Nederlands",
+                    "extendedDisplayTitle": "Dutch (Nederlands SRT)",
+                    "id": 284155,
+                    "index": 13,
+                    "language": "Nederlands",
+                    "languageCode": "nld",
+                    "languageTag": "nl",
+                    "streamType": 3,
+                    "title": "Dutch"
+                  },
+                  {
+                    "bitrate": 18,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "Suomi",
+                    "extendedDisplayTitle": "Finnish (Suomi PGS)",
+                    "id": 284156,
+                    "index": 14,
+                    "language": "Suomi",
+                    "languageCode": "fin",
+                    "languageTag": "fi",
+                    "streamType": 3,
+                    "title": "Finnish"
+                  },
+                  {
+                    "bitrate": 17,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "Français",
+                    "extendedDisplayTitle": "French (Parisian) (Français PGS)",
+                    "id": 284157,
+                    "index": 15,
+                    "language": "Français",
+                    "languageCode": "fra",
+                    "languageTag": "fr-FR",
+                    "streamType": 3,
+                    "title": "French (Parisian)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Deutsch SDH",
+                    "extendedDisplayTitle": "German (SDH) (Deutsch SRT)",
+                    "hearingImpaired": true,
+                    "id": 284158,
+                    "index": 16,
+                    "language": "Deutsch",
+                    "languageCode": "deu",
+                    "languageTag": "de",
+                    "streamType": 3,
+                    "title": "German (SDH)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Ελληνικά",
+                    "extendedDisplayTitle": "Greek (Ελληνικά SRT)",
+                    "id": 284159,
+                    "index": 17,
+                    "language": "Ελληνικά",
+                    "languageCode": "ell",
+                    "languageTag": "el",
+                    "streamType": 3,
+                    "title": "Greek"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "עברית",
+                    "extendedDisplayTitle": "Hebrew (עברית SRT)",
+                    "id": 284160,
+                    "index": 18,
+                    "language": "עברית",
+                    "languageCode": "heb",
+                    "languageTag": "he",
+                    "streamType": 3,
+                    "title": "Hebrew"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "magyar",
+                    "extendedDisplayTitle": "Hungarian (magyar SRT)",
+                    "id": 284161,
+                    "index": 19,
+                    "language": "magyar",
+                    "languageCode": "hun",
+                    "languageTag": "hu",
+                    "streamType": 3,
+                    "title": "Hungarian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Indonesia",
+                    "extendedDisplayTitle": "Indonesian (Indonesia SRT)",
+                    "id": 284162,
+                    "index": 20,
+                    "language": "Indonesia",
+                    "languageCode": "ind",
+                    "languageTag": "id",
+                    "streamType": 3,
+                    "title": "Indonesian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Italiano SDH",
+                    "extendedDisplayTitle": "Italian (SDH) (Italiano SRT)",
+                    "hearingImpaired": true,
+                    "id": 284163,
+                    "index": 21,
+                    "language": "Italiano",
+                    "languageCode": "ita",
+                    "languageTag": "it",
+                    "streamType": 3,
+                    "title": "Italian (SDH)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "日本語",
+                    "extendedDisplayTitle": "Japanese (日本語 SRT)",
+                    "id": 284164,
+                    "index": 22,
+                    "language": "日本語",
+                    "languageCode": "jpn",
+                    "languageTag": "ja",
+                    "streamType": 3,
+                    "title": "Japanese"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "한국어",
+                    "extendedDisplayTitle": "Korean (한국어 SRT)",
+                    "id": 284165,
+                    "index": 23,
+                    "language": "한국어",
+                    "languageCode": "kor",
+                    "languageTag": "ko",
+                    "streamType": 3,
+                    "title": "Korean"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "latviešu",
+                    "extendedDisplayTitle": "Latvian (latviešu SRT)",
+                    "id": 284166,
+                    "index": 24,
+                    "language": "latviešu",
+                    "languageCode": "lav",
+                    "languageTag": "lv",
+                    "streamType": 3,
+                    "title": "Latvian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "lietuvių",
+                    "extendedDisplayTitle": "Lithuanian (lietuvių SRT)",
+                    "id": 284167,
+                    "index": 25,
+                    "language": "lietuvių",
+                    "languageCode": "lit",
+                    "languageTag": "lt",
+                    "streamType": 3,
+                    "title": "Lithuanian"
+                  },
+                  {
+                    "bitrate": 17,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "norsk",
+                    "extendedDisplayTitle": "Norwegian (norsk PGS)",
+                    "id": 284168,
+                    "index": 26,
+                    "language": "norsk",
+                    "languageCode": "nor",
+                    "languageTag": "no",
+                    "streamType": 3,
+                    "title": "Norwegian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "polski",
+                    "extendedDisplayTitle": "Polish (polski SRT)",
+                    "id": 284169,
+                    "index": 27,
+                    "language": "polski",
+                    "languageCode": "pol",
+                    "languageTag": "pl",
+                    "streamType": 3,
+                    "title": "Polish"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Português (Portugal)",
+                    "extendedDisplayTitle": "Portuguese (Iberian) (Português (Portugal) SRT)",
+                    "id": 284170,
+                    "index": 28,
+                    "language": "Português (Portugal)",
+                    "languageCode": "por",
+                    "languageTag": "pt-PT",
+                    "streamType": 3,
+                    "title": "Portuguese (Iberian)"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Русский",
+                    "extendedDisplayTitle": "Russian (Русский SRT)",
+                    "id": 284171,
+                    "index": 29,
+                    "language": "Русский",
+                    "languageCode": "rus",
+                    "languageTag": "ru",
+                    "streamType": 3,
+                    "title": "Russian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Slovenčina",
+                    "extendedDisplayTitle": "Slovak (Slovenčina SRT)",
+                    "id": 284172,
+                    "index": 30,
+                    "language": "Slovenčina",
+                    "languageCode": "slk",
+                    "languageTag": "sk",
+                    "streamType": 3,
+                    "title": "Slovak"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "slovenščina",
+                    "extendedDisplayTitle": "Slovenian (slovenščina SRT)",
+                    "id": 284173,
+                    "index": 31,
+                    "language": "slovenščina",
+                    "languageCode": "slv",
+                    "languageTag": "sl",
+                    "streamType": 3,
+                    "title": "Slovenian"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Español",
+                    "extendedDisplayTitle": "Spanish (Castilian) (Español SRT)",
+                    "id": 284174,
+                    "index": 32,
+                    "language": "Español",
+                    "languageCode": "spa",
+                    "languageTag": "es-ES",
+                    "streamType": 3,
+                    "title": "Spanish (Castilian)"
+                  },
+                  {
+                    "bitrate": 18,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "Español (Latinoamérica)",
+                    "extendedDisplayTitle": "Spanish (Latin American) (Español (Latinoamérica) PGS)",
+                    "id": 284175,
+                    "index": 33,
+                    "language": "Español (Latinoamérica)",
+                    "languageCode": "spa",
+                    "languageTag": "es-419",
+                    "streamType": 3,
+                    "title": "Spanish (Latin American)"
+                  },
+                  {
+                    "bitrate": 17,
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "Svenska",
+                    "extendedDisplayTitle": "Swedish (Svenska PGS)",
+                    "id": 284176,
+                    "index": 34,
+                    "language": "Svenska",
+                    "languageCode": "swe",
+                    "languageTag": "sv",
+                    "streamType": 3,
+                    "title": "Swedish"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "ไทย",
+                    "extendedDisplayTitle": "Thai (ไทย SRT)",
+                    "id": 284177,
+                    "index": 35,
+                    "language": "ไทย",
+                    "languageCode": "tha",
+                    "languageTag": "th",
+                    "streamType": 3,
+                    "title": "Thai"
+                  },
+                  {
+                    "bitrate": 0,
+                    "canAutoSync": false,
+                    "codec": "srt",
+                    "displayTitle": "Türkçe",
+                    "extendedDisplayTitle": "Turkish (Türkçe SRT)",
+                    "id": 284178,
+                    "index": 36,
+                    "language": "Türkçe",
+                    "languageCode": "tur",
+                    "languageTag": "tr",
+                    "streamType": 3,
+                    "title": "Turkish"
+                  }
+                ],
+                "audioProfile": "dolby truehd + dolby atmos",
+                "container": "mkv",
+                "duration": 10015224,
+                "file": "/data/Real/Movies/Dune Part Two (2024)/Dune Part Two (2024) - 4k.mkv",
+                "id": 160476,
+                "key": "/library/parts/160476/1794414356/file.mkv",
+                "size": 69319560491,
+                "videoProfile": "main 10"
+              }
+            ],
+            "aspectRatio": 1.78,
+            "audioChannels": 8,
+            "audioCodec": "truehd",
+            "audioProfile": "dolby truehd + dolby atmos",
+            "bitrate": 55371,
+            "container": "mkv",
+            "duration": 10015224,
+            "hasVoiceActivity": false,
+            "height": 2160,
+            "id": 160476,
+            "videoCodec": "hevc",
+            "videoFrameRate": "24p",
+            "videoProfile": "main 10",
+            "videoResolution": "4k",
+            "width": 3840
+          }
+        ],
+        "Producer": [
+          {
+            "filter": "producer=1043",
+            "id": 1043,
+            "tag": "Mary Parent",
+            "tagKey": "5d77683d61141d001fb1676b",
+            "thumb": "https://metadata-static.plex.tv/9/people/9e5ea444bca8b4c4c6e4e662a6f41719.jpg"
+          },
+          {
+            "filter": "producer=1044",
+            "id": 1044,
+            "tag": "Cale Boyter",
+            "tagKey": "5d776ad57a53e9001e7110d5",
+            "thumb": "https://metadata-static.plex.tv/0/people/0bc0d7ade071dc6dca818eb5cb6e11b4.jpg"
+          },
+          {
+            "filter": "producer=1045",
+            "id": 1045,
+            "tag": "Tanya Lapointe",
+            "tagKey": "5dd86eecdd1f10001e8d8daa",
+            "thumb": "https://metadata-static.plex.tv/1/people/1cd9796c1fdf730ccff7fb9cd06e62ca.jpg"
+          },
+          {
+            "filter": "producer=1046",
+            "id": 1046,
+            "tag": "Patrick McCormick",
+            "tagKey": "5f4056b73e5306003e5d1ed5"
+          },
+          {
+            "filter": "producer=1047",
+            "id": 1047,
+            "tag": "Denis Villeneuve",
+            "tagKey": "5d77684954c0f0001f305b2b",
+            "thumb": "https://metadata-static.plex.tv/3/people/350bbfe1ef2b9b3d99920bd947eae703.jpg"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "type": "audience",
+            "value": 8.4
+          },
+          {
+            "image": "rottentomatoes://image.rating.ripe",
+            "type": "critic",
+            "value": 9.2
+          },
+          {
+            "image": "rottentomatoes://image.rating.upright",
+            "type": "audience",
+            "value": 9.5
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "type": "audience",
+            "value": 8.1
+          }
+        ],
+        "Role": [
+          {
+            "filter": "actor=945",
+            "id": 945,
+            "role": "Paul Atreides",
+            "tag": "Timothée Chalamet",
+            "tagKey": "5d776890ebdf2200209c26f3",
+            "thumb": "https://metadata-static.plex.tv/c/people/ca1144bc68347ae2432f5ee48de4a3cf.jpg"
+          },
+          {
+            "filter": "actor=946",
+            "id": 946,
+            "role": "Chani",
+            "tag": "Zendaya",
+            "tagKey": "5d7768d2ebdf2200209c916d",
+            "thumb": "https://metadata-static.plex.tv/0/people/09bb753b08d4114417ade1aec80de36a.jpg"
+          },
+          {
+            "filter": "actor=947",
+            "id": 947,
+            "role": "Jessica",
+            "tag": "Rebecca Ferguson",
+            "tagKey": "5d77689d96b655001fdbcf43",
+            "thumb": "https://metadata-static.plex.tv/4/people/4eec13930ae51fcab9b4369e74bdf10d.jpg"
+          },
+          {
+            "filter": "actor=948",
+            "id": 948,
+            "role": "Stilgar",
+            "tag": "Javier Bardem",
+            "tagKey": "5d776825880197001ec903a8",
+            "thumb": "https://metadata-static.plex.tv/8/people/82d3a98f56c9d4729f3af79fd79451cf.jpg"
+          },
+          {
+            "filter": "actor=949",
+            "id": 949,
+            "role": "Gurney Halleck",
+            "tag": "Josh Brolin",
+            "tagKey": "5d7768254de0ee001fcc8144",
+            "thumb": "https://metadata-static.plex.tv/7/people/7eac0cf7d6423bedc482db02cb7bab49.jpg"
+          },
+          {
+            "filter": "actor=950",
+            "id": 950,
+            "role": "Feyd-Rautha",
+            "tag": "Austin Butler",
+            "tagKey": "5d776847880197001ec96cb1",
+            "thumb": "https://metadata-static.plex.tv/6/people/6d4beb3ee19ac0bac9307378dd645c06.jpg"
+          },
+          {
+            "filter": "actor=951",
+            "id": 951,
+            "role": "Princess Irulan",
+            "tag": "Florence Pugh",
+            "tagKey": "5d776b88fb0d55001f56a76d",
+            "thumb": "https://metadata-static.plex.tv/7/people/7826cdfdf9798f504221cd23da8c9860.jpg"
+          },
+          {
+            "filter": "actor=952",
+            "id": 952,
+            "role": "Beast Rabban",
+            "tag": "Dave Bautista",
+            "tagKey": "5d776862eb5d26001f1e8eb9",
+            "thumb": "https://metadata-static.plex.tv/5/people/50635c698a850d90436bd1fbe476063e.jpg"
+          },
+          {
+            "filter": "actor=953",
+            "id": 953,
+            "role": "Emperor",
+            "tag": "Christopher Walken",
+            "tagKey": "5d776826999c64001ec2c375",
+            "thumb": "https://metadata-static.plex.tv/1/people/1a46defb2529b3a12623da85b87fb64f.jpg"
+          },
+          {
+            "filter": "actor=954",
+            "id": 954,
+            "role": "Lady Margot Fenring",
+            "tag": "Léa Seydoux",
+            "tagKey": "5d77683f880197001ec95a11",
+            "thumb": "https://metadata-static.plex.tv/8/people/82a150881f5e08836a1449728a63aad9.jpg"
+          },
+          {
+            "filter": "actor=955",
+            "id": 955,
+            "role": "Baron Harkonnen",
+            "tag": "Stellan Skarsgård",
+            "tagKey": "5d7768255af944001f1f63e5",
+            "thumb": "https://metadata-static.plex.tv/f/people/f230641826fbfec64eac78ff97949587.jpg"
+          },
+          {
+            "filter": "actor=956",
+            "id": 956,
+            "role": "Reverend Mother Mohiam",
+            "tag": "Charlotte Rampling",
+            "tagKey": "5d7768258718ba001e3118c2",
+            "thumb": "https://metadata-static.plex.tv/0/people/0fd8c1399ac6390e483576e1ddcee150.jpg"
+          },
+          {
+            "filter": "actor=957",
+            "id": 957,
+            "role": "Shishakli",
+            "tag": "Souheila Yacoub",
+            "tagKey": "5d777042594b2b001e747ac7",
+            "thumb": "https://metadata-static.plex.tv/2/people/28bb0f94cdeb735c117f5aa2b32ae163.jpg"
+          },
+          {
+            "filter": "actor=958",
+            "id": 958,
+            "role": "Lanville",
+            "tag": "Roger Yuan",
+            "tagKey": "5d7768253c3c2a001fbca9a5",
+            "thumb": "https://metadata-static.plex.tv/4/people/442722f9970966349909da2e5e402e85.jpg"
+          },
+          {
+            "filter": "actor=959",
+            "id": 959,
+            "role": "Jamis",
+            "tag": "Babs Olusanmokun",
+            "tagKey": "5d77691551dd69001fe14a16",
+            "thumb": "https://metadata-static.plex.tv/e/people/e05c1cadfb147d2af5900bf0c730c1be.jpg"
+          },
+          {
+            "filter": "actor=960",
+            "id": 960,
+            "role": "Maker Keeper",
+            "tag": "Alison Halstead",
+            "tagKey": "5f40585186422500428a632d",
+            "thumb": "https://metadata-static.plex.tv/b/people/ba8a1fb37d97ba6ff1e4c35763ca4b66.jpg"
+          },
+          {
+            "filter": "actor=961",
+            "id": 961,
+            "role": "Reverend Mother Ramallo",
+            "tag": "Giusi Merli",
+            "tagKey": "5d7769fa7a53e9001e6f6832",
+            "thumb": "https://metadata-static.plex.tv/e/people/e6771a6358fff35f9762f5b7e702c3c3.jpg"
+          },
+          {
+            "filter": "actor=962",
+            "id": 962,
+            "role": "Bene Gesserit Sister",
+            "tag": "Kait Tenison",
+            "tagKey": "5d77682c8718ba001e312c5e",
+            "thumb": "https://metadata-static.plex.tv/f/people/f976b439a52a5278c2913c7e94a3e6fd.jpg"
+          },
+          {
+            "filter": "actor=963",
+            "id": 963,
+            "role": "Bene Gesserit Sister",
+            "tag": "Tara Breathnach",
+            "tagKey": "5d776b9f96b655001fe17275",
+            "thumb": "https://metadata-static.plex.tv/9/people/913d864b91d909564bd10e49f9e795d2.jpg"
+          },
+          {
+            "filter": "actor=964",
+            "id": 964,
+            "role": "Bene Gesserit Sister",
+            "tag": "Akiko Hitomi",
+            "tagKey": "5d776afc47dd6e001f6d9a45",
+            "thumb": "https://metadata-static.plex.tv/f/people/ff38f1a43acfaba23ae6f6f83c47b449.jpg"
+          },
+          {
+            "filter": "actor=965",
+            "id": 965,
+            "role": "Watermaster",
+            "tag": "Imola Gáspár",
+            "tagKey": "5d7768456f4521001ea9f4da",
+            "thumb": "https://metadata-static.plex.tv/people/5d7768456f4521001ea9f4da.jpg"
+          },
+          {
+            "filter": "actor=966",
+            "id": 966,
+            "role": "Young Fremen Patrol",
+            "tag": "Alison Adnet",
+            "tagKey": "65c09a4a83a1c98264c5c998",
+            "thumb": "https://metadata-static.plex.tv/a/people/a937157b88bc782195e37fa4f590de6f.jpg"
+          },
+          {
+            "filter": "actor=967",
+            "id": 967,
+            "role": "Young Fremen Patrol",
+            "tag": "Hamza Baissa",
+            "tagKey": "65c09a4a4da2087c2644b356",
+            "thumb": "https://metadata-static.plex.tv/3/people/3ab1eb9f9a576bcf14155af576be161a.jpg"
+          },
+          {
+            "filter": "actor=968",
+            "id": 968,
+            "role": "Young Fremen Patrol",
+            "tag": "Hassan Najib",
+            "tagKey": "5f3fdcef52f20000414ac8e1",
+            "thumb": "https://metadata-static.plex.tv/3/people/3a80f1214138d7b8bcbfe0c964b46d17.jpg"
+          },
+          {
+            "filter": "actor=969",
+            "id": 969,
+            "role": "Young Fremen Patrol",
+            "tag": "Jasper Ryan-Cater",
+            "tagKey": "62f8db6bd85d63d44701dafb",
+            "thumb": "https://metadata-static.plex.tv/c/people/caa14a2b4fdcc22fb481eb9de474fe6d.jpg"
+          },
+          {
+            "filter": "actor=970",
+            "id": 970,
+            "role": "Young Fremen Patrol",
+            "tag": "Omar Elbooz",
+            "tagKey": "645a119af097132f1e5084e2"
+          },
+          {
+            "filter": "actor=971",
+            "id": 971,
+            "role": "Young Fremen Patrol",
+            "tag": "Abdelkarim Hussein Seli Mohamed Hassanin",
+            "tagKey": "65c09a4ab8b0ea0f2430311b"
+          },
+          {
+            "filter": "actor=972",
+            "id": 972,
+            "role": "Fedaykin Leader",
+            "tag": "Joseph Beddelem",
+            "tagKey": "5f3fddf3ce2564003f879a1d",
+            "thumb": "https://metadata-static.plex.tv/4/people/4e98aa41d3abbad72e56953789cf8f5c.jpg"
+          },
+          {
+            "filter": "actor=973",
+            "id": 973,
+            "role": "Fedaykin",
+            "tag": "Xavier Alba Royo",
+            "tagKey": "60b73c993dfc4e002e825405",
+            "thumb": "https://metadata-static.plex.tv/d/people/dd13d7c1bb0672805300c38fc949092f.jpg"
+          },
+          {
+            "filter": "actor=974",
+            "id": 974,
+            "role": "Fedaykin",
+            "tag": "Rachid Abbad",
+            "tagKey": "5f3ff36a02101b0040f07b78"
+          },
+          {
+            "filter": "actor=975",
+            "id": 975,
+            "role": "Fedaykin",
+            "tag": "Affif Ben Badra",
+            "tagKey": "5d776832a091de001f2e77aa",
+            "thumb": "https://metadata-static.plex.tv/people/5d776832a091de001f2e77aa.jpg"
+          },
+          {
+            "filter": "actor=976",
+            "id": 976,
+            "role": "Fedaykin",
+            "tag": "Botond Bóta",
+            "tagKey": "61adc521fa2f36651a805097"
+          },
+          {
+            "filter": "actor=977",
+            "id": 977,
+            "role": "Fedaykin",
+            "tag": "Abdelaziz Boumane",
+            "tagKey": "65c09a4b5b1d58d9b67598cb"
+          },
+          {
+            "filter": "actor=978",
+            "id": 978,
+            "role": "Fedaykin",
+            "tag": "Abdellah Echahbi",
+            "tagKey": "648044aa5e68ea389493daf8"
+          },
+          {
+            "filter": "actor=979",
+            "id": 979,
+            "role": "Fedaykin",
+            "tag": "Zouhair Elakkari",
+            "tagKey": "65c09a4a4da2087c2644b357"
+          },
+          {
+            "filter": "actor=980",
+            "id": 980,
+            "role": "Fedaykin",
+            "tag": "Noureddine Hajoujou",
+            "tagKey": "5d7769d17a53e9001e6f14bc"
+          },
+          {
+            "filter": "actor=981",
+            "id": 981,
+            "role": "Fedaykin",
+            "tag": "Mohamed Mouraoui",
+            "tagKey": "65c09a4b9a67a796ba723c71"
+          },
+          {
+            "filter": "actor=982",
+            "id": 982,
+            "role": "Fedaykin",
+            "tag": "Adil Achraf Sayd",
+            "tagKey": "61a523fdb0625323ebaed96b"
+          },
+          {
+            "filter": "actor=983",
+            "id": 983,
+            "role": "Fedaykin",
+            "tag": "Hamza Sayd",
+            "tagKey": "65c09a4a83a1c98264c5c997"
+          },
+          {
+            "filter": "actor=984",
+            "id": 984,
+            "role": "Fremen Nun",
+            "tag": "Hopi Grace",
+            "tagKey": "602d7eeb15122e002c8fbe44",
+            "thumb": "https://metadata-static.plex.tv/2/people/21f4004164bdae355f470e17122eafe0.jpg"
+          },
+          {
+            "filter": "actor=985",
+            "id": 985,
+            "role": "Fremen Nun",
+            "tag": "Havin Fathi",
+            "tagKey": "62bc65681ffd4649131b3cfd"
+          },
+          {
+            "filter": "actor=986",
+            "id": 986,
+            "role": "Fremen Nun",
+            "tag": "Kincsö Pethö",
+            "tagKey": "5d776d0b23d5a3001f51f9fb",
+            "thumb": "https://metadata-static.plex.tv/2/people/21e0c3f00403a60863f231dedb80febb.jpg"
+          },
+          {
+            "filter": "actor=987",
+            "id": 987,
+            "role": "Young Nun",
+            "tag": "Cat Simmons",
+            "tagKey": "5d7768b9f617c90020157e43",
+            "thumb": "https://metadata-static.plex.tv/8/people/8f3f2d56fea66d3dda01b756726a7ed7.jpg"
+          },
+          {
+            "filter": "actor=988",
+            "id": 988,
+            "role": "Devotee",
+            "tag": "Burt Caesar",
+            "tagKey": "5d77683961141d001fb16226",
+            "thumb": "https://metadata-static.plex.tv/people/5d77683961141d001fb16226.jpg"
+          },
+          {
+            "filter": "actor=989",
+            "id": 989,
+            "role": "Devotee",
+            "tag": "Remi Fadare",
+            "tagKey": "5f40247afea1a1003f9f28bb"
+          },
+          {
+            "filter": "actor=990",
+            "id": 990,
+            "role": "Huge Fighter",
+            "tag": "Amer El-Erwadi",
+            "tagKey": "5f85eda6d49cda003d458bb2",
+            "thumb": "https://metadata-static.plex.tv/d/people/d564201a27a8f002e4911551bdbc0207.jpg"
+          },
+          {
+            "filter": "actor=991",
+            "id": 991,
+            "role": "Fremen Onlooker",
+            "tag": "Tedroy Newell",
+            "tagKey": "5e624dffae4f6e003e305ef2",
+            "thumb": "https://metadata-static.plex.tv/9/people/95340238cf372d208ef6b58ca0baf6cd.jpg"
+          },
+          {
+            "filter": "actor=992",
+            "id": 992,
+            "role": "Fremen Onlooker",
+            "tag": "Oxa Hazel",
+            "tagKey": "625534e042be2515de6b5008"
+          },
+          {
+            "filter": "actor=993",
+            "id": 993,
+            "role": "Fremen Onlooker",
+            "tag": "Hajiyeva Pakiza",
+            "tagKey": "65c09a4b4db0f9e8462b2924"
+          },
+          {
+            "filter": "actor=994",
+            "id": 994,
+            "role": "Oldest Elder",
+            "tag": "Leon Herbert",
+            "tagKey": "5d7768277228e5001f1dd035",
+            "thumb": "https://metadata-static.plex.tv/4/people/4fa08e2296b6d29a528c8ac3d1bb1980.jpg"
+          },
+          {
+            "filter": "actor=995",
+            "id": 995,
+            "role": "Female Elder",
+            "tag": "Sima Rostami",
+            "tagKey": "5f3fd89bbf3e560040b1f274"
+          },
+          {
+            "filter": "actor=996",
+            "id": 996,
+            "role": "Elder",
+            "tag": "Yvonne Campbell",
+            "tagKey": "5e3d5f61d271fe003b69abb1"
+          },
+          {
+            "filter": "actor=997",
+            "id": 997,
+            "role": "Elder",
+            "tag": "Joseph Charles",
+            "tagKey": "5ec40fe3f8a5e90040ced558",
+            "thumb": "https://image.tmdb.org/t/p/original/geoMrcflc2qfTb3680GwmN9zpBv.jpg"
+          },
+          {
+            "filter": "actor=998",
+            "id": 998,
+            "role": "Elder",
+            "tag": "Vic Zander",
+            "tagKey": "5f4058092e2b260040b0b92c"
+          },
+          {
+            "filter": "actor=999",
+            "id": 999,
+            "role": "Harkonnen Translator",
+            "tag": "Dylan Baldwin",
+            "tagKey": "5f3fe7ae86422500427dd597",
+            "thumb": "https://metadata-static.plex.tv/a/people/a29edcedca5c649a5c8606b3ddf8b9d8.jpg"
+          },
+          {
+            "filter": "actor=1000",
+            "id": 1000,
+            "role": "Old Wounded Woman",
+            "tag": "Marcia Tucker",
+            "tagKey": "5d776cabad5437001f7c55d6"
+          },
+          {
+            "filter": "actor=1001",
+            "id": 1001,
+            "role": "Wounded Fremen",
+            "tag": "Nicola Brome",
+            "tagKey": "5f3fd3d9bf3e560040b181c2",
+            "thumb": "https://metadata-static.plex.tv/1/people/18b45967e5fa8c6d7f4c57e5fc47f6a9.jpg"
+          },
+          {
+            "filter": "actor=1002",
+            "id": 1002,
+            "role": "Wounded Fremen",
+            "tag": "Kathy Owen",
+            "tagKey": "5d7768456f4521001ea9f484"
+          },
+          {
+            "filter": "actor=1003",
+            "id": 1003,
+            "role": "Fundamentalist Fighter",
+            "tag": "Huw Novelli",
+            "tagKey": "5d776d7b96b655001fe4a1fc",
+            "thumb": "https://metadata-static.plex.tv/c/people/c73ee9a024d5c96c665896d9e9cabace.jpg"
+          },
+          {
+            "filter": "actor=1004",
+            "id": 1004,
+            "role": "Fundamentalist Fighter",
+            "tag": "Moe Bar-El",
+            "tagKey": "5d776bc6ad5437001f7a9a93",
+            "thumb": "https://metadata-static.plex.tv/3/people/3405fe391e4af44957a9fe7f49327d7c.jpg"
+          },
+          {
+            "filter": "actor=1005",
+            "id": 1005,
+            "role": "Fundamentalist Fighter",
+            "tag": "Serhat Metin",
+            "tagKey": "5d77708596b655001fe98415",
+            "thumb": "https://metadata-static.plex.tv/e/people/e951f9470d2428eaecc329ea6c3ca261.jpg"
+          },
+          {
+            "filter": "actor=1006",
+            "id": 1006,
+            "role": "Fundamentalist Fighter",
+            "tag": "Amra Mallassi",
+            "tagKey": "5d7769f87a53e9001e6f6384",
+            "thumb": "https://metadata-static.plex.tv/people/5d7769f87a53e9001e6f6384.jpg"
+          },
+          {
+            "filter": "actor=1007",
+            "id": 1007,
+            "role": "Fundamentalist Fighter",
+            "tag": "Adam Bloom",
+            "tagKey": "5d776f56ad5437001f80f5c1",
+            "thumb": "https://metadata-static.plex.tv/4/people/43d00f867b25698b3ef03e225d7ad7b6.jpg"
+          },
+          {
+            "filter": "actor=1008",
+            "id": 1008,
+            "role": "Sentinel Leader",
+            "tag": "Luis Alkmim",
+            "tagKey": "5f4041562e2b260040aec6b6"
+          },
+          {
+            "filter": "actor=1009",
+            "id": 1009,
+            "role": "Smuggler Driver",
+            "tag": "Jordan Long",
+            "tagKey": "5d77682ca091de001f2e6ded",
+            "thumb": "https://metadata-static.plex.tv/d/people/d6675e50b3ee40f9c1bee550c92906de.jpg"
+          },
+          {
+            "filter": "actor=1010",
+            "id": 1010,
+            "role": "Wounded Smuggler",
+            "tag": "Omar A.K.",
+            "tagKey": "636b62375c46625d651dfd27"
+          },
+          {
+            "filter": "actor=1011",
+            "id": 1011,
+            "role": "Arena Gladiator",
+            "tag": "Zdeněk Dvořáček",
+            "tagKey": "5d7768293c3c2a001fbcb991",
+            "thumb": "https://metadata-static.plex.tv/6/people/6c9728f7c1664a353349e0e0d9c0085d.jpg"
+          },
+          {
+            "filter": "actor=1012",
+            "id": 1012,
+            "role": "Arena Gladiator",
+            "tag": "Billy Clements",
+            "tagKey": "5f3fccc003883a0040ab7b6d",
+            "thumb": "https://image.tmdb.org/t/p/original/nipJ22DXJBsdM1teQodwop42U6S.jpg"
+          },
+          {
+            "filter": "actor=1013",
+            "id": 1013,
+            "role": "Harkonnen Commander",
+            "tag": "Anton Valensi",
+            "tagKey": "5d7768368718ba001e314cb7",
+            "thumb": "https://metadata-static.plex.tv/d/people/d01ee29f440e31d6ee3e1450e858b413.jpg"
+          },
+          {
+            "filter": "actor=1014",
+            "id": 1014,
+            "role": "Harkonnen Commander",
+            "tag": "Lex Daniel",
+            "tagKey": "5d77683485719b001f3a364d"
+          },
+          {
+            "filter": "actor=1015",
+            "id": 1015,
+            "role": "Harkonnen Commander",
+            "tag": "Dominic McHale",
+            "tagKey": "5d77682785719b001f3a0f0b"
+          },
+          {
+            "filter": "actor=1016",
+            "id": 1016,
+            "role": "Harkonnen Commander",
+            "tag": "Paul Boyle",
+            "tagKey": "5e624e2675440e0041fb4922",
+            "thumb": "https://metadata-static.plex.tv/6/people/6d7496e21501f46e1bae428e226c1c2d.jpg"
+          },
+          {
+            "filter": "actor=1017",
+            "id": 1017,
+            "role": "Ornithopter Military Pilot",
+            "tag": "Niall White",
+            "tagKey": "5f3fd542fea1a1003f980aa1"
+          },
+          {
+            "filter": "actor=1018",
+            "id": 1018,
+            "role": "Harkonnen Scanner Operator",
+            "tag": "Tony Cook",
+            "tagKey": "62fb7cb72bbf858f2c189cf3",
+            "thumb": "https://metadata-static.plex.tv/b/people/bc4df681ffb3cf46a51eba5c671db7ed.jpg"
+          },
+          {
+            "filter": "actor=1019",
+            "id": 1019,
+            "role": "Harkonnen Officer",
+            "tag": "Gábor Szemán",
+            "tagKey": "5f401fba5a76a80042d51705"
+          },
+          {
+            "filter": "actor=1020",
+            "id": 1020,
+            "role": "Game Supervisor",
+            "tag": "Jonathan Gunning",
+            "tagKey": "5e9ab8c3675813004113f81c",
+            "thumb": "https://metadata-static.plex.tv/2/people/21d3fead0036333ee3d4ec21f97dbe36.jpg"
+          },
+          {
+            "filter": "actor=1021",
+            "id": 1021,
+            "role": "Slave Master",
+            "tag": "Will Irvine",
+            "tagKey": "5d776c79594b2b001e6f49b3",
+            "thumb": "https://metadata-static.plex.tv/7/people/71c5a0a8ff6018928e6c4ab2c226d889.jpg"
+          },
+          {
+            "filter": "actor=1022",
+            "id": 1022,
+            "role": "Weapon Master",
+            "tag": "Alan Mehdizadeh",
+            "tagKey": "5f403d1602101b0040f72778",
+            "thumb": "https://metadata-static.plex.tv/c/people/cec5a4ba7326c09b71542732b375781e.jpg"
+          },
+          {
+            "filter": "actor=1023",
+            "id": 1023,
+            "role": "Harpy",
+            "tag": "Rex Adams",
+            "tagKey": "62fb58a6d76aed48ba1ec2db",
+            "thumb": "https://metadata-static.plex.tv/7/people/7c05e45cd2e6fd99709c9abe39748777.jpg"
+          },
+          {
+            "filter": "actor=1024",
+            "id": 1024,
+            "role": "Harpy",
+            "tag": "Molly Mcowan",
+            "tagKey": "5f3ff3491ae71000410108cf",
+            "thumb": "https://metadata-static.plex.tv/7/people/711a76cc8f8ee7133b6b9b7fc72b005f.jpg"
+          },
+          {
+            "filter": "actor=1025",
+            "id": 1025,
+            "role": "Harpy",
+            "tag": "Ana Cilas",
+            "tagKey": "5f3fbedecc4920003b2a868d",
+            "thumb": "https://metadata-static.plex.tv/1/people/1c0fa58268fedfae029d6ade2f70468c.jpg"
+          },
+          {
+            "filter": "actor=1026",
+            "id": 1026,
+            "role": "Feyd-Rautha's Attendant",
+            "tag": "Kajsa Mohammar",
+            "tagKey": "5d77706b31d95e001f1a104a",
+            "thumb": "https://metadata-static.plex.tv/7/people/79d3d07035580f00a737af686972ff4c.jpg"
+          },
+          {
+            "filter": "actor=1027",
+            "id": 1027,
+            "role": "Feyd-Rautha's Attendant",
+            "tag": "Sára Bácsfalvi",
+            "tagKey": "65c09a4ef82bee1632fc0d6e"
+          },
+          {
+            "filter": "actor=1028",
+            "id": 1028,
+            "role": "Feyd-Rautha's Attendant",
+            "tag": "Zsófia Kocsis",
+            "tagKey": "5f3fbfa1768fc7004050b9b0"
+          },
+          {
+            "filter": "actor=1029",
+            "id": 1029,
+            "role": "Spice Steward",
+            "tag": "Matthew Sim",
+            "tagKey": "5d77682f54c0f0001f302c9b",
+            "thumb": "https://metadata-static.plex.tv/0/people/05408d38224a275794e0bd6ff0465d0a.jpg"
+          },
+          {
+            "filter": "actor=1030",
+            "id": 1030,
+            "role": "Bashar",
+            "tag": "Stephen Wall",
+            "tagKey": "5d7769f29ab54400214f8f22"
+          },
+          {
+            "filter": "actor=1031",
+            "id": 1031,
+            "role": "Imperial Council",
+            "tag": "Italo Amerighi",
+            "tagKey": "5d776d48ad5437001f7d1fa7",
+            "thumb": "https://metadata-static.plex.tv/7/people/78c294740b0e0f93ff824e946460c7b9.jpg"
+          },
+          {
+            "filter": "actor=1032",
+            "id": 1032,
+            "role": "Imperial Council",
+            "tag": "Tim Hilborne",
+            "tagKey": "5d776e7c9ab5440021528d56"
+          },
+          {
+            "filter": "actor=1033",
+            "id": 1033,
+            "role": "Imperial Council",
+            "tag": "Cecile Sinclair",
+            "tagKey": "5e1635b991c20300412100ca",
+            "thumb": "https://metadata-static.plex.tv/d/people/db3a73f172d3d9530cbc7f5a1e252efa.jpg"
+          },
+          {
+            "filter": "actor=1034",
+            "id": 1034,
+            "role": "Imperial Servant",
+            "tag": "Tracy Coogan",
+            "tagKey": "5d77684eeb5d26001f1e5838",
+            "thumb": "https://metadata-static.plex.tv/c/people/c242b9ef24407216bc4d6b1eb250e31c.jpg"
+          },
+          {
+            "filter": "actor=1035",
+            "id": 1035,
+            "role": "Baby Jessica",
+            "tag": "Zoe Kata Kaska",
+            "tagKey": "65c09a4e5b0bd90116e1a05b"
+          },
+          {
+            "filter": "actor=1036",
+            "id": 1036,
+            "role": "Baron Proxy",
+            "tag": "Jimmy Walker",
+            "tagKey": "5d776c9651dd69001fe3d07c",
+            "thumb": "https://metadata-static.plex.tv/9/people/9264eb1ef15a6bc30533d782a955ec3f.jpg"
+          },
+          {
+            "filter": "actor=1037",
+            "id": 1037,
+            "role": "Female Fremen Fighter",
+            "tag": "Rand Faris",
+            "tagKey": "5f401b53ce2564003f8d2a23",
+            "thumb": "https://metadata-static.plex.tv/6/people/6bca6f4ac67c944bf1359ed6c5e3bc01.jpg"
+          },
+          {
+            "filter": "actor=1038",
+            "id": 1038,
+            "role": "Male Fremen Fighter",
+            "tag": "Fouad Humaidan",
+            "tagKey": "6458ae79f58a1d643432537e"
+          },
+          {
+            "filter": "actor=1039",
+            "id": 1039,
+            "role": "Male Fremen Fighter",
+            "tag": "Manaf Irani",
+            "tagKey": "5f403e06864225004285da30"
+          },
+          {
+            "filter": "actor=1040",
+            "id": 1040,
+            "role": "Baron Servant",
+            "tag": "Dora Kápolnai-Schvab",
+            "tagKey": "6146f0347d9dbe63c3af8b80",
+            "thumb": "https://metadata-static.plex.tv/7/people/73285c60a76d3281b587fbde35333eeb.jpg"
+          },
+          {
+            "filter": "actor=1041",
+            "id": 1041,
+            "role": "Baron Servant",
+            "tag": "Joelle",
+            "tagKey": "5f405fa05a76a80042dd3d44",
+            "thumb": "https://metadata-static.plex.tv/3/people/311d2678d34cee1dd9384304b2abfe10.jpg"
+          },
+          {
+            "filter": "actor=1042",
+            "id": 1042,
+            "role": "Alia Atreides (uncredited)",
+            "tag": "Anya Taylor-Joy",
+            "tagKey": "5d776b54ad5437001f79bb69",
+            "thumb": "https://metadata-static.plex.tv/d/people/d07d068fc8a4a0fd12cab99c907377d0.jpg"
+          }
+        ],
+        "UltraBlurColors": {
+          "bottomLeft": "3f0d03",
+          "bottomRight": "7a1403",
+          "topLeft": "280a03",
+          "topRight": "931c03"
+        },
+        "Writer": [
+          {
+            "filter": "writer=942",
+            "id": 942,
+            "tag": "Denis Villeneuve",
+            "tagKey": "5d77684954c0f0001f305b2b",
+            "thumb": "https://metadata-static.plex.tv/3/people/350bbfe1ef2b9b3d99920bd947eae703.jpg"
+          },
+          {
+            "filter": "writer=943",
+            "id": 943,
+            "tag": "Frank Herbert",
+            "tagKey": "5dcd3771ddb8cb001e1e04cf",
+            "thumb": "https://metadata-static.plex.tv/7/people/78aeb9787e19d339ca19748cd708e7c8.jpg"
+          },
+          {
+            "filter": "writer=944",
+            "id": 944,
+            "tag": "Jon Spaihts",
+            "tagKey": "5d7769a5f617c90020162c52",
+            "thumb": "https://metadata-static.plex.tv/9/people/95d2211247058b3a43a5fda78bb5d7ac.jpg"
+          }
+        ],
+        "addedAt": 1794414356,
+        "art": "/library/metadata/166518/art/1795794012",
+        "audienceRating": 9.5,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "chapterSource": "media",
+        "contentRating": "PG-13",
+        "contentRatingAge": 13,
+        "duration": 10015224,
+        "guid": "plex://movie/5eb8f22237ccbe0041723253",
+        "key": "/library/metadata/166518",
+        "lastViewedAt": 1795808913,
+        "librarySectionID": 19,
+        "librarySectionKey": "/library/sections/19",
+        "librarySectionTitle": "Real Movies",
+        "loudnessAnalysisVersion": "0.02",
+        "originallyAvailableAt": "2024-02-27",
+        "primaryExtraKey": "/library/metadata/166521",
+        "rating": 9.2,
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "ratingKey": "166518",
+        "slug": "dune-part-two-2024",
+        "studio": "Legendary Pictures",
+        "summary": "Paul Atreides aligns with Chani and the Fremen, fueled by a desire for retribution against those who dismantled his family. Confronted with a pivotal decision between his profound affection for an individual and the destiny of the universe, he commits to averting a dire future he alone envisions.",
+        "tagline": "Long live the fighters.",
+        "thumb": "/library/metadata/166518/thumb/1795794012",
+        "title": "Dune: Part Two",
+        "type": "movie",
+        "updatedAt": 1795794012,
+        "viewOffset": 607332,
+        "year": 2024
+      }
+    ],
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 19,
+    "librarySectionTitle": "Real Movies",
+    "librarySectionUUID": "c0ffeec0ffeec0ffeec0ffeec0ffeec0",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1791214582,
+    "size": 1
+  }
+}

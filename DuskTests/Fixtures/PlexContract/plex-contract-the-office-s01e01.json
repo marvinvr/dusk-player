@@ -1,0 +1,444 @@
+{
+  "MediaContainer": {
+    "Metadata": [
+      {
+        "Director": [
+          {
+            "filter": "director=2157",
+            "id": 2157,
+            "tag": "Ken Kwapis",
+            "tagKey": "5d77682d85719b001f3a2155",
+            "thumb": "https://metadata-static.plex.tv/0/people/05c73e91371192f39f0fb627bb48bb49.jpg"
+          }
+        ],
+        "Guid": [
+          {
+            "id": "imdb://tt0664521"
+          },
+          {
+            "id": "tmdb://170135"
+          },
+          {
+            "id": "tvdb://110413"
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Pilot",
+            "type": "coverPoster",
+            "url": "/library/metadata/166642/thumb/1535137060"
+          },
+          {
+            "alt": "Pilot",
+            "type": "snapshot",
+            "url": "/library/metadata/166644/thumb/1795812475"
+          },
+          {
+            "alt": "Pilot",
+            "type": "background",
+            "url": "/library/metadata/166642/art/1535137060"
+          },
+          {
+            "alt": "Pilot",
+            "type": "clearLogo",
+            "url": "/library/metadata/166642/clearLogo/1535137060"
+          },
+          {
+            "alt": "Pilot",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/166642/squareArt/1535137060"
+          }
+        ],
+        "Media": [
+          {
+            "Part": [
+              {
+                "Stream": [
+                  {
+                    "bitDepth": 8,
+                    "bitrate": 4061,
+                    "chromaLocation": "left",
+                    "chromaSubsampling": "4:2:0",
+                    "codec": "hevc",
+                    "codedHeight": 1088,
+                    "codedWidth": 1920,
+                    "colorRange": "tv",
+                    "displayTitle": "1080p",
+                    "extendedDisplayTitle": "1080p (HEVC Main)",
+                    "frameRate": 23.976,
+                    "height": 1080,
+                    "id": 285653,
+                    "index": 0,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "level": 120,
+                    "profile": "main",
+                    "refFrames": 1,
+                    "scanType": "progressive",
+                    "streamType": 1,
+                    "width": 1920
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitDepth": 24,
+                    "canNormalizeLoudness": true,
+                    "channels": 2,
+                    "codec": "dca",
+                    "default": true,
+                    "displayTitle": "English (DTS-HD MA Stereo)",
+                    "extendedDisplayTitle": "Stereo (English DTS-HD MA)",
+                    "gainOffset": "1.29",
+                    "id": 285654,
+                    "index": 1,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-24.13",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "14.00",
+                    "peak": "-3.64",
+                    "profile": "ma",
+                    "samplingRate": 48000,
+                    "selected": true,
+                    "streamType": 2,
+                    "threshold": "-35.74",
+                    "title": "Stereo"
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitrate": 1536,
+                    "canNormalizeLoudness": true,
+                    "channels": 2,
+                    "codec": "dca",
+                    "displayTitle": "English (DTS Stereo)",
+                    "extendedDisplayTitle": "Stereo (English DTS)",
+                    "gainOffset": "1.29",
+                    "id": 285655,
+                    "index": 2,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-24.13",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "14.00",
+                    "peak": "-3.64",
+                    "profile": "dts",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-35.74",
+                    "title": "Stereo"
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitrate": 192,
+                    "canNormalizeLoudness": true,
+                    "channels": 2,
+                    "codec": "ac3",
+                    "displayTitle": "English (AC3 Stereo)",
+                    "extendedDisplayTitle": "Commentary by Steve Carell, John Krasinski, Rainn Wilson, and B.J. Novak (English AC3 Stereo)",
+                    "gainOffset": "0.06",
+                    "id": 285656,
+                    "index": 3,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-27.20",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "3.50",
+                    "peak": "-7.49",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-37.63",
+                    "title": "Commentary by Steve Carell, John Krasinski, Rainn Wilson, and B.J. Novak"
+                  },
+                  {
+                    "audioChannelLayout": "stereo",
+                    "bitrate": 192,
+                    "canNormalizeLoudness": true,
+                    "channels": 2,
+                    "codec": "ac3",
+                    "displayTitle": "English (AC3 Stereo)",
+                    "extendedDisplayTitle": "Commentary by John Krasinski, Rainn Wilson, Jenna Fischer, B.J. Novak, Greg Daniels, and Ken Kwapis (English AC3 Stereo)",
+                    "gainOffset": "-0.01",
+                    "id": 285657,
+                    "index": 4,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "loudness": "-27.14",
+                    "loudnessAnalysisVersion": "0.02",
+                    "lra": "2.60",
+                    "peak": "-6.78",
+                    "samplingRate": 48000,
+                    "streamType": 2,
+                    "threshold": "-37.50",
+                    "title": "Commentary by John Krasinski, Rainn Wilson, Jenna Fischer, B.J. Novak, Greg Daniels, and Ken Kwapis"
+                  },
+                  {
+                    "canAutoSync": false,
+                    "codec": "pgs",
+                    "displayTitle": "English",
+                    "extendedDisplayTitle": "English (PGS)",
+                    "id": 285658,
+                    "index": 5,
+                    "language": "English",
+                    "languageCode": "eng",
+                    "languageTag": "en",
+                    "selected": true,
+                    "streamType": 3
+                  }
+                ],
+                "audioProfile": "ma",
+                "container": "mkv",
+                "duration": 1405162,
+                "file": "/data/Real/TV/The Office (US)/Season 1/The Office (US) - S01E01 - Pilot Bluray-1080p Remux.mkv",
+                "id": 160692,
+                "key": "/library/parts/160692/1608454576/file.mkv",
+                "size": 1050449745,
+                "videoProfile": "main"
+              }
+            ],
+            "aspectRatio": 1.78,
+            "audioChannels": 2,
+            "audioCodec": "dca-ma",
+            "audioProfile": "ma",
+            "bitrate": 5981,
+            "container": "mkv",
+            "duration": 1405162,
+            "hasVoiceActivity": false,
+            "height": 1080,
+            "id": 160692,
+            "videoCodec": "hevc",
+            "videoFrameRate": "24p",
+            "videoProfile": "main",
+            "videoResolution": "1080",
+            "width": 1920
+          }
+        ],
+        "Producer": [
+          {
+            "filter": "producer=2163",
+            "id": 2163,
+            "tag": "Kent Zbornak",
+            "tagKey": "5d9c0874ef619b002047febe"
+          }
+        ],
+        "Rating": [
+          {
+            "image": "imdb://image.rating",
+            "type": "audience",
+            "value": 7.3
+          },
+          {
+            "image": "themoviedb://image.rating",
+            "type": "audience",
+            "value": 7.5
+          }
+        ],
+        "Role": [
+          {
+            "filter": "actor=1952",
+            "id": 1952,
+            "role": "Michael Scott",
+            "tag": "Steve Carell",
+            "tagKey": "5d7768264de0ee001fcc85da",
+            "thumb": "https://metadata-static.plex.tv/2/people/2b816478120b70121da008bc0aaa8324.jpg"
+          },
+          {
+            "filter": "actor=1939",
+            "id": 1939,
+            "role": "Dwight Schrute",
+            "tag": "Rainn Wilson",
+            "tagKey": "5d77682985719b001f3a1306",
+            "thumb": "https://metadata-static.plex.tv/a/people/a60e0164c1b46219ede374ac683c1ff4.jpg"
+          },
+          {
+            "filter": "actor=1940",
+            "id": 1940,
+            "role": "Jim Halpert",
+            "tag": "John Krasinski",
+            "tagKey": "5d7768262ec6b5001f6ba29a",
+            "thumb": "https://metadata-static.plex.tv/e/people/e61518c546b099cab69705300452f1e2.jpg"
+          },
+          {
+            "filter": "actor=1941",
+            "id": 1941,
+            "role": "Pam Beesly",
+            "tag": "Jenna Fischer",
+            "tagKey": "5d776831961905001eb931c1",
+            "thumb": "https://metadata-static.plex.tv/c/people/c878c3daa72d889ff1cd29dbaa27fee1.jpg"
+          },
+          {
+            "filter": "actor=1949",
+            "id": 1949,
+            "role": "Ryan Howard",
+            "tag": "B.J. Novak",
+            "tagKey": "5d77682beb5d26001f1de90f",
+            "thumb": "https://metadata-static.plex.tv/8/people/89ccfaaf0a30abb962385ca4b21c5af6.jpg"
+          },
+          {
+            "filter": "actor=1960",
+            "id": 1960,
+            "role": "Roy Anderson",
+            "tag": "David Denman",
+            "tagKey": "5d7768273c3c2a001fbcb25f",
+            "thumb": "https://metadata-static.plex.tv/b/people/bd2a28ee60570f7381fd462557fc2c76.jpg"
+          },
+          {
+            "filter": "actor=1957",
+            "id": 1957,
+            "role": "Jan Levinson",
+            "tag": "Melora Hardin",
+            "tagKey": "5d7768254de0ee001fcc819c",
+            "thumb": "https://metadata-static.plex.tv/1/people/1316a74cd0996098efd966b2dff1381a.jpg"
+          },
+          {
+            "filter": "actor=1947",
+            "id": 1947,
+            "role": "Creed Bratton",
+            "tag": "Creed Bratton",
+            "tagKey": "5d7768653ab0e7001f500027",
+            "thumb": "https://metadata-static.plex.tv/f/people/f4271303a933a509ac01d668dc2772eb.jpg"
+          },
+          {
+            "filter": "actor=1942",
+            "id": 1942,
+            "role": "Stanley Hudson",
+            "tag": "Leslie David Baker",
+            "tagKey": "5d7768816f4521001eaa9dcb",
+            "thumb": "https://metadata-static.plex.tv/b/people/bebe15160eb7fa4e74eb9f8656d2f375.jpg"
+          },
+          {
+            "filter": "actor=1943",
+            "id": 1943,
+            "role": "Kevin Malone",
+            "tag": "Brian Baumgartner",
+            "tagKey": "5d77682d85719b001f3a2161",
+            "thumb": "https://metadata-static.plex.tv/f/people/f713b1ef60d016a9ec1c5bfd97e42c1e.jpg"
+          },
+          {
+            "filter": "actor=1946",
+            "id": 1946,
+            "role": "Phyllis Lapin",
+            "tag": "Phyllis Smith",
+            "tagKey": "5d7768313c3c2a001fbcd558",
+            "thumb": "https://metadata-static.plex.tv/2/people/2d14ef6f4f23f229b1ec55661fd2f26e.jpg"
+          },
+          {
+            "filter": "actor=1948",
+            "id": 1948,
+            "role": "Oscar Martinez",
+            "tag": "Oscar Nuñez",
+            "tagKey": "5d776833880197001ec93026",
+            "thumb": "https://metadata-static.plex.tv/b/people/b936f5955653b89b5f9ac88fd6648cfe.jpg"
+          },
+          {
+            "filter": "actor=1944",
+            "id": 1944,
+            "role": "Angela Martin",
+            "tag": "Angela Kinsey",
+            "tagKey": "5d77682d85719b001f3a215c",
+            "thumb": "https://metadata-static.plex.tv/f/people/f811652d018890d96ab23b3da056c66a.jpg"
+          },
+          {
+            "filter": "actor=2100",
+            "id": 2100,
+            "role": "Office Worker",
+            "tag": "Henriette Mantel",
+            "tagKey": "5d776833eb5d26001f1e0255",
+            "thumb": "https://metadata-static.plex.tv/1/people/19bcbf4c8eeb45d52e5985fe060879a6.jpg"
+          },
+          {
+            "filter": "actor=2161",
+            "id": 2161,
+            "role": "Office Worker",
+            "tag": "Mike McCaul",
+            "tagKey": "5f3fea851ae710004100517d"
+          },
+          {
+            "filter": "actor=2162",
+            "id": 2162,
+            "role": "Todd Packer (voice) (uncredited)",
+            "tag": "Toby Huss",
+            "tagKey": "5d77682685719b001f3a0b36",
+            "thumb": "https://metadata-static.plex.tv/5/people/509ed12e58df0a98fecaa39fc8643afa.jpg"
+          }
+        ],
+        "UltraBlurColors": {
+          "bottomLeft": "92403e",
+          "bottomRight": "22436e",
+          "topLeft": "162a5c",
+          "topRight": "3a5b9c"
+        },
+        "Writer": [
+          {
+            "filter": "writer=2158",
+            "id": 2158,
+            "tag": "Greg Daniels",
+            "tagKey": "5e16351f61c6140040d69bc4",
+            "thumb": "https://metadata-static.plex.tv/3/people/31da59c2a0cef54e54df7c300574293a.jpg"
+          },
+          {
+            "filter": "writer=2159",
+            "id": 2159,
+            "tag": "Ricky Gervais",
+            "tagKey": "5d77682a151a60001f24b486",
+            "thumb": "https://metadata-static.plex.tv/6/people/6847694c63bdb9df5bacb2d341c97975.jpg"
+          },
+          {
+            "filter": "writer=2160",
+            "id": 2160,
+            "tag": "Stephen Merchant",
+            "tagKey": "5d77682e5af944001f1f8728",
+            "thumb": "https://metadata-static.plex.tv/8/people/8feda8b1770972aa0999f31959b4b519.jpg"
+          }
+        ],
+        "addedAt": 1608454576,
+        "art": "/library/metadata/166642/art/1535137060",
+        "audienceRating": 7.6,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "chapterSource": "media",
+        "contentRating": "TV-14",
+        "duration": 1405162,
+        "grandparentArt": "/library/metadata/166642/art/1535137060",
+        "grandparentGuid": "plex://show/5d9c0873ef619b002047fda0",
+        "grandparentKey": "/library/metadata/166642",
+        "grandparentRatingKey": "166642",
+        "grandparentSlug": "the-office-us",
+        "grandparentTheme": "/library/metadata/166642/theme/1535137060",
+        "grandparentThumb": "/library/metadata/166642/thumb/1535137060",
+        "grandparentTitle": "The Office (US)",
+        "guid": "plex://episode/65dcf6116534bf7f07ba3e5f",
+        "index": 1,
+        "key": "/library/metadata/166644",
+        "librarySectionID": 20,
+        "librarySectionKey": "/library/sections/20",
+        "librarySectionTitle": "Real TV",
+        "loudnessAnalysisVersion": "0.02",
+        "originallyAvailableAt": "2005-03-24",
+        "parentGuid": "plex://season/602e69ba535238002c35ef7a",
+        "parentIndex": 1,
+        "parentKey": "/library/metadata/166643",
+        "parentRatingKey": "166643",
+        "parentThumb": "/library/metadata/166643/thumb/1795794019",
+        "parentTitle": "Season 1",
+        "ratingKey": "166644",
+        "summary": "A documentary crew arrives at the offices of Dunder Mifflin to observe the employees and learn about modern management. Manager Michael Scott tries to paint a happy picture, while sales rep Jim fights with his nemesis Dwight and flirts with receptionist Pam.",
+        "thumb": "/library/metadata/166644/thumb/1795812475",
+        "title": "Pilot",
+        "type": "episode",
+        "updatedAt": 1795812475,
+        "year": 2005
+      }
+    ],
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 20,
+    "librarySectionTitle": "Real TV",
+    "librarySectionUUID": "c0ffeec0ffeec0ffeec0ffeec0ffeec0",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1791214582,
+    "size": 1
+  }
+}
