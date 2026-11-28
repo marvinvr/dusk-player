@@ -1325,12 +1325,13 @@ private struct PlayerSessionView: View {
         scrubPreviewSource = nil
         guard let partID else { return }
 
-        let source = await media.scrubPreviewSource(
+        let source = await media.scrubPreview(
             forPartID: partID,
             serverID: playback.activePlaybackServerID
         )
         guard !Task.isCancelled else { return }
-        scrubPreviewSource = source
+        // The controls still take Plex's BIF frame set, read synchronously.
+        scrubPreviewSource = source as? PlexScrubPreviewSource
     }
 
     @MainActor

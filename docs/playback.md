@@ -2178,8 +2178,10 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 - `PlayerViewModel` is UI state only: syncs from engine every 0.25s, drives
   controls visibility, scrubbing, seek feedback, buffering presentation,
   auto-skip markers, stall recovery, and track selection.
-- `PlayerSessionView` loads Plex scrub-preview BIF data for online playback
-  parts when available. iOS shows a thumbnail popup while dragging the seek
+- `PlayerSessionView` loads scrub previews for online playback parts when
+  available, through `media.scrubPreview(forPartID:serverID:)` (the marker
+  facet; Plex serves a BIF file). The controls still take Plex's frame set
+  (`PlexScrubPreviewSource`) and read it synchronously. iOS shows a thumbnail popup while dragging the seek
   bar; tvOS shows it above the grown playhead while scrubbing (see "tvOS Play
   Bar"). The playhead and thumbnail move during the swipe, but the video
   position keeps tracking actual playback until Select commits. If BIF loading

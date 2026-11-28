@@ -826,9 +826,16 @@ File: `MediaService+Images.swift`.
 - Image cache entries have a max TTL of 3 days. Older URL cache responses are
   discarded on read and reloaded on demand.
 - Player scrub previews use Plex's BIF index endpoint
-  `/library/parts/{partID}/indexes/sd`. The service downloads and parses the
+  `/library/parts/{partID}/indexes/sd`, behind the marker facet:
+  `media.scrubPreview(forPartID:serverID:)` (`MediaService+Markers.swift`)
+  routes to `PlexMarkers` (`MarkerProviding`), which requests and parses the
   BIF file opportunistically for online playback only; failures return no
-  preview source and should not affect normal image or playback behavior.
+  preview source and should not affect normal image or playback behavior. The
+  read has its own healing (re-authorize a missing session, one token refresh
+  on 401) and never goes through `rawServerRequest`, so a missing index (404)
+  cannot start connection recovery. The older
+  `scrubPreviewSource(forPartID:)` in `MediaService+Images.swift` is only still
+  called by the Mac player and is due to be removed.
 
 Pitfalls:
 - Transcoded image and playback URLs can contain token-bearing query
