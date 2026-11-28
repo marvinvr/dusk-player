@@ -188,7 +188,7 @@ struct PlaybackSource: Sendable {
     /// `RemuxHLSLoader` refuse a request it does not allow. The default is the
     /// Plex policy every source carried before providers; the coordinator
     /// sets the playing server's own.
-    var credentialPolicy: any CredentialTransportPolicy = PlexCredentialPolicy.shared
+    var credentialPolicy: any CredentialTransportPolicy = TransportSecurity.defaultPolicy
     /// What the server's HLS output needs from `RemuxHLSLoader` (which
     /// init-segment patches run). Defaults like `credentialPolicy`.
     var traits: PlaybackTraits = .plex

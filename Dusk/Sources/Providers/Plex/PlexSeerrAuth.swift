@@ -35,5 +35,5 @@ extension PlexAccountProvider {
     /// The account's credential still lives in the facade (P0-16 moves it
     /// here), so this facet has none: Seerr signs in through
     /// `MediaService.seerrAuth`.
-    var seerrAuth: any SeerrAuthProviding { PlexSeerrAuth(accountToken: nil) }
+    @MainActor var seerrAuth: any SeerrAuthProviding { PlexSeerrAuth(accountToken: state.activeAccountToken) }
 }

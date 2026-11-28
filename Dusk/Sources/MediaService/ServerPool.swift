@@ -56,7 +56,7 @@ final class ServerPool {
 
     /// Probes never wait for connectivity: a candidate that cannot be reached
     /// must fail within its own timeout, not sit out the request budget.
-    @ObservationIgnored private var probeSession: URLSession = PlexTransportSecurity.session
+    @ObservationIgnored private var probeSession: URLSession = TransportSecurity.session
     @ObservationIgnored private var baseHeaders: [String: String] = [:]
     @ObservationIgnored private var decoders: [String: JSONDecoder] = [:]
     @ObservationIgnored private let plainDecoder = JSONDecoder()
@@ -461,7 +461,7 @@ final class ServerPool {
             storedBaseURL(serverID: serverID),
             lastGoodConnectionURI(serverID: serverID).flatMap(URL.init(string:)),
         ]
-        return stored.lazy.compactMap { PlexTransportSecurity.authenticatedURL($0) }.first
+        return stored.lazy.compactMap { TransportSecurity.authenticatedURL($0) }.first
     }
 
     static func rememberBaseURL(_ baseURL: URL, serverID: String) {
@@ -535,7 +535,7 @@ final class ServerPool {
         var seen = Set<String>()
 
         func append(_ uri: String?, _ connection: ServerEndpoint, _ source: ConnectionCandidateSource) {
-            guard let uri, let url = PlexTransportSecurity.authenticatedURL(URL(string: uri)) else { return }
+            guard let uri, let url = TransportSecurity.authenticatedURL(URL(string: uri)) else { return }
             guard seen.insert(normalizedKey(url)).inserted else { return }
             candidates.append(ConnectionCandidate(baseURL: url, connection: connection, source: source))
         }
@@ -548,7 +548,7 @@ final class ServerPool {
             }
         }
 
-        if let lastKnownGood, PlexTransportSecurity.allowsToken(in: lastKnownGood),
+        if let lastKnownGood, TransportSecurity.allowsCredential(in: lastKnownGood),
            !seen.contains(normalizedKey(lastKnownGood)) {
             let connection = server.connections.first { URL(string: $0.uri)?.host == lastKnownGood.host }
                 ?? ServerEndpoint.synthesized(for: lastKnownGood)
@@ -673,7 +673,7 @@ final class ServerPool {
         }
 
         var headers = baseHeaders
-        headers.removeValue(forKey: "X-Plex-Token")
+        headers.removeValue(forKey: ConnectionSelector.credentialHeader)
         return .ready(ProbeWork(
             serverID: serverID, name: server.name, token: token,
             candidates: candidates, headers: headers, trigger: trigger

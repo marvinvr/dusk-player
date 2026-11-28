@@ -1,71 +1,13 @@
 import Foundation
 import OSLog
 
-let plexAuthLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
-    category: "PlexAuth"
-)
-
 @MainActor
 @Observable
 final class MediaService {
     // MARK: - Account
     //
-    // The Plex account's state lives on its provider (`plexAccount.state`);
-    // these forward to it so every caller reads and writes exactly what it did
-    // when they were stored here. Orchestration stays in `+Auth` and `+Home`.
-
-    /// Durable credential created by the normal Plex sign-in flow. This token
-    /// belongs to the linked full account and is the only credential allowed to
-    /// enumerate or switch Plex Home members.
-    var primaryAccountToken: String? {
-        get { plexAccount.state.primaryAccountToken }
-        set { plexAccount.state.primaryAccountToken = newValue }
-    }
-    /// Credential used for account-scoped API calls in the current session.
-    /// It equals `primaryAccountToken` outside Plex Home and becomes the token
-    /// returned by the Home switch endpoint for another member.
-    var activeAccountToken: String? {
-        get { plexAccount.state.activeAccountToken }
-        set { plexAccount.state.activeAccountToken = newValue }
-    }
-    var authTokenUpdatedAt: Date? {
-        get { plexAccount.state.authTokenUpdatedAt }
-        set { plexAccount.state.authTokenUpdatedAt = newValue }
-    }
-    var currentUser: PlexUser? {
-        get { plexAccount.state.currentUser }
-        set { plexAccount.state.currentUser = newValue }
-    }
-    var homeUsers: [PlexHomeUser] {
-        get { plexAccount.state.homeUsers }
-        set { plexAccount.state.homeUsers = newValue }
-    }
-    var activeHomeUser: PlexHomeUser? {
-        get { plexAccount.state.activeHomeUser }
-        set { plexAccount.state.activeHomeUser = newValue }
-    }
-    var homeBootstrapCompleted: Bool {
-        get { plexAccount.state.homeBootstrapCompleted }
-        set { plexAccount.state.homeBootstrapCompleted = newValue }
-    }
-    /// Cached identity is usable offline; Plex Home still needs online validation.
-    var isUsingOfflineHomeSession: Bool {
-        get { plexAccount.state.isUsingOfflineHomeSession }
-        set { plexAccount.state.isUsingOfflineHomeSession = newValue }
-    }
-    var homeSelectionRequested: Bool {
-        get { plexAccount.state.homeSelectionRequested }
-        set { plexAccount.state.homeSelectionRequested = newValue }
-    }
-    var primaryProfileID: String? {
-        get { plexAccount.state.primaryProfileID }
-        set { plexAccount.state.primaryProfileID = newValue }
-    }
-    var hasRememberedHomeUserToken: Bool {
-        get { plexAccount.state.hasRememberedHomeUserToken }
-        set { plexAccount.state.hasRememberedHomeUserToken = newValue }
-    }
+    // The Plex account's state forwarders (`primaryAccountToken`, `homeUsers`,
+    // …) live with the Plex facade glue (`Providers/Plex/Facade/MediaService+PlexAccount.swift`).
 
     /// Compatibility name for the account token used by existing service code.
     /// New account operations should choose `primaryAccountToken` or
@@ -73,7 +15,6 @@ final class MediaService {
     var authToken: String? { activeAccountToken }
 
     var isAuthenticated: Bool { primaryAccountToken != nil }
-    var hasPlexHome: Bool { plexAccount.state.hasPlexHome }
     var activeProfileID: String? {
         if needsHomeUserSelection, activeHomeUser == nil {
             return nil
@@ -84,7 +25,6 @@ final class MediaService {
     }
     /// The storage scope of the active profile; nil while there is none.
     var profileScope: ProfileScope? { activeProfileID.map(ProfileScope.init(id:)) }
-    var needsHomeUserSelection: Bool { plexAccount.state.needsHomeUserSelection }
     /// What `ContentView` shows: one value instead of `isAuthenticated`,
     /// `homeBootstrapCompleted` and `needsHomeUserSelection`.
     var sessionState: SessionState {
@@ -104,16 +44,6 @@ final class MediaService {
             && primaryProfileID != nil
             && activeAccountToken == primaryAccountToken
             && (activeHomeUser == nil || activeHomeUser?.stableProfileID == primaryProfileID)
-    }
-    /// Every set persists the choice (and the remembered member token), as the
-    /// stored property's `didSet` did; `PlexAccountProvider.restoreCredentials`
-    /// runs the same step for the launch-time assignment.
-    var automaticHomeSignIn: Bool {
-        get { plexAccount.state.automaticHomeSignIn }
-        set {
-            plexAccount.state.automaticHomeSignIn = newValue
-            automaticHomeSignInDidChange()
-        }
     }
 
     /// Cached account library order (plex.tv `experience` setting) plus the
@@ -148,10 +78,10 @@ final class MediaService {
 
     @ObservationIgnored var streamSelectionWriteTask: Task<Void, Error>?
 
-    /// The Plex account's provider. It owns the account's credentials and
-    /// Home state, the plex.tv request core and discovery, and `client`, the
-    /// request core every Plex call uses.
-    let plexAccount: PlexAccountProvider
+    /// The signed-in account's provider. It owns the account's credentials and
+    /// profile state, its account requests and server discovery, and the
+    /// request core its servers' facets send through.
+    let accountProvider: any MediaAccountProvider
     /// The provider factories. The pool builds each session's server provider
     /// with them.
     let providers: ProviderRegistry
@@ -159,45 +89,14 @@ final class MediaService {
     let accounts: AccountStore
     /// Which provider each server id belongs to. Empty: every server is Plex.
     let serverRegistry = ServerRegistry()
-    var client: PlexClient { plexAccount.client }
-    var bootstrapNetworkAvailable: Bool {
-        get { plexAccount.state.bootstrapNetworkAvailable }
-        set { plexAccount.state.bootstrapNetworkAvailable = newValue }
-    }
     let decoder: JSONDecoder
     let encoder: JSONEncoder
 
-    static var plexTVBase: String { PlexAccountProvider.plexTVBase }
-    /// Kept at the legacy name so existing users' linked-account credential
-    /// migrates without requiring another sign-in.
-    static let keychainTokenKey = PlexAccountProvider.keychainTokenKey
-    static let keychainActiveHomeTokenKey = PlexAccountProvider.keychainActiveHomeTokenKey
-    static let defaultsClientIDKey = "PlexClientIdentifier"
-    // The four keys below are the single-server layout. Nothing writes them any
-    // more: they are read once by `migrateLegacySingleServerState()` and then
-    // deleted, and `ServerPool` reuses their names as the prefix of its
-    // per-server keys ("PlexServerURL.<id>", …) so an install keeps one
-    // recognisable namespace.
-    static let keychainServerTokenKey = "PlexServerAuthToken"
-    static let defaultsServerURLKey = "PlexServerURL"
-    static let defaultsServerDataKey = "PlexServerData"
-    static let defaultsLastGoodConnectionURIKey = "PlexLastGoodConnectionURI"
-    /// Legacy selection, still read by `ServerPriorityStore` to seed the first
-    /// priority order. Only sign-out removes it.
-    static let defaultsServerIDKey = "PlexServerID"
-    static let defaultsActiveHomeUserDataKey = PlexAccountProvider.defaultsActiveHomeUserDataKey
-    static let defaultsAutomaticHomeSignInKey = PlexAccountProvider.defaultsAutomaticHomeSignInKey
-    static let defaultsHomeMigrationCompletedKey = PlexAccountProvider.defaultsHomeMigrationCompletedKey
-    static let defaultsPrimaryProfileIDKey = PlexAccountProvider.defaultsPrimaryProfileIDKey
     /// How long requests to a server keep failing fast after its recovery
     /// failed. Long enough that a screenful of requests cannot re-run discovery
     /// over and over, short enough that a server coming back is picked up on the
     /// next screen refresh.
     static let serverRecoveryCooldown: TimeInterval = 30
-    static let authenticationPropagationRetryWindow = PlexAccountProvider.authenticationPropagationRetryWindow
-    static let authenticationPropagationRetryAttempts = PlexAccountProvider.authenticationPropagationRetryAttempts
-    /// The shared session's whole-request budget (`PlexClient.session`).
-    static let requestResourceTimeout: TimeInterval = PlexClient.requestResourceTimeout
 
     /// - Parameter urlProtocolClasses: Tests only: serves every session's requests.
     init(urlProtocolClasses: [AnyClass]? = nil) {
@@ -212,10 +111,9 @@ final class MediaService {
             UserDefaults.standard.set(id, forKey: Self.defaultsClientIDKey)
             clientIdentifier = id
         }
-        let client = PlexClient(clientIdentifier: clientIdentifier, urlProtocolClasses: urlProtocolClasses)
-        let plexAccount = PlexAccountProvider(client: client)
-        let providers = ProviderRegistry([PlexProviderFactory(account: plexAccount)])
-        self.plexAccount = plexAccount
+        let standard = ProviderSetup.standard(clientIdentifier: clientIdentifier, urlProtocolClasses: urlProtocolClasses)
+        let providers = standard.registry
+        self.accountProvider = standard.account
         self.providers = providers
         self.accounts = AccountStore(registry: providers)
 
@@ -224,9 +122,9 @@ final class MediaService {
         #else
         let readsStoredSignIn = true
         #endif
-        plexAccount.restoreCredentials(readsStoredSignIn: readsStoredSignIn)
+        accountProvider.restoreCredentials(readsStoredSignIn: readsStoredSignIn)
         // The account's routed send asks this service's pool for every step.
-        plexAccount.router.recovering = self
+        accountProvider.attach(recovering: self)
 
         pool.configure(
             probeSession: probeSession,

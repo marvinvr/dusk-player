@@ -88,24 +88,6 @@ extension MediaService {
         )
     }
 
-    static let restoredEndpointValidationTimeout = PlexServerRouter.restoredEndpointValidationTimeout
-
-    /// Resolves an explicit server, or the primary one when the caller has not
-    /// been routed yet.
-    func resolveServerID(_ serverID: String?) throws -> String {
-        if let serverID = serverID?.nilIfEmpty {
-            return serverID
-        }
-        // Falling back to the highest-priority *known* server (rather than only
-        // a connected one) keeps the failure specific: the request then reports
-        // "not authorized" instead of a generic "no server" when that is why the
-        // session is missing.
-        guard let primaryID = pool.primary?.serverID ?? pool.priorityOrderedIdentifiers.first else {
-            throw MediaServiceError.noServerConnected
-        }
-        return primaryID
-    }
-
     /// The provider every facet route of `serverID` goes to (04 §5.2): the
     /// server's session's when it is connected, else one built for the id,
     /// whose first request heals the session as a request always has. It is

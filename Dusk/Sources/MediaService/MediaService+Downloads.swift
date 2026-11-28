@@ -165,7 +165,7 @@ private struct ConversionTransport: DownloadConversionTransport {
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.allHTTPHeaderFields = context.headers
-        try PlexTransportSecurity.validate(request)
+        try TransportSecurity.validate(request)
         return request
     }
 

@@ -68,12 +68,12 @@ actor DuskImageLoader {
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 30
 
-        session = URLSession(configuration: configuration, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+        session = URLSession(configuration: configuration, delegate: TransportSecurity.makeSessionDelegate(), delegateQueue: nil)
         memoryCache.countLimit = 512
     }
 
     func image(for url: URL, using media: MediaService? = nil) async throws -> PlatformImage {
-        try PlexTransportSecurity.validate(URLRequest(url: url))
+        try TransportSecurity.validate(URLRequest(url: url))
         let cacheKey = url as NSURL
         if let cachedImage = memoryCache.object(forKey: cacheKey) {
             if cachedImage.isFresh {

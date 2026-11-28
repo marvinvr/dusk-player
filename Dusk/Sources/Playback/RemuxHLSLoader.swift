@@ -757,7 +757,7 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     ///     they say; the `dvcC`/`dvvC` and `dec3` patches run only when asked.
     init(
         session: URLSession? = nil,
-        credentialPolicy: any CredentialTransportPolicy = PlexCredentialPolicy.shared,
+        credentialPolicy: any CredentialTransportPolicy = TransportSecurity.defaultPolicy,
         traits: PlaybackTraits = .plex,
         restoresDolbyAtmos: Bool,
         dolbyVision: DolbyVisionConfiguration?,

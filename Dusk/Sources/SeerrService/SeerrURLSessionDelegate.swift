@@ -99,7 +99,7 @@ final class SeerrURLSessionDelegate: NSObject, URLSessionDelegate, URLSessionTas
         newRequest request: URLRequest,
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
-        guard PlexTransportSecurity.allowsRedirect(request, original: task.originalRequest) else {
+        guard TransportSecurity.allowsRedirect(request, original: task.originalRequest) else {
             completionHandler(nil)
             return
         }

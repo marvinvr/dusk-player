@@ -144,7 +144,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         live: Bool = false,
         priority: Float = URLSessionTask.defaultPriority
     ) throws -> Int {
-        try PlexTransportSecurity.validate(request)
+        try TransportSecurity.validate(request)
         let targetSession = live ? makeLiveSessionIfNeeded() : session
         let task: URLSessionDownloadTask
         if let resumeData {
@@ -153,7 +153,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
             // If URLSession cannot expose that request yet, restart from the
             // freshly validated URL rather than trusting opaque resume data.
             if let original = resumed.originalRequest ?? resumed.currentRequest,
-               original.url.map(PlexTransportSecurity.allowsToken) == true {
+               original.url.map(TransportSecurity.allowsCredential(in:)) == true {
                 task = resumed
             } else {
                 resumed.cancel()
@@ -178,7 +178,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         newRequest request: URLRequest,
         completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
-        completionHandler(PlexTransportSecurity.allowsRedirect(request, original: task.originalRequest) ? request : nil)
+        completionHandler(TransportSecurity.allowsRedirect(request, original: task.originalRequest) ? request : nil)
     }
 
     func pause(taskIdentifier: Int) {

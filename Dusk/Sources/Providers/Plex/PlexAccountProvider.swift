@@ -53,6 +53,11 @@ final class PlexAccountProvider: MediaAccountProvider {
         router.account = self
     }
 
+    @MainActor
+    func attach(recovering: any SessionRecovering) {
+        router.recovering = recovering
+    }
+
     // MARK: - Stored account
 
     /// The signed-in account as a `StoredAccount`, read in place from the

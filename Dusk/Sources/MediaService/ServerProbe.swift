@@ -1,11 +1,6 @@
 import Foundation
 import OSLog
 
-let plexConnectionLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
-    category: "PlexConnection"
-)
-
 /// How an endpoint reaches the server, best first.
 enum ConnectionLocality: Int, Sendable, Comparable, Codable {
     /// The LAN: plex.tv's `local` flag or a private address.
@@ -296,7 +291,7 @@ enum ConnectionSelector {
             return finish(.failed("No connections for \(serverName)"), chosen: nil)
         }
 
-        let authorized = headers.merging(["X-Plex-Token": token]) { _, new in new }
+        let authorized = headers.merging([Self.credentialHeader: token]) { _, new in new }
 
         return await withTaskGroup(of: Event.self) { group -> Selection in
             for (index, candidate) in candidates.enumerated() {
@@ -443,7 +438,7 @@ enum ConnectionSelector {
             let location = response.value(forHTTPHeaderField: "Location") ?? "another URL"
             return "Redirects to \(location)"
         }
-        if let answered = response.url, !PlexTransportSecurity.sameOrigin(answered, requested) {
+        if let answered = response.url, !TransportSecurity.sameOrigin(answered, requested) {
             return "Redirects to \(answered.scheme ?? "")://\(answered.host ?? "")"
         }
         return nil

@@ -555,7 +555,7 @@ private struct MacAccountSettingsPane: View {
 
         MacSettingsPane(height: 460) {
             Section {
-                MacPlexAccountRow(user: media.currentUser)
+                MacPlexAccountRow(user: media.signedInUser)
                 LabeledContent {
                     Button("Manage in Browser…") {
                         openURL(SettingsSupport.plexAccountURL)
@@ -658,7 +658,7 @@ private struct MacAccountSettingsPane: View {
 /// Who is signed in: the Plex account's avatar, name and email (or
 /// username), like the Apple Account row in System Settings.
 private struct MacPlexAccountRow: View {
-    let user: PlexUser?
+    let user: AccountUser?
 
     var body: some View {
         HStack(spacing: 12) {

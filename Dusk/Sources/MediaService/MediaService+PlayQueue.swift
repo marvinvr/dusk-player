@@ -8,9 +8,4 @@ extension MediaService {
         try await playback(for: serverID).prerolls(before: itemID)
     }
 
-    /// Everything the queue puts in front of the movie. Only clips count: a
-    /// queue that somehow led with anything else is not a pre-roll queue.
-    static func prerollItems(in queue: [MediaDetails], featureRatingKey: String) -> [MediaDetails] {
-        PlexPlayback.prerollItems(in: queue, featureRatingKey: featureRatingKey)
-    }
 }

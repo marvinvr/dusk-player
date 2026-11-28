@@ -331,7 +331,7 @@ final class RemuxSegmentRelay: @unchecked Sendable {
                 startsAtZero = false
             }
         }
-        guard (try? PlexTransportSecurity.validate(upstreamRequest)) != nil else {
+        guard (try? TransportSecurity.validate(upstreamRequest)) != nil else {
             sendFinal(.empty(403), for: request, on: connection)
             return
         }
@@ -394,7 +394,7 @@ final class RemuxSegmentRelay: @unchecked Sendable {
 
     fileprivate func allowsRedirect(_ request: URLRequest, for task: URLSessionTask) -> Bool {
         guard let target = request.url, DolbyVision7HLSProxy.isSameOrigin(target, as: origin) else { return false }
-        return PlexTransportSecurity.allowsRedirect(request, original: task.originalRequest)
+        return TransportSecurity.allowsRedirect(request, original: task.originalRequest)
     }
 
     fileprivate func received(_ response: URLResponse, for stream: SegmentStream) -> Bool {

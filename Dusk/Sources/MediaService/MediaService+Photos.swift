@@ -2,8 +2,6 @@ import Foundation
 
 /// Kept for `PhotoBrowserViewModel` until it names the neutral types
 /// (`PhotoQuery`, `PhotoPage`, declared with `CatalogProviding`).
-typealias PlexPhotoQuery = PhotoQuery
-typealias PlexPhotoPage = PhotoPage
 
 /// Photo libraries: the grid's pages route to the server's catalog facet;
 /// the tile and viewer image URLs are built here on the image helpers.

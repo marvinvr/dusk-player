@@ -1,6 +1,25 @@
-# Paths under Dusk/Sources where provider names are allowed (G7), one
-# extended regex per line, matched against the path relative to Dusk/Sources.
-# 04-architecture.md: provider code lives in Providers/, the sign-in flow may
-# name the providers it offers. P0-19 tightens this list; keep it short.
+# Exceptions to G7 (scripts/parity/check_provider_boundary.sh, 04 §5.4).
+# `<path regex>` allows a whole path; `<path regex> :: <match regex>` allows
+# only those names in that path. Paths are relative to Dusk/Sources. Each
+# exception says why; keep the list short.
+
+# Provider code, and the one place that wires the build's providers.
 ^Providers/
+# The sign-in flow may name the provider it signs in to (04 §5.4).
+^Features/Account/SignIn
+# Screenshot mode drives the mock Plex server.
 ^App/ScreenshotMode\.swift$
+
+# Frozen identifiers (04 §18): the App Intents entity and query names are in
+# users' saved Shortcuts, so they keep their Plex names.
+^Siri/ :: PlexTitleEntity|PlexTitleEntityQuery
+
+# Frozen persisted names and reported strings (04 §19): never renamed.
+^MediaService/ServerPool\.swift$ :: PlexServerSnapshots
+^MediaService/ServerPriorityStore\.swift$ :: PlexServerPriority|PlexServerID
+^MediaService/MediaServiceError\.swift$ :: PlexServiceError
+
+# The provider tag a download record and its metadata snapshot store
+# (04 §15.3); the storage layer reads it to pick the snapshot format.
+^Downloads/(DownloadModels|DownloadManager|MetadataSnapshotCache)\.swift$ :: ProviderKind
+^MediaService/MediaService\+Downloads\.swift$ :: ProviderKind

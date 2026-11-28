@@ -10,11 +10,6 @@ extension MediaService {
         serverProvider(for: serverID).playback
     }
 
-    /// The Plex facet itself, for the Live TV consumers only Plex has.
-    private func plexPlayback(for serverID: String?) -> PlexPlayback {
-        PlexPlayback(client: client, serverID: serverID, router: plexAccount.router)
-    }
-
     /// - Parameter serverID: The server holding the file. Parts are per-server
     ///   paths, so playing one from the wrong base URL either 404s or, worse,
     ///   streams a different title that happens to share the key.
@@ -195,33 +190,6 @@ extension MediaService {
         return task
     }
 
-    /// Starts an HLS consumer for an already-tuned Live TV session.
-    func liveTVStreamURL(
-        sessionPath: String,
-        sessionIdentifier: String,
-        transcodeSessionID: String,
-        serverID: String? = nil
-    ) async throws -> ServerStream {
-        try await plexPlayback(for: serverID).liveStream(
-            sessionPath: sessionPath,
-            sessionIdentifier: sessionIdentifier,
-            transcodeSessionID: transcodeSessionID
-        )
-    }
-
-    /// Live TV direct play of the tuned session's own HLS; nil when the server
-    /// does not offer it (see `PlexPlayback.liveDirectPlayURL`).
-    func liveTVDirectPlayURL(
-        sessionPath: String,
-        sessionIdentifier: String,
-        serverID: String
-    ) async -> URL? {
-        await plexPlayback(for: serverID).liveDirectPlayURL(
-            sessionPath: sessionPath,
-            sessionIdentifier: sessionIdentifier
-        )
-    }
-
     /// Releases a finished stream on the server. Best effort, never throws.
     func stopTranscodeSession(transcodeSessionID: String, serverID: String? = nil) async {
         await playback(for: serverID).close(streamSessionID: transcodeSessionID)
@@ -232,36 +200,4 @@ extension MediaService {
         await playback(for: serverID).keepAlive(streamSessionID: transcodeSessionID)
     }
 
-    func sanitizedPlaybackURLString(for url: URL) -> String {
-        PlexPlayback.sanitizedURLString(for: url)
-    }
-
-    /// Pure request construction (`PlexPlayback.transcodeQueryItems`) with
-    /// this service's client identifier, for the codec-policy tests.
-    func transcodeQueryItems(
-        itemID: String,
-        mediaIndex: Int,
-        sourcePath: String?,
-        intent: StreamIntent,
-        sessionIdentifier: String,
-        transcodeSessionID: String,
-        audioStreamID: String?,
-        subtitleStreamID: String?,
-        token: String?,
-        av1Capabilities: AV1PlaybackCapabilities = .current
-    ) -> [URLQueryItem] {
-        PlexPlayback.transcodeQueryItems(
-            itemID: itemID,
-            mediaIndex: mediaIndex,
-            sourcePath: sourcePath,
-            intent: intent,
-            sessionIdentifier: sessionIdentifier,
-            transcodeSessionID: transcodeSessionID,
-            audioStreamID: audioStreamID,
-            subtitleStreamID: subtitleStreamID,
-            token: token,
-            clientIdentifier: clientIdentifier,
-            av1Capabilities: av1Capabilities
-        )
-    }
 }

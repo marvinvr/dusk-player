@@ -15,11 +15,6 @@ struct ServerSessionToken: Equatable {
 }
 
 extension MediaService {
-    /// Whether a plex.tv resource is a Plex Media Server. See
-    /// `PlexAccountProvider.isMediaServerResource`.
-    nonisolated static func isMediaServerResource(_ json: [String: Any]) -> Bool {
-        PlexAccountProvider.isMediaServerResource(json)
-    }
 
     var serverSessionToken: ServerSessionToken {
         ServerSessionToken(profileID: activeProfileID, generation: pool.generation)

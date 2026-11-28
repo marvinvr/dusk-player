@@ -36,23 +36,7 @@ extension MediaService {
     /// every such server is Plex today, so Plex answers (absolute-URL artwork
     /// still resolves without a session).
     private func imageProvider(for session: ServerSession?) -> any ImageProviding {
-        session?.provider?.images ?? PlexImages(client: client)
-    }
-
-    /// Plex only, for `+Photos` (the viewer builds its own `/photo/:/transcode`
-    /// URL) until the catalog facet takes it over.
-    func transcodeSourceURLString(for path: String, serverID: String? = nil) -> String? {
-        PlexImages(client: client).transcodeSourceURLString(for: path, session: pool.connection(for: serverID))
-    }
-
-    /// Plex only: the image URL string on the server's connection, optionally
-    /// with the token in the query.
-    func imageRequestURLString(for path: String, includeToken: Bool, serverID: String? = nil) -> String? {
-        PlexImages(client: client).imageRequestURLString(
-            for: path,
-            includeToken: includeToken,
-            session: pool.connection(for: serverID)
-        )
+        (session?.provider ?? serverProvider(for: nil)).images
     }
 
     /// `points` in display pixels (`ImageDisplayScale`).
@@ -123,7 +107,7 @@ extension MediaService {
     }
 
     private func executeBinaryRequest(_ request: URLRequest) async throws -> Data {
-        try PlexTransportSecurity.validate(request)
+        try TransportSecurity.validate(request)
         if let cachedResponse = AppImageCache.cachedResponse(for: request) {
             return cachedResponse.data
         }

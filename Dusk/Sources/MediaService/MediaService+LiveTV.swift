@@ -170,7 +170,6 @@ extension MediaService {
             .tune(channel, source: provider, allowsDirectPlay: allowsDirectPlay)
     }
 
-    static var liveTVDiscoveryTimeout: TimeInterval { PlexLiveTV.discoveryTimeout }
     private static let liveTVDiscoveryGrace: Duration = .seconds(2)
 }
 

@@ -20,10 +20,27 @@ protocol MediaAccountProvider: AnyObject, Sendable {
     /// Forgets this account's credentials on this device.
     func signOut() async
 
+    /// Loads the stored credential and profile at launch.
+    /// - Parameter readsStoredSignIn: false only for screenshot mode's signed-out
+    ///   start, which must never touch a real sign-in.
+    @MainActor func restoreCredentials(readsStoredSignIn: Bool)
+    /// Hands the account's request core the pool it heals sessions through.
+    @MainActor func attach(recovering: any SessionRecovering)
+
     var profiles: any ProfileProviding { get }
     var preferences: any AccountPreferencesProviding { get }
     var watchlist: (any WatchlistProviding)? { get }
-    var seerrAuth: any SeerrAuthProviding { get }
+    /// Built on every read, so it carries the active profile's credential.
+    @MainActor var seerrAuth: any SeerrAuthProviding { get }
+}
+
+/// Who is signed in, as the account names them (the Mac's account row).
+struct AccountUser: Sendable, Hashable {
+    let username: String?
+    let title: String?
+    let friendlyName: String?
+    let thumb: String?
+    let email: String?
 }
 
 /// Who an account is.

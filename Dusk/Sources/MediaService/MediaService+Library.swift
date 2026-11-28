@@ -16,12 +16,6 @@ extension MediaService {
         serverProvider(for: serverID).catalog
     }
 
-    /// The Plex catalog itself, for the routes whose callers still pass Plex
-    /// sort strings and filter parameters.
-    func plexCatalog(on serverID: String) -> PlexCatalog {
-        PlexCatalog(serverID: serverID, transport: plexAccount.router)
-    }
-
     func getLibraries(serverID: String? = nil) async throws -> [Library] {
         try await catalog(on: resolveServerID(serverID)).libraries()
     }
@@ -70,42 +64,6 @@ extension MediaService {
     /// The values a Filters sheet field offers.
     func libraryFilterChoices(for field: LibraryFilterField, in library: Library) async throws -> [LibraryFilterChoice] {
         try await catalog(on: resolveServerID(library.serverID)).filterChoices(for: field)
-    }
-
-    /// A page of a library in a Plex `sort` (`titleSort`, `addedAt:desc`, …)
-    /// with Plex filter parameters. For the callers that still build their
-    /// own (recommendation shelves, Siri, video channels); the grid uses
-    /// `libraryItems(in:…)`.
-    func getLibraryItems(
-        sectionId: String,
-        start: Int = 0,
-        size: Int = 50,
-        sort: String? = nil,
-        filters: [String: String] = [:],
-        serverID: String? = nil
-    ) async throws -> [MediaItem] {
-        try await plexCatalog(on: resolveServerID(serverID))
-            .rawItems(libraryID: sectionId, start: start, size: size, sort: sort, filters: filters)
-    }
-
-    /// How many titles a library has under Plex filter parameters.
-    func getLibraryItemCount(
-        sectionId: String,
-        filters: [String: String] = [:],
-        serverID: String? = nil
-    ) async throws -> Int {
-        try await plexCatalog(on: resolveServerID(serverID)).rawItemCount(libraryID: sectionId, filters: filters)
-    }
-
-    /// The section's raw `/filters` rows, for the genre menu
-    /// (`LibraryGenreSupport`).
-    func getLibraryFilters(sectionId: String, serverID: String? = nil) async throws -> [LibraryFilterEntry] {
-        try await plexCatalog(on: resolveServerID(serverID)).rawFilters(libraryID: sectionId)
-    }
-
-    /// The values of one raw `/filters` row, for the genre menu.
-    func getLibraryFilterValues(path: String, serverID: String? = nil) async throws -> [LibraryFilterValue] {
-        try await plexCatalog(on: resolveServerID(serverID)).rawFilterValues(path: path)
     }
 
     /// A video library's channels. Each returned `key` plugs into
@@ -243,24 +201,4 @@ extension MediaService {
         try await catalog(on: resolveServerID(serverID)).details(itemID: itemID, checkFiles: checkFiles)
     }
 
-    /// The raw details payload, for the offline metadata cache. The same
-    /// request `getMediaDetails` makes.
-    func getMediaDetailsPayload(
-        itemID: String,
-        checkFiles: Bool = false,
-        serverID: String? = nil
-    ) async throws -> Data {
-        var queryItems = [
-            URLQueryItem(name: "includeMarkers", value: "1"),
-            URLQueryItem(name: "includeGuids", value: "1"),
-        ]
-        if checkFiles {
-            queryItems.append(URLQueryItem(name: "checkFiles", value: "1"))
-        }
-        return try await rawServerRequest(
-            path: PlexMetadataSnapshotFormat.metadataEndpoint(itemID),
-            queryItems: queryItems,
-            serverID: serverID
-        )
-    }
 }

@@ -100,8 +100,8 @@ extension PlaybackError {
         request.setValue("bytes=0-1", forHTTPHeaderField: "Range")
 
         do {
-            try PlexTransportSecurity.validate(request)
-            let (bytes, response) = try await PlexTransportSecurity.session.bytes(for: request)
+            try TransportSecurity.validate(request)
+            let (bytes, response) = try await TransportSecurity.session.bytes(for: request)
 
             guard let http = response as? HTTPURLResponse else {
                 return DirectPlayValidationFailure(

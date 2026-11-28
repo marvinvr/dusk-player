@@ -37,7 +37,7 @@ final class PhotoBrowserViewModel {
     private(set) var isLoadingMore = false
     private(set) var error: String?
 
-    private var stages: [PlexPhotoQuery] = []
+    private var stages: [PhotoQuery] = []
     private var stageIndex = 0
     private var stageOffset = 0
     private var generation = 0
@@ -155,7 +155,7 @@ final class PhotoBrowserViewModel {
 
     // MARK: - Paging
 
-    private func makeStages() -> [PlexPhotoQuery] {
+    private func makeStages() -> [PhotoQuery] {
         if let album {
             return [.albums(parent: album.itemID), .media(parent: album.itemID)]
         }
