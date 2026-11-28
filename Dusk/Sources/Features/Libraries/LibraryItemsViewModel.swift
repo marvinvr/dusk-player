@@ -9,155 +9,6 @@ struct LibraryGenreOption: Hashable, Identifiable, Sendable {
     let value: String?
 }
 
-/// What a library grid can be sorted by, as Plex's `/library/sections/{id}/sorts`
-/// lists them.
-enum LibrarySortField: String, CaseIterable, Identifiable, Sendable {
-    case title
-    case releaseDate
-    case year
-    case addedAt
-    /// Shows only: when the newest episode arrived.
-    case lastEpisodeAdded
-    case userRating
-    case criticRating
-    case audienceRating
-    case duration
-    case lastViewed
-    case random
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .title: "Title"
-        case .releaseDate: "Release Date"
-        case .year: "Year"
-        case .addedAt: "Date Added"
-        case .lastEpisodeAdded: "Episode Added"
-        case .userRating: "Your Rating"
-        case .criticRating: "Critic Rating"
-        case .audienceRating: "Audience Rating"
-        case .duration: "Duration"
-        case .lastViewed: "Last Watched"
-        case .random: "Random"
-        }
-    }
-
-    var plexKey: String {
-        switch self {
-        case .title: "titleSort"
-        case .releaseDate: "originallyAvailableAt"
-        case .year: "year"
-        case .addedAt: "addedAt"
-        case .lastEpisodeAdded: "episode.addedAt"
-        case .userRating: "userRating"
-        case .criticRating: "rating"
-        case .audienceRating: "audienceRating"
-        case .duration: "duration"
-        case .lastViewed: "lastViewedAt"
-        case .random: "random"
-        }
-    }
-
-    /// Title reads A to Z; everything else starts with the newest, highest
-    /// or longest.
-    var defaultsToDescending: Bool { self != .title }
-
-    /// Random has no order to flip.
-    var hasDirection: Bool { self != .random }
-
-    /// The menu's two order choices, descending first.
-    var directionTitles: (descending: String, ascending: String) {
-        switch self {
-        case .title: ("Z to A", "A to Z")
-        case .releaseDate, .year, .addedAt, .lastEpisodeAdded: ("Newest First", "Oldest First")
-        case .userRating, .criticRating, .audienceRating: ("Highest First", "Lowest First")
-        case .duration: ("Longest First", "Shortest First")
-        case .lastViewed: ("Most Recent First", "Least Recent First")
-        case .random: ("", "")
-        }
-    }
-
-    /// The fields offered for a library of the given type. Video libraries
-    /// lead with upload-date sorts (year is meaningless for clips).
-    static func fields(for libraryType: LibraryKind?) -> [LibrarySortField] {
-        switch libraryType {
-        case .video:
-            [.releaseDate, .addedAt, .title, .duration, .lastViewed, .random]
-        case .show:
-            [.title, .releaseDate, .year, .addedAt, .lastEpisodeAdded, .userRating, .criticRating,
-             .audienceRating, .lastViewed, .random]
-        default:
-            [.title, .releaseDate, .year, .addedAt, .userRating, .criticRating, .audienceRating,
-             .duration, .lastViewed, .random]
-        }
-    }
-}
-
-/// A grid sort: a field and its direction.
-struct LibrarySortOption: Hashable, Identifiable, Sendable {
-    let field: LibrarySortField
-    let isDescending: Bool
-
-    init(_ field: LibrarySortField, descending: Bool? = nil) {
-        self.field = field
-        isDescending = field.hasDirection ? (descending ?? field.defaultsToDescending) : false
-    }
-
-    static let titleAscending = LibrarySortOption(.title, descending: false)
-    static let titleDescending = LibrarySortOption(.title, descending: true)
-
-    var id: String { rawValue }
-
-    /// Stored per library: `"<field>"` or `"<field>:desc"`. The names of the
-    /// fixed sorts that came before still read.
-    var rawValue: String {
-        isDescending ? "\(field.rawValue):desc" : field.rawValue
-    }
-
-    init?(rawValue: String) {
-        let legacy: [String: LibrarySortOption] = [
-            "titleAscending": .titleAscending,
-            "titleDescending": .titleDescending,
-            "yearDescending": LibrarySortOption(.year, descending: true),
-            "yearAscending": LibrarySortOption(.year, descending: false),
-            "releaseDateDescending": LibrarySortOption(.releaseDate, descending: true),
-            "addedAtDescending": LibrarySortOption(.addedAt, descending: true),
-            "durationDescending": LibrarySortOption(.duration, descending: true),
-        ]
-        if let sort = legacy[rawValue] {
-            self = sort
-            return
-        }
-        let parts = rawValue.split(separator: ":", maxSplits: 1)
-        guard let field = parts.first.flatMap({ LibrarySortField(rawValue: String($0)) }) else { return nil }
-        self.init(field, descending: parts.count > 1 && parts[1] == "desc")
-    }
-
-    /// The sort chip's label: "Title A to Z", "Date Added", "Random".
-    var title: String {
-        guard field.hasDirection, field == .title else { return field.title }
-        return "Title " + (isDescending ? field.directionTitles.descending : field.directionTitles.ascending)
-    }
-
-    var plexValue: String {
-        guard field.hasDirection else { return field.plexKey }
-        return isDescending ? "\(field.plexKey):desc" : field.plexKey
-    }
-
-    /// Title sorts list the library alphabetically, which is what the A–Z
-    /// jump needs.
-    var isTitleSort: Bool { field == .title }
-
-    static func fields(for libraryType: LibraryKind?) -> [LibrarySortField] {
-        LibrarySortField.fields(for: libraryType)
-    }
-
-    static func defaultOption(for libraryType: LibraryKind?) -> LibrarySortOption {
-        libraryType == .video ? LibrarySortOption(.releaseDate) : .titleAscending
-    }
-}
-
 /// One fetched page and whether the query has more beyond it.
 private struct LibraryItemsPage {
     let items: [MediaItem]
@@ -200,7 +51,7 @@ final class LibraryItemsViewModel {
     /// The Filters sheet's choices plus the watch state (whose Unwatched value
     /// is remembered per library).
     private(set) var filterState: LibraryFilterState
-    /// The Filters sheet's fields, from the section's `/filters`.
+    /// The Filters sheet's fields, as the library's server lists them.
     private(set) var availableFilterFields: [LibraryFilterField] = []
     @ObservationIgnored private var filterValueCache: [String: [LibraryFilterChoice]] = [:]
     /// Whether the library has collections to browse (and has not switched
@@ -231,9 +82,9 @@ final class LibraryItemsViewModel {
     private var hasLoadedBrowseOptions = false
     private var hasLoadedCollectionInfo = false
     /// The library's Collections setting, read before the first page: with
-    /// "Hide items which are in collections" Plex folds a collection's titles
-    /// into the collection itself, but only when asked to.
-    private var collectionMode: PlexLibraryCollectionMode?
+    /// "Hide items which are in collections" the server folds a collection's
+    /// titles into the collection itself, but only when asked to.
+    private var collectionMode: LibraryCollectionMode?
     /// The genre filter values the server offered. A selected genre that is
     /// one of them is filtered by Plex; anything else is matched locally.
     private var serverGenreValues: Set<String> = []
@@ -276,7 +127,7 @@ final class LibraryItemsViewModel {
     }
 
     var availableSortFields: [LibrarySortField] {
-        LibrarySortOption.fields(for: library.libraryType)
+        media.librarySortFields(for: library)
     }
 
     var defaultSortOption: LibrarySortOption {
@@ -450,16 +301,15 @@ final class LibraryItemsViewModel {
 
     private func loadLetterIndex(generation: Int, query: LibraryItemsQuery) async {
         letterIndex = nil
-        // Only Plex's own filters line up with its counts: a locally
+        // Only the server's own filters line up with its counts: a locally
         // matched genre has no offsets to jump to.
         guard query.sort.isTitleSort, !isVideoLibrary, !items.isEmpty,
               query.genreValue.map(serverGenreValues.contains) ?? true
         else { return }
 
-        guard let characters = try? await media.getLibraryFirstCharacters(
-            sectionId: library.key,
-            filters: serverFilters(for: query, includingGenre: true),
-            serverID: serverID
+        guard let characters = try? await media.libraryLetterCounts(
+            in: library,
+            filter: libraryFilter(for: query, includingGenre: true)
         ), generation == queryGeneration else { return }
 
         let index = LibraryLetterIndex(characters: characters, descending: query.sort == .titleDescending)
@@ -505,15 +355,14 @@ final class LibraryItemsViewModel {
         await applyFilters(LibraryFilterState())
     }
 
-    /// The values a field offers, sorted as Plex lists them (decades newest
-    /// first, names alphabetically). Cached for the screen.
+    /// The values a field offers, sorted as the server lists them (Plex:
+    /// decades newest first, names alphabetically). Cached for the screen.
     func filterValues(for field: LibraryFilterField) async -> [LibraryFilterChoice] {
-        guard case .values(let path) = field.kind else { return [] }
+        guard case .values = field.kind else { return [] }
         if let cached = filterValueCache[field.parameter] { return cached }
-        guard let values = try? await media.getLibraryFilterValues(path: path, serverID: serverID) else {
+        guard let choices = try? await media.libraryFilterChoices(for: field, in: library) else {
             return []
         }
-        let choices = values.map(LibraryFilterChoice.init)
         filterValueCache[field.parameter] = choices
         return choices
     }
@@ -599,22 +448,16 @@ final class LibraryItemsViewModel {
         return try await fetchServerFilteredItems(start: start, query: query)
     }
 
-    /// The query's filters Plex applies; the genre is left out when it is
-    /// matched locally instead.
-    private func serverFilters(for query: LibraryItemsQuery, includingGenre: Bool) -> [String: String] {
-        var filters = LibraryUnwatchedFilter.serverFilters(
-            libraryType: library.libraryType,
-            collectionKey: collection?.key,
-            unwatchedOnly: false,
-            genreValue: includingGenre ? query.genreValue : nil
-        )
-        filters.merge(query.filters.serverFilters(libraryType: library.libraryType)) { _, new in new }
+    /// The query's filters the server applies; the genre is left out when it
+    /// is matched locally instead.
+    private func libraryFilter(for query: LibraryItemsQuery, includingGenre: Bool) -> LibraryFilter {
+        var filter = query.filters.libraryFilter
+        filter.collectionID = collection?.key
+        filter.genre = includingGenre ? query.genreValue : nil
         // Only the plain browse folds titles into their collections, like
         // Plex Web: a filtered grid lists the matching titles themselves.
-        if collectionMode == .hideItems, query.genreValue == nil, query.filters.isEmpty {
-            filters["includeCollections"] = "1"
-        }
-        return filters
+        filter.foldsCollections = collectionMode == .hideItems && query.genreValue == nil && query.filters.isEmpty
+        return filter
     }
 
     /// Reads the Collections setting and whether there is anything to browse.
@@ -643,13 +486,12 @@ final class LibraryItemsViewModel {
         query: LibraryItemsQuery
     ) async throws -> LibraryItemsPage {
         let size = requestedSize ?? (start == 0 ? firstPageSize : pageSize)
-        let items = try await media.getLibraryItems(
-            sectionId: library.key,
+        let items = try await media.libraryItems(
+            in: library,
             start: start,
             size: size,
-            sort: query.sort.plexValue,
-            filters: serverFilters(for: query, includingGenre: true),
-            serverID: serverID
+            sort: query.sort,
+            filter: libraryFilter(for: query, includingGenre: true)
         )
         return LibraryItemsPage(items: items, hasMore: items.count >= size)
     }
@@ -663,19 +505,18 @@ final class LibraryItemsViewModel {
         query: LibraryItemsQuery,
         genre: LibraryGenreOption
     ) async throws -> LibraryItemsPage {
-        let baseFilters = serverFilters(for: query, includingGenre: false)
+        let baseFilter = libraryFilter(for: query, includingGenre: false)
         let wanted = scanOffset == 0 ? firstPageSize : pageSize
         var matchedItems: [MediaItem] = []
         var offset = scanOffset
 
         for _ in 0..<maxLocalScanPagesPerLoad {
-            let fetchedItems = try await media.getLibraryItems(
-                sectionId: library.key,
+            let fetchedItems = try await media.libraryItems(
+                in: library,
                 start: offset,
                 size: localScanPageSize,
-                sort: query.sort.plexValue,
-                filters: baseFilters,
-                serverID: serverID
+                sort: query.sort,
+                filter: baseFilter
             )
             offset += fetchedItems.count
 
@@ -698,12 +539,12 @@ final class LibraryItemsViewModel {
         guard !hasLoadedBrowseOptions else { return }
         hasLoadedBrowseOptions = true
 
-        async let filterFields = try? media.getLibraryFilters(sectionId: library.key, serverID: serverID)
-        await loadGenreOptions()
         // A video library's collections are its channels, browsed through
         // their own rows; a collection grid is one already.
-        if let filters = await filterFields {
-            availableFilterFields = LibraryFilterField.fields(from: filters, includesCollection: supportsCollections)
+        async let filterFields = try? media.libraryFilterFields(in: library, includesCollection: supportsCollections)
+        await loadGenreOptions()
+        if let fields = await filterFields {
+            availableFilterFields = fields
         }
     }
 

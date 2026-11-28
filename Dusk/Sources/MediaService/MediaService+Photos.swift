@@ -1,76 +1,22 @@
 import Foundation
 
-/// One page of a photo library query and the size of the whole result.
-struct PlexPhotoPage: Sendable {
-    let items: [PhotoItem]
-    let totalSize: Int?
-}
+/// Kept for `PhotoBrowserViewModel` until it names the neutral types
+/// (`PhotoQuery`, `PhotoPage`, declared with `CatalogProviding`).
+typealias PlexPhotoQuery = PhotoQuery
+typealias PlexPhotoPage = PhotoPage
 
-/// What a photo grid lists. Every query goes through the section's `/all`
-/// rather than an album's `/children`: `/children` mixes sub-albums in with
-/// the photos, so a date-sorted, paged walk over it would bury the albums on
-/// the last page.
-enum PlexPhotoQuery: Hashable, Sendable {
-    /// The albums directly inside `parent` (the library root when nil).
-    case albums(parent: String?)
-    /// The photos and clips directly inside `parent` (loose photos in the
-    /// library root when nil), oldest first like an album.
-    case media(parent: String?)
-    /// Every photo and clip in the library, newest first.
-    case timeline
-}
-
+/// Photo libraries: the grid's pages route to the server's catalog facet;
+/// the tile and viewer image URLs are built here on the image helpers.
 extension MediaService {
-    /// Plex search type ids: clip 12, photo 13, photo album 14.
-    private static let photoAlbumType = "14"
-    private static let photoMediaTypes = "13,12"
-
     func getPhotoItems(
         sectionId: String,
-        query: PlexPhotoQuery,
+        query: PhotoQuery,
         start: Int,
         size: Int,
         serverID: String?
-    ) async throws -> PlexPhotoPage {
-        var queryItems = [
-            URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
-            URLQueryItem(name: "X-Plex-Container-Size", value: String(size)),
-        ]
-
-        switch query {
-        case .albums(let parent):
-            queryItems.append(URLQueryItem(name: "type", value: Self.photoAlbumType))
-            queryItems.append(URLQueryItem(name: "sort", value: "titleSort"))
-            if let parent {
-                queryItems.append(URLQueryItem(name: "parent", value: parent))
-            }
-        case .media(let parent):
-            queryItems.append(URLQueryItem(name: "type", value: Self.photoMediaTypes))
-            queryItems.append(URLQueryItem(name: "sort", value: "originallyAvailableAt,titleSort"))
-            if let parent {
-                queryItems.append(URLQueryItem(name: "parent", value: parent))
-            }
-        case .timeline:
-            // Without `clusterZoomLevel=1` the type filter only reaches the
-            // photos loose in the library root.
-            queryItems.append(URLQueryItem(name: "type", value: Self.photoMediaTypes))
-            queryItems.append(URLQueryItem(name: "clusterZoomLevel", value: "1"))
-            queryItems.append(URLQueryItem(name: "sort", value: "originallyAvailableAt:desc,addedAt:desc"))
-        }
-
-        let targetID = try resolveServerID(serverID)
-        let data = try await rawServerRequest(
-            path: "/library/sections/\(sectionId)/all",
-            queryItems: queryItems,
-            serverID: targetID
-        )
-        let response = try decodeJSON(MetadataResponse<PlexPhotoItemDTO>.self, from: data, serverID: targetID)
-        return PlexPhotoPage(
-            items: (response.MediaContainer.Metadata ?? [])
-                .map { PlexUserContentMapper.photoItem($0, serverID: targetID) }
-                .filter { $0.kind != nil },
-            totalSize: response.MediaContainer.totalSize
-        )
+    ) async throws -> PhotoPage {
+        try await catalog(on: resolveServerID(serverID))
+            .photoPage(libraryID: sectionId, query: query, start: start, size: size)
     }
 
     /// A square-cropped grid tile. `imageURL` asks the transcoder to fill the

@@ -1,17 +1,83 @@
 import Foundation
 
+/// Libraries, browse, details and children. Each method is a route to the
+/// server's `CatalogProviding` facet (docs/jellyfin/04-architecture.md §9,
+/// `PlexCatalog`); the hidden-library filter, merging and the next/previous
+/// episode walk stay here.
+///
 /// Every endpoint here takes a `serverID`. It is optional and defaults to nil
 /// ("the primary server") so call sites that have not been routed yet keep
 /// working, but anything that starts from a model — an item, a library, a
 /// collection — must pass that model's own `serverID`, or the request lands on
 /// a different server's rating keys.
 extension MediaService {
-    func getLibraries(serverID: String? = nil) async throws -> [Library] {
-        let targetID = try resolveServerID(serverID)
-        let sections: [PlexLibraryDTO] = try await fetchDirectories(path: "/library/sections", serverID: targetID)
-        return sections.map { PlexItemMapper.map($0, serverID: targetID) }
+    /// The catalog facet of one server. Built here rather than read off
+    /// `session.provider` while routing and self-healing still live in the
+    /// facade (`PlexCatalogTransport`).
+    func catalog(on serverID: String) -> any CatalogProviding {
+        plexCatalog(on: serverID)
     }
 
+    /// The Plex catalog itself, for the routes whose callers still pass Plex
+    /// sort strings and filter parameters.
+    func plexCatalog(on serverID: String) -> PlexCatalog {
+        PlexCatalog(serverID: serverID, transport: self)
+    }
+
+    func getLibraries(serverID: String? = nil) async throws -> [Library] {
+        try await catalog(on: resolveServerID(serverID)).libraries()
+    }
+
+    // MARK: - Library listings
+
+    /// One page of a library in a neutral sort and filter.
+    func libraryItems(
+        in library: Library,
+        start: Int = 0,
+        size: Int = 50,
+        sort: LibrarySortOption?,
+        filter: LibraryFilter = LibraryFilter()
+    ) async throws -> [MediaItem] {
+        try await catalog(on: resolveServerID(library.serverID)).items(
+            libraryID: library.key,
+            kind: library.libraryType,
+            start: start,
+            size: size,
+            sort: sort,
+            filter: filter
+        )
+    }
+
+    /// The A–Z table of a title-sorted listing under `filter`. Cheap even on
+    /// a big library; it backs the grid's A–Z jump.
+    func libraryLetterCounts(in library: Library, filter: LibraryFilter) async throws -> [LibraryLetterCount] {
+        try await catalog(on: resolveServerID(library.serverID))
+            .letterCounts(libraryID: library.key, kind: library.libraryType, filter: filter)
+    }
+
+    /// The sorts the library's menu offers.
+    func librarySortFields(for library: Library) -> [LibrarySortField] {
+        guard let serverID = try? resolveServerID(library.serverID) else {
+            return LibrarySortField.fields(for: library.libraryType)
+        }
+        return catalog(on: serverID).sortFields(for: library.libraryType)
+    }
+
+    /// The Filters sheet's fields for the library.
+    func libraryFilterFields(in library: Library, includesCollection: Bool) async throws -> [LibraryFilterField] {
+        try await catalog(on: resolveServerID(library.serverID))
+            .filterFields(libraryID: library.key, includesCollection: includesCollection)
+    }
+
+    /// The values a Filters sheet field offers.
+    func libraryFilterChoices(for field: LibraryFilterField, in library: Library) async throws -> [LibraryFilterChoice] {
+        try await catalog(on: resolveServerID(library.serverID)).filterChoices(for: field)
+    }
+
+    /// A page of a library in a Plex `sort` (`titleSort`, `addedAt:desc`, …)
+    /// with Plex filter parameters. For the callers that still build their
+    /// own (recommendation shelves, Siri, video channels); the grid uses
+    /// `libraryItems(in:…)`.
     func getLibraryItems(
         sectionId: String,
         start: Int = 0,
@@ -20,110 +86,50 @@ extension MediaService {
         filters: [String: String] = [:],
         serverID: String? = nil
     ) async throws -> [MediaItem] {
-        var queryItems = [
-            URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
-            URLQueryItem(name: "X-Plex-Container-Size", value: String(size)),
-        ]
-
-        if let sort, !sort.isEmpty {
-            queryItems.append(URLQueryItem(name: "sort", value: sort))
-        }
-
-        queryItems.append(
-            contentsOf: filters
-                .sorted { $0.key < $1.key }
-                .map { URLQueryItem(name: $0.key, value: $0.value) }
-        )
-
-        let targetID = try resolveServerID(serverID)
-        let items: [PlexItemDTO] = try await fetchMetadata(
-            path: "/library/sections/\(sectionId)/all",
-            queryItems: queryItems,
-            serverID: targetID
-        )
-        return items.map { PlexItemMapper.map($0, serverID: targetID) }
+        try await plexCatalog(on: resolveServerID(serverID))
+            .rawItems(libraryID: sectionId, start: start, size: size, sort: sort, filters: filters)
     }
 
+    /// How many titles a library has under Plex filter parameters.
     func getLibraryItemCount(
         sectionId: String,
         filters: [String: String] = [:],
         serverID: String? = nil
     ) async throws -> Int {
-        var queryItems = [
-            URLQueryItem(name: "X-Plex-Container-Start", value: "0"),
-            URLQueryItem(name: "X-Plex-Container-Size", value: "1"),
-        ]
-
-        queryItems.append(
-            contentsOf: filters
-                .sorted { $0.key < $1.key }
-                .map { URLQueryItem(name: $0.key, value: $0.value) }
-        )
-
-        let targetID = try resolveServerID(serverID)
-        let data = try await rawServerRequest(
-            path: "/library/sections/\(sectionId)/all",
-            queryItems: queryItems,
-            serverID: targetID
-        )
-        let response = try decodeJSON(MetadataResponse<PlexItemDTO>.self, from: data, serverID: targetID)
-        return response.MediaContainer.totalSize ?? response.MediaContainer.size ?? 0
+        try await plexCatalog(on: resolveServerID(serverID)).rawItemCount(libraryID: sectionId, filters: filters)
     }
 
-    /// How many titles start with each character under the given filters, in
-    /// title-sort order (`/library/sections/{id}/firstCharacter`). Cheap even on
-    /// a big library; it backs the grid's A–Z jump.
-    func getLibraryFirstCharacters(
-        sectionId: String,
-        filters: [String: String] = [:],
-        serverID: String? = nil
-    ) async throws -> [PlexFirstCharacter] {
-        try await fetchDirectories(
-            path: "/library/sections/\(sectionId)/firstCharacter",
-            queryItems: filters
-                .sorted { $0.key < $1.key }
-                .map { URLQueryItem(name: $0.key, value: $0.value) },
-            serverID: serverID
-        )
-    }
-
+    /// The section's raw `/filters` rows, for the genre menu
+    /// (`LibraryGenreSupport`).
     func getLibraryFilters(sectionId: String, serverID: String? = nil) async throws -> [PlexLibraryFilter] {
-        try await fetchDirectories(path: "/library/sections/\(sectionId)/filters", serverID: serverID)
+        try await plexCatalog(on: resolveServerID(serverID)).rawFilters(libraryID: sectionId)
     }
 
+    /// The values of one raw `/filters` row, for the genre menu.
     func getLibraryFilterValues(path: String, serverID: String? = nil) async throws -> [PlexLibraryFilterValue] {
-        try await fetchDirectories(path: path, serverID: serverID)
+        try await plexCatalog(on: resolveServerID(serverID)).rawFilterValues(path: path)
     }
 
-    /// Lists the collections defined in a library section (video libraries
-    /// have one per channel) via the section's `collection` filter values.
-    /// Each returned `key` plugs directly into
-    /// `getLibraryItems(sectionId:filters: ["collection": key])`.
+    /// A video library's channels. Each returned `key` plugs into
+    /// `getLibraryItems(sectionId:filters: ["collection": key])` or
+    /// `LibraryFilter.collectionID`.
     func getLibraryCollections(sectionId: String, serverID: String? = nil) async throws -> [MediaCollection] {
-        let targetID = try resolveServerID(serverID)
-        let values: [PlexLibraryFilterValue] = try await fetchDirectories(
-            path: "/library/sections/\(sectionId)/collection",
-            serverID: targetID
-        )
-        return values.compactMap { MediaCollection(filterValue: $0, serverID: targetID) }
+        try await catalog(on: resolveServerID(serverID)).channelCollections(libraryID: sectionId)
     }
+
+    // MARK: - Children
 
     func getSeasons(showKey: String, serverID: String? = nil) async throws -> [Season] {
-        let targetID = try resolveServerID(serverID)
-        let seasons: [PlexSeasonDTO] = try await fetchMetadata(
-            path: "/library/metadata/\(showKey)/children",
-            serverID: targetID
-        )
-        return seasons.map { PlexItemMapper.map($0, serverID: targetID) }
+        try await catalog(on: resolveServerID(serverID)).seasons(showID: showKey)
     }
 
     func getEpisodes(seasonKey: String, serverID: String? = nil) async throws -> [Episode] {
-        try await fetchEpisodes(path: "/library/metadata/\(seasonKey)/children", serverID: serverID)
+        try await catalog(on: resolveServerID(serverID)).episodes(seasonID: seasonKey)
     }
 
     /// Every episode of a show, across all its seasons, in one request.
     func getAllEpisodes(showKey: String, serverID: String? = nil) async throws -> [Episode] {
-        try await fetchEpisodes(path: "/library/metadata/\(showKey)/allLeaves", serverID: serverID)
+        try await catalog(on: resolveServerID(serverID)).allEpisodes(showID: showKey)
     }
 
     /// Walks forward from an episode to the next one. Everything it reads comes
@@ -221,46 +227,26 @@ extension MediaService {
     /// server excludes from global search: search feeds both the Search screen
     /// and Siri.
     func search(query: String, serverID: String? = nil) async throws -> [SearchSection] {
-        let hubs = try await fetchHomeRows(
-            path: "/hubs/search",
-            queryItems: [
-                URLQueryItem(name: "query", value: query),
-                URLQueryItem(name: "limit", value: "10"),
-                URLQueryItem(name: "includeCollections", value: "0"),
-                URLQueryItem(name: "includeGuids", value: "1"),
-            ],
-            serverID: serverID
-        )
+        let groups = try await catalog(on: resolveServerID(serverID)).searchGroups(query: query)
 
-        return await loadedHiddenLibraryFilter(for: .search).filtering(hubs)
+        return await loadedHiddenLibraryFilter(for: .search).filtering(groups)
             .filter { !$0.items.isEmpty }
             .flatMap { SearchSection.results(from: $0) }
     }
 
+    /// - Parameter checkFiles: when `true`, asks the server to check the
+    ///   backing files first, so a stale/missing version isn't chosen for
+    ///   direct play. Used right before playback.
     func getMediaDetails(
         itemID: String,
         checkFiles: Bool = false,
         serverID: String? = nil
     ) async throws -> MediaDetails {
-        let targetID = try resolveServerID(serverID)
-        let data = try await getMediaDetailsPayload(
-            itemID: itemID,
-            checkFiles: checkFiles,
-            serverID: targetID
-        )
-        let response = try decodeJSON(MetadataResponse<PlexMediaDetailsDTO>.self, from: data, serverID: targetID)
-        let items = response.MediaContainer.Metadata ?? []
-
-        guard let details = items.first else {
-            throw PlexServiceError.decodingError("No metadata found for ratingKey \(itemID)")
-        }
-
-        return PlexItemMapper.map(details, serverID: targetID)
+        try await catalog(on: resolveServerID(serverID)).details(itemID: itemID, checkFiles: checkFiles)
     }
 
-    /// - Parameter checkFiles: when `true`, asks Plex to stat the backing files so
-    ///   each `Part` carries accurate `accessible`/`exists` flags. Used right
-    ///   before playback so a stale/missing version isn't chosen for direct play.
+    /// The raw details payload, for the offline metadata cache. The same
+    /// request `getMediaDetails` makes.
     func getMediaDetailsPayload(
         itemID: String,
         checkFiles: Bool = false,
@@ -286,12 +272,8 @@ extension MediaService {
             serverID: serverID
         )
     }
-
-    // MARK: - Decoding
-
-    private func fetchEpisodes(path: String, serverID: String?) async throws -> [Episode] {
-        let targetID = try resolveServerID(serverID)
-        let episodes: [PlexEpisodeDTO] = try await fetchMetadata(path: path, serverID: targetID)
-        return episodes.map { PlexItemMapper.map($0, serverID: targetID) }
-    }
 }
+
+/// The facade sends the Plex catalog and rating facets' requests
+/// (`PlexCatalogTransport`).
+extension MediaService: PlexCatalogTransport {}
