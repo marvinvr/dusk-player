@@ -741,16 +741,20 @@ One policy for both providers, chosen by the coordinator from
 ### 12.5 Reporting and watched state
 
 ```swift
-protocol UserDataProviding {
-    func report(_ event: PlaybackReport) async              // started / progress / paused / buffering / stopped
+@MainActor protocol UserDataProviding {
+    func report(_ event: PlaybackReport) async throws       // started / progress / paused / buffering / stopped; throws for offline replay
     func setWatched(_ watched: Bool, item: MediaItemID, at date: Date?) async throws
     func setResumeOffset(_ ms: Int, item: MediaItemID, at date: Date?) async throws   // offline replay
     func setFavourite(_ on: Bool, item: MediaItemID) async throws
 }
 ```
 
-`PlaybackReport` carries item, session id, version id, state, position,
-duration, play method and the chosen stream ids. Plex maps it to
+`setResumeOffset` and `setFavourite` are added by the Jellyfin packages that
+first use them (P0-10 declared only what a Plex flow calls).
+
+`PlaybackReport` carries item, session id (nil for an offline replay), the Plex
+Live TV session path, version id, state, position, duration, play method and
+the chosen stream ids. Plex maps it to
 `/:/timeline`; Jellyfin maps `started → /Sessions/Playing`, progress →
 `/Playing/Progress`, `stopped → /Playing/Stopped`, in ticks.
 

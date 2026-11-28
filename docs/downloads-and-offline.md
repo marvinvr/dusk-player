@@ -355,7 +355,11 @@ downloaded container with the wrong engine.
 
 `OfflinePlaybackSyncManager` persists pending actions to `playback-sync.json`.
 Action kinds are `progress` (offset, duration, Plex state, optional watched
-mark), `watched` (scrobble), and `unwatched` (unscrobble).
+mark), `watched` (scrobble), and `unwatched` (unscrobble). Replay goes through
+the server's `UserDataProviding`: `media.submit(PlaybackReport)` for progress
+(throwing, so a refused action stays pending) and `media.setWatched` for the
+watched mark. The stored `plexState` string and the `ratingKey` key keep their
+persisted names.
 
 `PlaybackCoordinator+Timeline` reports every 10 seconds. Live streams report to
 Plex directly. Local downloads record progress locally and opportunistically

@@ -212,23 +212,26 @@ final class OfflinePlaybackSyncManager {
         retryLoopTask = nil
     }
 
+    /// Replays one action on the server it was recorded on, through that
+    /// server's `UserDataProviding`. Throws when the server did not take it,
+    /// so the action stays pending.
     private func sync(_ action: OfflinePlaybackSyncAction) async throws {
+        let item = MediaItemID(serverID: action.serverID, itemID: action.itemID)
         switch action.kind {
         case .progress:
-            try await media.submitTimeline(
-                itemID: action.itemID,
-                state: playbackState(for: action.plexState),
-                timeMs: action.viewOffsetMs ?? 0,
-                durationMs: action.durationMs ?? 0,
-                serverID: action.serverID
-            )
+            try await media.submit(PlaybackReport(
+                item: item,
+                state: Self.reportState(for: action.plexState),
+                positionMs: action.viewOffsetMs ?? 0,
+                durationMs: action.durationMs ?? 0
+            ))
             if action.shouldMarkWatched {
-                try await media.scrobble(itemID: action.itemID, serverID: action.serverID)
+                try await media.setWatched(true, itemID: action.itemID, serverID: action.serverID)
             }
         case .watched:
-            try await media.scrobble(itemID: action.itemID, serverID: action.serverID)
+            try await media.setWatched(true, itemID: action.itemID, serverID: action.serverID)
         case .unwatched:
-            try await media.unscrobble(itemID: action.itemID, serverID: action.serverID)
+            try await media.setWatched(false, itemID: action.itemID, serverID: action.serverID)
         }
     }
 
@@ -386,10 +389,13 @@ final class OfflinePlaybackSyncManager {
         }
     }
 
-    private func playbackState(for value: String?) -> PlaybackState {
+    /// The stored `plexState` string (kept under its persisted name) as a
+    /// report state. Nothing stores "buffering", and an unknown value replays
+    /// as stopped, as it always has.
+    private static func reportState(for value: String?) -> PlaybackReport.State {
         switch value {
         case "playing":
-            return .playing
+            return .progress
         case "paused":
             return .paused
         default:
