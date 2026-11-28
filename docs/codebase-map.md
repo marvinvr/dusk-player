@@ -9,7 +9,9 @@ ownership and flow, not a full symbol index.
 Dusk/Sources
   App/                 App entry, dependency injection, tabs, routes, server connect pass
   Analytics/           Anonymous event + error vocabulary and fire-and-forget reporting
-  Domain/              Plex response models and app-facing media structs
+  Domain/              App-facing media models; Plex payloads decode in Providers/Plex/DTO/
+  Providers/           Core/ server registry; Plex/ DTOs (wire shapes) and Mappers/
+                       (DTO → domain); Jellyfin/ client and DTOs (not wired in yet)
   PlexService/         Plex auth, the multi-server session pool, API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        same-server library copies, the alternates index, and library server labelling
@@ -355,8 +357,8 @@ Supporter:
   read/write and `LibraryOrderStore` for the shared state, not `UserPreferences`.
 - New Seerr endpoint: `SeerrService/`, without widening `PlexService` or adding
   a generic provider protocol.
-- New Plex response shape: `Domain/`, with optional fields where Plex varies by
-  media type.
+- New Plex response shape: a DTO in `Providers/Plex/DTO/`, with optional fields
+  where Plex varies by media type, mapped in `Providers/Plex/Mappers/`.
 - New playback format decision: `StreamResolver`.
 - New engine behavior: concrete engine in `Playback/`, not player UI.
 - New player overlay/control: `Features/Player/`.

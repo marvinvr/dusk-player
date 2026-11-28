@@ -1,10 +1,4 @@
 import Foundation
-import OSLog
-
-private let plexMediaLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
-    category: "PlexMedia"
-)
 
 /// Full metadata for a Plex item including the media/part/stream hierarchy.
 /// Returned from `GET /library/metadata/{itemID}`. Used by StreamResolver

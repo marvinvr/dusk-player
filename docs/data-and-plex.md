@@ -8,7 +8,9 @@ has a separate boundary documented in `docs/seerr-integration.md`.
 ## Responsibilities
 - `PlexService/` owns auth, discovery, request helpers, endpoints, playback
   reporting, direct-play/transcode URLs, and image helpers.
-- `Domain/` owns Plex response shapes plus app-level playback models.
+- `Domain/` owns the app's models plus app-level playback models. Plex response
+  shapes are DTOs in `Providers/Plex/DTO/`, turned into domain values by
+  `Providers/Plex/Mappers/`.
 - `PlexService` is `@MainActor @Observable` and is injected from `DuskApp`.
 - Plex is the source of truth. Do not persist metadata except for explicit
   offline/download support.
@@ -323,9 +325,11 @@ File: `PlexService+Networking.swift`.
 - Use `fetchMetadata<T>` for `MediaContainer.Metadata`.
 - Use `fetchDirectories<T>` for `MediaContainer.Directory`.
 - Use `fetchHubs(...)` for `MediaContainer.Hub`.
-- The fetch helpers decode through `pool.decoder(for: serverID)`, which stamps
-  `serverID` onto every model it decodes. A hand-rolled `JSONDecoder` loses that
-  stamp and produces unattributable items — always go through the pool.
+- The fetch helpers decode through `pool.decoder(for: serverID)`. A DTO carries
+  no server id: pass the resolved server id to its mapper, which stamps it. Items
+  still decoded as domain types (the transitional `PlexItemDecodingBridge`) get
+  it from that decoder. A hand-rolled `JSONDecoder` loses that stamp and
+  produces unattributable items — always go through the pool.
 - Use `decodeJSON(_:from:)` so decode failures become `PlexServiceError`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
 - `PlexTransportSecurity` is the credential transport boundary. Plain HTTP is
@@ -563,7 +567,9 @@ Where to edit:
 - Subtitle search/download endpoints: `PlexService+Subtitles.swift`.
 - Account-level plex.tv settings (library order): `PlexService+LibraryOrder.swift`,
   with the shared state in `LibraryOrderStore.swift`.
-- New response shapes: `Dusk/Sources/Domain/`, near the closest model.
+- New response shapes: a DTO in `Dusk/Sources/Providers/Plex/DTO/` plus its
+  mapping in `Providers/Plex/Mappers/`; the domain type gets a memberwise
+  initialiser, not `Decodable`.
 
 ## Live TV And Guide Endpoints
 
@@ -830,12 +836,12 @@ always carries the server.
   `Decoder.duskServerID`, and `MediaItemID { serverID, itemID }` (Codable key
   `ratingKey`). Item-family values (items, details, seasons, episodes,
   libraries, hub rows) are decoded as Plex DTOs (`Providers/Plex/DTO/`) and
-  built by `PlexItemMapper`, which takes the fetched server's id and stamps it
+  built by `Providers/Plex/Mappers/PlexItemMapper.swift`, which takes the fetched server's id and stamps it
   on everything it builds, nested items included. Their remaining direct
   `Decodable` conformances (`Providers/Plex/PlexItemDecodingBridge.swift`) are
-  transitional forwarders that map with `decoder.duskServerID`. Other models'
-  `init(from:)` still read `decoder.duskServerID` themselves. Do not add
-  post-decode copy helpers or wrappers.
+  transitional forwarders that map with `decoder.duskServerID`; nothing else
+  reads it. Live TV, playlists, photos and history are stamped by their mappers
+  (`Providers/Plex/Mappers/`). Do not add post-decode copy helpers or wrappers.
 - `MediaItem.id`, `MediaDetails.id`, `Episode.id`, and `Season.id` are
   `MediaItemID`; `==`/`hash` include the server. `Library.id` is
   `"<serverID>|<key>"`. `AppNavigationRoute` carries a `MediaItemID`.
@@ -1043,7 +1049,8 @@ order. This also governs movie Continue Watching representatives.
 - Use the existing helper matching the Plex envelope.
 - Route every server call by the item's `serverID`; never let it fall back to
   the primary by accident.
-- Decode through `pool.decoder(for:)` so models keep their server stamp.
+- Decode through `pool.decoder(for:)` and map with the request's server id so
+  models keep their server stamp.
 - Keep failure per server: a 401 or an outage on one server must not clear the
   pool or empty the other servers' content.
 - Preserve account-token vs server-token separation.
